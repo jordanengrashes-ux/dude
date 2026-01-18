@@ -2,7 +2,7 @@
 
 ## Description
 
-Add a brief description of your project here.
+this Game is made as a geometry dash clone 
 
 ## Installation
 
