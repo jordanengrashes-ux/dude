@@ -3,10 +3,1206 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Page</title>
+    <title>Geometry Dash</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+        }
+
+        .dashboard {
+            position: relative;
+            width: 980px;
+            max-height: 95vh;
+            overflow-y: auto;
+            background: linear-gradient(to bottom, #0f0f23, #1a1a3e);
+            border: 4px solid #00d4ff;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 0 30px rgba(0, 212, 255, 0.3);
+        }
+
+        .dashboard h1 {
+            text-align: center;
+            color: #00d4ff;
+            font-size: 36px;
+            margin-bottom: 15px;
+            text-shadow: 0 0 20px rgba(0, 212, 255, 0.8);
+        }
+
+        .dashboard-section {
+            margin-bottom: 15px;
+        }
+
+        .dashboard-section h2 {
+            color: #fff;
+            font-size: 18px;
+            margin-bottom: 10px;
+            border-bottom: 2px solid #00d4ff;
+            padding-bottom: 6px;
+        }
+
+        .skin-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 10px;
+        }
+
+        .skin-option {
+            width: 60px;
+            height: 60px;
+            border: 3px solid #333;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #1a1a3e;
+        }
+
+        .skin-option:hover {
+            border-color: #00d4ff;
+            transform: scale(1.1);
+        }
+
+        .skin-option.selected {
+            border-color: #00ff88;
+            box-shadow: 0 0 15px rgba(0, 255, 136, 0.5);
+        }
+
+        .skin-preview {
+            width: 40px;
+            height: 40px;
+        }
+
+        .level-grid {
+            display: grid;
+            grid-template-columns: repeat(10, 1fr);
+            gap: 8px;
+        }
+
+        .level-card {
+            background: linear-gradient(135deg, #2d2d5a, #1a1a3e);
+            border: 2px solid #333;
+            border-radius: 10px;
+            padding: 10px 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: center;
+        }
+
+        .level-card:hover {
+            border-color: #00d4ff;
+            transform: translateY(-3px);
+        }
+
+        .level-card.locked {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .level-card.locked:hover {
+            transform: none;
+            border-color: #333;
+        }
+
+        .level-number {
+            font-size: 20px;
+            font-weight: bold;
+            color: #00d4ff;
+            text-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
+        }
+
+        .level-name {
+            color: #fff;
+            font-size: 8px;
+            margin: 5px 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .level-difficulty {
+            display: flex;
+            justify-content: center;
+            gap: 1px;
+            margin-top: 5px;
+        }
+
+        .difficulty-star {
+            width: 8px;
+            height: 8px;
+            background: #ff4757;
+            clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+        }
+
+        .difficulty-star.empty {
+            background: #333;
+        }
+
+        .level-best {
+            color: #00ff88;
+            font-size: 8px;
+            margin-top: 4px;
+        }
+
+        .lock-icon {
+            font-size: 16px;
+            color: #666;
+        }
+
+        .game-container {
+            position: relative;
+            width: 980px;
+            height: 520px;
+            background: linear-gradient(to bottom, #0f0f23, #1a1a3e);
+            border: 4px solid #00d4ff;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 0 30px rgba(0, 212, 255, 0.3);
+            display: none;
+        }
+
+        .ground {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 60px;
+            background: linear-gradient(to top, #2d2d5a, #3d3d7a);
+            border-top: 3px solid #00d4ff;
+        }
+
+        .ground-line {
+            position: absolute;
+            bottom: 60px;
+            width: 200%;
+            height: 2px;
+            background: repeating-linear-gradient(90deg, #00d4ff, #00d4ff 20px, transparent 20px, transparent 40px);
+            animation: moveGround 0.5s linear infinite;
+        }
+
+        @keyframes moveGround {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-40px); }
+        }
+
+        .player {
+            position: absolute;
+            bottom: 60px;
+            left: 100px;
+            width: 40px;
+            height: 40px;
+            transition: transform 0.1s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 5;
+        }
+
+        .player.cube.jumping {
+            animation: rotateCube 0.5s linear;
+        }
+
+        @keyframes rotateCube {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(180deg); }
+        }
+
+        .player.ship {
+            width: 50px;
+            height: 30px;
+            clip-path: polygon(0% 50%, 30% 0%, 100% 0%, 100% 100%, 30% 100%);
+        }
+
+        .player.ship.flying-up { transform: rotate(-20deg); }
+        .player.ship.flying-down { transform: rotate(20deg); }
+
+        .player.ufo {
+            width: 50px;
+            height: 35px;
+            border-radius: 50% 50% 20% 20%;
+        }
+
+        .player.ufo::after {
+            content: '';
+            position: absolute;
+            bottom: -5px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 20px;
+            height: 10px;
+            background: rgba(0, 255, 136, 0.5);
+            border-radius: 0 0 50% 50%;
+            animation: ufoGlow 0.5s ease-in-out infinite alternate;
+        }
+
+        @keyframes ufoGlow {
+            0% { opacity: 0.3; height: 10px; }
+            100% { opacity: 0.8; height: 20px; }
+        }
+
+        .player.wave {
+            width: 35px;
+            height: 35px;
+            clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+        }
+
+        .player.wave.moving-up { transform: rotate(-45deg); }
+        .player.wave.moving-down { transform: rotate(45deg); }
+
+        .player.ball {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+        }
+
+        .player.ball.rolling {
+            animation: rollBall 0.3s linear infinite;
+        }
+
+        @keyframes rollBall {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .mode-indicator {
+            position: absolute;
+            top: 75px;
+            left: 80px;
+            color: #00ff88;
+            font-size: 14px;
+            font-weight: bold;
+            text-transform: uppercase;
+            text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+        }
+
+        .jump-indicator {
+            position: absolute;
+            bottom: 70px;
+            left: 20px;
+            display: flex;
+            gap: 5px;
+            z-index: 10;
+        }
+
+        .jump-dot {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            background: #00ff88;
+            border: 2px solid #fff;
+            transition: all 0.2s;
+        }
+
+        .jump-dot.used {
+            background: #333;
+            border-color: #666;
+        }
+
+        .portal {
+            position: absolute;
+            bottom: 60px;
+            width: 30px;
+            height: 100px;
+            border-radius: 15px;
+            z-index: 2;
+            animation: portalPulse 1s ease-in-out infinite;
+        }
+
+        @keyframes portalPulse {
+            0%, 100% { transform: scaleX(1); opacity: 0.8; }
+            50% { transform: scaleX(1.2); opacity: 1; }
+        }
+
+        .portal.cube-portal { background: linear-gradient(to bottom, #00ff88, #00d4ff); box-shadow: 0 0 30px #00ff88; }
+        .portal.ship-portal { background: linear-gradient(to bottom, #ff6b6b, #feca57); box-shadow: 0 0 30px #ff6b6b; }
+        .portal.ufo-portal { background: linear-gradient(to bottom, #a55eea, #5f27cd); box-shadow: 0 0 30px #a55eea; }
+        .portal.wave-portal { background: linear-gradient(to bottom, #00d4ff, #0984e3); box-shadow: 0 0 30px #00d4ff; }
+        .portal.ball-portal { background: linear-gradient(to bottom, #ff9ff3, #f368e0); box-shadow: 0 0 30px #ff9ff3; }
+        .portal.gravity-up-portal { background: linear-gradient(to bottom, #fdcb6e, #f39c12); box-shadow: 0 0 30px #fdcb6e; height: 80px; }
+        .portal.gravity-down-portal { background: linear-gradient(to bottom, #74b9ff, #0984e3); box-shadow: 0 0 30px #74b9ff; height: 80px; }
+
+        .obstacle {
+            position: absolute;
+            bottom: 60px;
+        }
+
+        .obstacle.spike { width: 40px; height: 40px; background: linear-gradient(135deg, #ff4757, #ff3344); clip-path: polygon(50% 0%, 100% 100%, 0% 100%); }
+        .obstacle.block { width: 40px; height: 40px; background: linear-gradient(135deg, #ff6b4a, #ff4757); border: 2px solid #fff; }
+        .obstacle.tall-spike { width: 40px; height: 70px; background: linear-gradient(135deg, #ff4757, #ff3344); clip-path: polygon(50% 0%, 100% 100%, 0% 100%); }
+        .obstacle.double-spike { width: 80px; height: 40px; background: linear-gradient(135deg, #ff4757, #ff3344); clip-path: polygon(12.5% 0%, 25% 100%, 37.5% 0%, 50% 100%, 62.5% 0%, 75% 100%, 87.5% 0%, 100% 100%, 0% 100%); }
+        .obstacle.triple-spike { width: 120px; height: 40px; background: linear-gradient(135deg, #ff4757, #ff3344); clip-path: polygon(8% 0%, 16% 100%, 25% 0%, 33% 100%, 42% 0%, 50% 100%, 58% 0%, 66% 100%, 75% 0%, 83% 100%, 92% 0%, 100% 100%, 0% 100%); }
+        .obstacle.saw { width: 50px; height: 50px; background: linear-gradient(135deg, #ff4757, #c0392b); border-radius: 50%; animation: spinSaw 0.5s linear infinite; border: 3px dashed #fff; }
+        .obstacle.ceiling-spike { width: 40px; height: 40px; background: linear-gradient(135deg, #9b59b6, #8e44ad); clip-path: polygon(50% 100%, 100% 0%, 0% 0%); bottom: auto; top: 80px; }
+        .obstacle.floating-spike { width: 40px; height: 40px; background: linear-gradient(135deg, #e74c3c, #c0392b); clip-path: polygon(50% 0%, 100% 100%, 0% 100%); }
+        .obstacle.floating-block { width: 60px; height: 25px; background: linear-gradient(135deg, #e74c3c, #c0392b); border: 2px solid #fff; }
+        .obstacle.laser { width: 8px; height: 160px; background: linear-gradient(to bottom, #ff0000, #ff6600); bottom: 60px; animation: laserPulse 0.3s ease-in-out infinite; box-shadow: 0 0 20px #ff0000; }
+        .obstacle.wall { width: 30px; height: 120px; background: linear-gradient(135deg, #e74c3c, #c0392b); border: 2px solid #fff; }
+        .obstacle.low-wall { width: 50px; height: 50px; background: linear-gradient(135deg, #e67e22, #d35400); border: 2px solid #fff; }
+        .obstacle.spike-pit { width: 100px; height: 30px; background: linear-gradient(135deg, #ff4757, #ff3344); clip-path: polygon(0% 100%, 10% 0%, 20% 100%, 30% 0%, 40% 100%, 50% 0%, 60% 100%, 70% 0%, 80% 100%, 90% 0%, 100% 100%); }
+        .obstacle.air-spike { width: 40px; height: 40px; background: linear-gradient(135deg, #e056fd, #be2edd); clip-path: polygon(50% 0%, 100% 100%, 0% 100%); }
+        .obstacle.down-spike { width: 40px; height: 40px; background: linear-gradient(135deg, #e056fd, #be2edd); clip-path: polygon(50% 100%, 100% 0%, 0% 0%); }
+        .obstacle.mini-spike { width: 25px; height: 25px; background: linear-gradient(135deg, #ff4757, #ff3344); clip-path: polygon(50% 0%, 100% 100%, 0% 100%); }
+        .obstacle.giant-spike { width: 60px; height: 80px; background: linear-gradient(135deg, #c0392b, #e74c3c); clip-path: polygon(50% 0%, 100% 100%, 0% 100%); }
+        .obstacle.pillar { width: 25px; height: 150px; background: linear-gradient(135deg, #8e44ad, #9b59b6); border: 2px solid #fff; }
+        .obstacle.platform { width: 80px; height: 15px; background: linear-gradient(135deg, #27ae60, #2ecc71); border: 2px solid #fff; }
+
+        @keyframes spinSaw { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes laserPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+        .obstacle.moving { animation: moveUpDown 1s ease-in-out infinite; }
+        .obstacle.fast-moving { animation: moveUpDownFast 0.5s ease-in-out infinite; }
+        .obstacle.side-moving { animation: moveSide 1.5s ease-in-out infinite; }
+
+        @keyframes moveUpDown { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-60px); } }
+        @keyframes moveUpDownFast { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-80px); } }
+        @keyframes moveSide { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(-40px); } }
+
+        .powerup {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            animation: float 1s ease-in-out infinite, glow 0.5s ease-in-out infinite alternate;
+            z-index: 3;
+        }
+
+        .powerup.jump-orb {
+            background: radial-gradient(circle, #00ff88, #00d4ff);
+            border: 3px solid #fff;
+            box-shadow: 0 0 20px #00ff88;
+        }
+
+        @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+        @keyframes glow { 0% { box-shadow: 0 0 10px #00ff88; } 100% { box-shadow: 0 0 25px #00ff88; } }
+
+        /* Victory Animation Styles */
+        .victory-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 15;
+            overflow: hidden;
+        }
+
+        .victory-particle {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            animation: particleFall 2s ease-out forwards;
+        }
+
+        @keyframes particleFall {
+            0% { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(600px) rotate(720deg); opacity: 0; }
+        }
+
+        .victory-flash {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: white;
+            animation: flashAnim 0.5s ease-out forwards;
+            z-index: 14;
+        }
+
+        @keyframes flashAnim {
+            0% { opacity: 0.8; }
+            100% { opacity: 0; }
+        }
+
+        .victory-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            font-size: 48px;
+            font-weight: bold;
+            color: #00ff88;
+            text-shadow: 0 0 30px #00ff88, 0 0 60px #00d4ff;
+            animation: victoryPop 0.5s ease-out 0.3s forwards;
+            z-index: 16;
+        }
+
+        @keyframes victoryPop {
+            0% { transform: translate(-50%, -50%) scale(0) rotate(-10deg); }
+            50% { transform: translate(-50%, -50%) scale(1.2) rotate(5deg); }
+            100% { transform: translate(-50%, -50%) scale(1) rotate(0deg); }
+        }
+
+        .star-burst {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            background: gold;
+            clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+            animation: starBurst 1s ease-out forwards;
+        }
+
+        @keyframes starBurst {
+            0% { transform: scale(0) rotate(0deg); opacity: 1; }
+            50% { transform: scale(1.5) rotate(180deg); opacity: 1; }
+            100% { transform: scale(0) rotate(360deg); opacity: 0; }
+        }
+
+        .score { position: absolute; top: 20px; right: 20px; color: #00d4ff; font-size: 24px; font-weight: bold; text-shadow: 0 0 10px rgba(0, 212, 255, 0.5); }
+        .level-info { position: absolute; top: 20px; left: 80px; color: #fff; font-size: 16px; font-weight: bold; }
+        .level-info span { color: #00d4ff; }
+
+        .progress-bar { position: absolute; top: 50px; left: 80px; right: 20px; height: 8px; background: #333; border-radius: 4px; overflow: hidden; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, #00ff88, #00d4ff); width: 0%; transition: width 0.3s; }
+
+        .message { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #fff; font-size: 28px; font-weight: bold; text-align: center; text-shadow: 0 0 20px rgba(0, 212, 255, 0.8); z-index: 10; }
+        .message span { display: block; font-size: 16px; margin-top: 10px; color: #00d4ff; }
+        .hidden { display: none; }
+
+        .stars { position: absolute; width: 100%; height: 100%; pointer-events: none; }
+        .star { position: absolute; width: 2px; height: 2px; background: #fff; border-radius: 50%; animation: twinkle 1s ease-in-out infinite; }
+        @keyframes twinkle { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+
+        .back-btn { position: absolute; top: 15px; left: 15px; background: linear-gradient(135deg, #ff4757, #ff3344); color: #fff; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-size: 14px; font-weight: bold; z-index: 20; transition: transform 0.2s; }
+        .back-btn:hover { transform: scale(1.1); }
+
+        .stats-bar { display: flex; justify-content: space-around; background: #1a1a3e; padding: 10px; border-radius: 10px; margin-bottom: 12px; }
+        .stat-item { text-align: center; }
+        .stat-value { color: #00d4ff; font-size: 22px; font-weight: bold; }
+        .stat-label { color: #888; font-size: 11px; }
+
+        .color-picker-section { display: flex; align-items: center; gap: 12px; margin-top: 10px; padding: 10px; background: #1a1a3e; border-radius: 10px; }
+        .color-picker-section label { color: #fff; font-size: 13px; }
+        .color-picker-section input[type="color"] { width: 45px; height: 30px; border: none; border-radius: 5px; cursor: pointer; }
+        .apply-color-btn { background: linear-gradient(135deg, #00ff88, #00d4ff); color: #000; border: none; padding: 6px 12px; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 11px; }
+
+        .controls-info { background: #1a1a3e; padding: 10px; border-radius: 10px; margin-top: 12px; }
+        .controls-info h3 { color: #00d4ff; margin-bottom: 6px; font-size: 14px; }
+        .controls-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 5px; }
+        .controls-info p { color: #fff; font-size: 11px; margin: 2px 0; }
+        .controls-info span { color: #00ff88; font-weight: bold; }
+        .mode-info { display: flex; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
+        .mode-badge { padding: 4px 8px; border-radius: 5px; font-size: 10px; font-weight: bold; color: #fff; }
+        .mode-badge.cube { background: linear-gradient(135deg, #00ff88, #00d4ff); color: #000; }
+        .mode-badge.ship { background: linear-gradient(135deg, #ff6b6b, #feca57); }
+        .mode-badge.ufo { background: linear-gradient(135deg, #a55eea, #5f27cd); }
+        .mode-badge.wave { background: linear-gradient(135deg, #00d4ff, #0984e3); }
+        .mode-badge.ball { background: linear-gradient(135deg, #ff9ff3, #f368e0); }
+    </style>
 </head>
 <body>
-    <h1>Welcome</h1>
-    <button>Click Me</button>
+    <div class="dashboard" id="dashboard">
+        <h1>Geometry Dash</h1>
+        <div class="stats-bar">
+            <div class="stat-item"><div class="stat-value" id="totalAttempts">0</div><div class="stat-label">Total Attempts</div></div>
+            <div class="stat-item"><div class="stat-value" id="levelsCompleted">0</div><div class="stat-label">Levels Completed</div></div>
+            <div class="stat-item"><div class="stat-value" id="totalStars">0</div><div class="stat-label">Stars Earned</div></div>
+        </div>
+        <div class="dashboard-section">
+            <h2>Select Your Skin</h2>
+            <div class="skin-grid" id="skinGrid"></div>
+            <div class="color-picker-section">
+                <label>Custom:</label>
+                <input type="color" id="primaryColor" value="#00ff88">
+                <input type="color" id="secondaryColor" value="#00d4ff">
+                <button class="apply-color-btn" onclick="applyCustomColor()">Apply</button>
+            </div>
+        </div>
+        <div class="dashboard-section">
+            <h2>Select Level (1-20)</h2>
+            <div class="level-grid" id="levelGrid"></div>
+        </div>
+        <div class="controls-info">
+            <h3>Controls</h3>
+            <div class="controls-grid">
+                <p><span>HOLD SPACE/CLICK</span> - Jump / Fly Up</p>
+                <p><span>RELEASE</span> - Fall / Go Down</p>
+                <p><span>GREEN ORBS</span> - Restore jumps</p>
+                <p><span>PORTALS</span> - Change mode!</p>
+            </div>
+            <div class="mode-info">
+                <div class="mode-badge cube">CUBE - Tap Jump</div>
+                <div class="mode-badge ship">SHIP - Hold Fly</div>
+                <div class="mode-badge ufo">UFO - Hold Hover</div>
+                <div class="mode-badge wave">WAVE - Hold Up</div>
+                <div class="mode-badge ball">BALL - Tap Flip</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="game-container" id="game">
+        <button class="back-btn" onclick="backToDashboard()">← Back</button>
+        <div class="stars" id="stars"></div>
+        <div class="jump-indicator" id="jumpIndicator">
+            <div class="jump-dot" id="jump1"></div>
+            <div class="jump-dot" id="jump2"></div>
+        </div>
+        <div class="level-info">Level: <span id="currentLevel">1</span> - <span id="levelName">Easy Start</span></div>
+        <div class="mode-indicator" id="modeIndicator">CUBE</div>
+        <div class="score">Score: <span id="score">0</span></div>
+        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+        <div class="message" id="message">Get Ready!<span>Hold SPACE or Click to Start</span></div>
+        <div class="ground-line"></div>
+        <div class="ground"></div>
+        <div class="player cube" id="player"></div>
+    </div>
+
+    <script>
+        const dashboard = document.getElementById('dashboard');
+        const gameContainer = document.getElementById('game');
+        const game = document.getElementById('game');
+        const player = document.getElementById('player');
+        const scoreDisplay = document.getElementById('score');
+        const message = document.getElementById('message');
+        const starsContainer = document.getElementById('stars');
+        const progressFill = document.getElementById('progressFill');
+        const currentLevelDisplay = document.getElementById('currentLevel');
+        const levelNameDisplay = document.getElementById('levelName');
+        const skinGrid = document.getElementById('skinGrid');
+        const levelGrid = document.getElementById('levelGrid');
+        const jumpIndicator = document.getElementById('jumpIndicator');
+        const jump1Dot = document.getElementById('jump1');
+        const jump2Dot = document.getElementById('jump2');
+        const modeIndicator = document.getElementById('modeIndicator');
+
+        let isGameRunning = false;
+        let score = 0;
+        let gameSpeed = 5;
+        let obstacles = [];
+        let powerups = [];
+        let portals = [];
+        let animationId;
+        let playerY = 0;
+        let playerVelocity = 0;
+        const gravity = 0.9;
+        const jumpStrength = 16;
+        let currentLevel = 1;
+        let levelProgress = 0;
+        let levelLength = 100;
+        let spawnTimeout;
+        let portalTimeout;
+
+        let currentMode = 'cube';
+        let gravityDirection = 1;
+        let isHolding = false;
+
+        let jumpsRemaining = 2;
+        let maxJumps = 2;
+
+        // Seeded random number generator for consistent level layouts
+        let levelSeed = 1;
+        let seededRandom = null;
+
+        function createSeededRandom(seed) {
+            return function() {
+                seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+                return seed / 0x7fffffff;
+            };
+        }
+
+        function resetLevelSeed() {
+            levelSeed = currentLevel * 12345 + 67890;
+            seededRandom = createSeededRandom(levelSeed);
+        }
+
+        let playerData = {
+            selectedSkin: 0,
+            customColors: { primary: '#00ff88', secondary: '#00d4ff' },
+            unlockedLevels: Array(20).fill(false),
+            bestScores: Array(20).fill(0),
+            totalAttempts: 0,
+            levelsCompleted: 0,
+            starsEarned: 0
+        };
+        playerData.unlockedLevels[0] = true;
+
+        const skins = [
+            { name: 'Classic', primary: '#00ff88', secondary: '#00d4ff', shape: 'square' },
+            { name: 'Fire', primary: '#ff4757', secondary: '#ff6b4a', shape: 'square' },
+            { name: 'Ice', primary: '#74b9ff', secondary: '#0984e3', shape: 'square' },
+            { name: 'Gold', primary: '#f9ca24', secondary: '#f0932b', shape: 'square' },
+            { name: 'Purple', primary: '#a55eea', secondary: '#8854d0', shape: 'square' },
+            { name: 'Neon', primary: '#00ff00', secondary: '#ff00ff', shape: 'square' },
+            { name: 'Sunset', primary: '#fd79a8', secondary: '#e84393', shape: 'diamond' },
+            { name: 'Ocean', primary: '#00cec9', secondary: '#006266', shape: 'diamond' },
+            { name: 'Lava', primary: '#ff3838', secondary: '#ff9f1a', shape: 'diamond' },
+            { name: 'Forest', primary: '#20bf6b', secondary: '#26de81', shape: 'diamond' },
+            { name: 'Galaxy', primary: '#9b59b6', secondary: '#3498db', shape: 'circle' },
+            { name: 'Rainbow', primary: '#ff0000', secondary: '#00ff00', shape: 'circle', rainbow: true }
+        ];
+
+        const levels = [
+            { name: 'First Steps', difficulty: 1, speed: 5, length: 50, obstacleTypes: ['spike', 'low-wall'], spawnRate: { min: 1400, max: 2200 }, hasJumpOrbs: true, portalTypes: [], description: 'Learn basics' },
+            { name: 'Double Trouble', difficulty: 1, speed: 5.5, length: 55, obstacleTypes: ['spike', 'double-spike', 'low-wall'], spawnRate: { min: 1300, max: 2000 }, hasJumpOrbs: true, portalTypes: [], description: 'More spikes' },
+            { name: 'Ship Intro', difficulty: 2, speed: 6, length: 60, obstacleTypes: ['spike', 'double-spike', 'air-spike'], spawnRate: { min: 1100, max: 1800 }, hasJumpOrbs: true, portalTypes: ['ship', 'cube'], portalFrequency: 0.15, description: 'Learn to fly' },
+            { name: 'Sky High', difficulty: 2, speed: 6.5, length: 65, obstacleTypes: ['spike', 'air-spike', 'down-spike', 'block'], spawnRate: { min: 1000, max: 1700 }, hasJumpOrbs: true, portalTypes: ['ship', 'cube'], portalFrequency: 0.12, description: 'Fly higher' },
+            { name: 'UFO Zone', difficulty: 2, speed: 7, length: 70, obstacleTypes: ['spike', 'double-spike', 'air-spike', 'down-spike'], spawnRate: { min: 950, max: 1600 }, hasJumpOrbs: true, portalTypes: ['ufo', 'cube', 'ship'], portalFrequency: 0.12, description: 'Hover mode' },
+            { name: 'Wave Rider', difficulty: 3, speed: 7.5, length: 75, obstacleTypes: ['spike', 'triple-spike', 'air-spike', 'down-spike'], spawnRate: { min: 900, max: 1500 }, hasJumpOrbs: true, portalTypes: ['wave', 'cube', 'ship'], portalFrequency: 0.12, hasMovingObstacles: true, description: 'Ride waves' },
+            { name: 'Gravity Flip', difficulty: 3, speed: 8, length: 80, obstacleTypes: ['spike', 'double-spike', 'ceiling-spike', 'saw'], spawnRate: { min: 850, max: 1400 }, hasJumpOrbs: true, portalTypes: ['ball', 'cube', 'gravity-up', 'gravity-down'], portalFrequency: 0.15, hasMovingObstacles: true, description: 'Flip gravity' },
+            { name: 'Mixed Modes', difficulty: 3, speed: 8.5, length: 85, obstacleTypes: ['spike', 'double-spike', 'triple-spike', 'saw', 'wall'], spawnRate: { min: 800, max: 1300 }, hasJumpOrbs: true, portalTypes: ['cube', 'ship', 'ufo', 'wave'], portalFrequency: 0.1, hasMovingObstacles: true, description: 'All modes' },
+            { name: 'Speed Demon', difficulty: 4, speed: 9, length: 90, obstacleTypes: ['spike', 'double-spike', 'triple-spike', 'tall-spike', 'saw'], spawnRate: { min: 700, max: 1200 }, hasJumpOrbs: true, portalTypes: ['cube', 'ship', 'ufo', 'wave', 'ball'], portalFrequency: 0.1, hasMovingObstacles: true, description: 'Go fast!' },
+            { name: 'Laser Intro', difficulty: 4, speed: 9.5, length: 95, obstacleTypes: ['spike', 'double-spike', 'laser', 'saw', 'air-spike'], spawnRate: { min: 650, max: 1100 }, hasJumpOrbs: true, portalTypes: ['cube', 'ship', 'ufo'], portalFrequency: 0.1, hasMovingObstacles: true, description: 'Dodge lasers' },
+            { name: 'Chaos Zone', difficulty: 4, speed: 10, length: 100, obstacleTypes: ['spike', 'double-spike', 'triple-spike', 'tall-spike', 'saw', 'wall', 'spike-pit'], spawnRate: { min: 600, max: 1000 }, hasJumpOrbs: true, portalTypes: ['cube', 'ship', 'ufo', 'wave', 'ball'], portalFrequency: 0.1, hasMovingObstacles: true, description: 'Pure chaos' },
+            { name: 'Gravity Hell', difficulty: 4, speed: 10.5, length: 105, obstacleTypes: ['spike', 'triple-spike', 'ceiling-spike', 'saw', 'laser'], spawnRate: { min: 550, max: 950 }, hasJumpOrbs: true, portalTypes: ['ball', 'cube', 'gravity-up', 'gravity-down'], portalFrequency: 0.12, hasMovingObstacles: true, description: 'Flip madness' },
+            { name: 'Laser Fury', difficulty: 5, speed: 11, length: 110, obstacleTypes: ['spike', 'double-spike', 'triple-spike', 'laser', 'saw', 'ceiling-spike'], spawnRate: { min: 500, max: 900 }, hasJumpOrbs: true, portalTypes: ['cube', 'ship', 'ufo', 'wave', 'ball', 'gravity-up', 'gravity-down'], portalFrequency: 0.1, hasMovingObstacles: true, description: 'Laser hell' },
+            { name: 'Death Run', difficulty: 5, speed: 11.5, length: 120, obstacleTypes: ['spike', 'double-spike', 'triple-spike', 'tall-spike', 'giant-spike', 'saw', 'wall', 'laser'], spawnRate: { min: 450, max: 850 }, hasJumpOrbs: true, portalTypes: ['cube', 'ship', 'ufo', 'wave', 'ball', 'gravity-up', 'gravity-down'], portalFrequency: 0.08, hasMovingObstacles: true, hasFastMoving: true, description: 'Run or die' },
+            { name: 'Nightmare', difficulty: 5, speed: 12, length: 130, obstacleTypes: ['spike', 'double-spike', 'triple-spike', 'tall-spike', 'giant-spike', 'saw', 'wall', 'laser', 'ceiling-spike', 'pillar'], spawnRate: { min: 400, max: 800 }, hasJumpOrbs: true, portalTypes: ['cube', 'ship', 'ufo', 'wave', 'ball', 'gravity-up', 'gravity-down'], portalFrequency: 0.08, hasMovingObstacles: true, hasFastMoving: true, description: 'Bad dreams' },
+            { name: 'Insanity', difficulty: 5, speed: 12.5, length: 140, obstacleTypes: ['spike', 'double-spike', 'triple-spike', 'tall-spike', 'giant-spike', 'saw', 'wall', 'laser', 'ceiling-spike', 'air-spike', 'down-spike'], spawnRate: { min: 380, max: 750 }, hasJumpOrbs: true, portalTypes: ['cube', 'ship', 'ufo', 'wave', 'ball', 'gravity-up', 'gravity-down'], portalFrequency: 0.08, hasMovingObstacles: true, hasFastMoving: true, description: 'Go insane' },
+            { name: 'Demon', difficulty: 5, speed: 13, length: 150, obstacleTypes: ['spike', 'double-spike', 'triple-spike', 'tall-spike', 'giant-spike', 'saw', 'wall', 'laser', 'ceiling-spike', 'pillar', 'spike-pit'], spawnRate: { min: 350, max: 700 }, hasJumpOrbs: true, portalTypes: ['cube', 'ship', 'ufo', 'wave', 'ball', 'gravity-up', 'gravity-down'], portalFrequency: 0.07, hasMovingObstacles: true, hasFastMoving: true, description: 'Face demons' },
+            { name: 'Extreme Demon', difficulty: 5, speed: 13.5, length: 160, obstacleTypes: ['spike', 'double-spike', 'triple-spike', 'tall-spike', 'giant-spike', 'saw', 'wall', 'laser', 'ceiling-spike', 'pillar', 'spike-pit', 'mini-spike'], spawnRate: { min: 320, max: 650 }, hasJumpOrbs: true, portalTypes: ['cube', 'ship', 'ufo', 'wave', 'ball', 'gravity-up', 'gravity-down'], portalFrequency: 0.07, hasMovingObstacles: true, hasFastMoving: true, description: 'Extreme!' },
+            { name: 'Hell', difficulty: 5, speed: 14, length: 175, obstacleTypes: ['spike', 'double-spike', 'triple-spike', 'tall-spike', 'giant-spike', 'saw', 'wall', 'laser', 'ceiling-spike', 'pillar', 'spike-pit', 'air-spike', 'down-spike'], spawnRate: { min: 300, max: 600 }, hasJumpOrbs: true, portalTypes: ['cube', 'ship', 'ufo', 'wave', 'ball', 'gravity-up', 'gravity-down'], portalFrequency: 0.06, hasMovingObstacles: true, hasFastMoving: true, description: 'Welcome to hell' },
+            { name: 'IMPOSSIBLE', difficulty: 5, speed: 15, length: 200, obstacleTypes: ['spike', 'double-spike', 'triple-spike', 'tall-spike', 'giant-spike', 'saw', 'wall', 'laser', 'ceiling-spike', 'pillar', 'spike-pit', 'air-spike', 'down-spike', 'mini-spike', 'floating-spike', 'floating-block'], spawnRate: { min: 280, max: 550 }, hasJumpOrbs: true, portalTypes: ['cube', 'ship', 'ufo', 'wave', 'ball', 'gravity-up', 'gravity-down'], portalFrequency: 0.06, hasMovingObstacles: true, hasFastMoving: true, description: 'Legends only!' }
+        ];
+
+        function loadPlayerData() {
+            const saved = localStorage.getItem('geometryDashDataV3');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                playerData = { ...playerData, ...parsed };
+                if (playerData.unlockedLevels.length < 20) {
+                    playerData.unlockedLevels = [...playerData.unlockedLevels, ...Array(20 - playerData.unlockedLevels.length).fill(false)];
+                    playerData.bestScores = [...playerData.bestScores, ...Array(20 - playerData.bestScores.length).fill(0)];
+                }
+            }
+        }
+
+        function savePlayerData() {
+            localStorage.setItem('geometryDashDataV3', JSON.stringify(playerData));
+        }
+
+        function initDashboard() {
+            loadPlayerData();
+            renderSkins();
+            renderLevels();
+            updateStats();
+        }
+
+        function renderSkins() {
+            skinGrid.innerHTML = '';
+            skins.forEach((skin, index) => {
+                const skinOption = document.createElement('div');
+                skinOption.className = `skin-option ${playerData.selectedSkin === index ? 'selected' : ''}`;
+                skinOption.onclick = () => selectSkin(index);
+                const preview = document.createElement('div');
+                preview.className = 'skin-preview';
+                preview.style.background = skin.rainbow ? 'linear-gradient(135deg, red, orange, yellow, green, blue, purple)' : `linear-gradient(135deg, ${skin.primary}, ${skin.secondary})`;
+                preview.style.border = '2px solid #fff';
+                if (skin.shape === 'diamond') { preview.style.transform = 'rotate(45deg)'; preview.style.width = '28px'; preview.style.height = '28px'; }
+                else if (skin.shape === 'circle') { preview.style.borderRadius = '50%'; }
+                skinOption.appendChild(preview);
+                skinGrid.appendChild(skinOption);
+            });
+        }
+
+        function selectSkin(index) {
+            playerData.selectedSkin = index;
+            savePlayerData();
+            renderSkins();
+        }
+
+        function applyCustomColor() {
+            playerData.customColors = { primary: document.getElementById('primaryColor').value, secondary: document.getElementById('secondaryColor').value };
+            playerData.selectedSkin = -1;
+            savePlayerData();
+            renderSkins();
+            document.querySelectorAll('.skin-option').forEach(el => el.classList.remove('selected'));
+        }
+
+        function renderLevels() {
+            levelGrid.innerHTML = '';
+            levels.forEach((level, index) => {
+                const levelCard = document.createElement('div');
+                levelCard.className = `level-card ${!playerData.unlockedLevels[index] ? 'locked' : ''}`;
+                if (playerData.unlockedLevels[index]) levelCard.onclick = () => startLevel(index + 1);
+                levelCard.innerHTML = `
+                    <div class="level-number">${playerData.unlockedLevels[index] ? index + 1 : '<span class="lock-icon">🔒</span>'}</div>
+                    <div class="level-name">${level.name}</div>
+                    <div class="level-difficulty">${Array(5).fill(0).map((_, i) => `<div class="difficulty-star ${i < level.difficulty ? '' : 'empty'}"></div>`).join('')}</div>
+                    <div class="level-best">${playerData.unlockedLevels[index] ? `${playerData.bestScores[index]}%` : ''}</div>
+                `;
+                levelGrid.appendChild(levelCard);
+            });
+        }
+
+        function updateStats() {
+            document.getElementById('totalAttempts').textContent = playerData.totalAttempts;
+            document.getElementById('levelsCompleted').textContent = playerData.levelsCompleted;
+            document.getElementById('totalStars').textContent = playerData.starsEarned;
+        }
+
+        function updateJumpIndicator() {
+            if (currentMode === 'cube') {
+                jumpIndicator.style.display = 'flex';
+                jump1Dot.classList.toggle('used', jumpsRemaining < 1);
+                jump2Dot.classList.toggle('used', jumpsRemaining < 2);
+            } else {
+                jumpIndicator.style.display = 'none';
+            }
+        }
+
+        function setMode(mode) {
+            currentMode = mode;
+            player.className = `player ${mode}`;
+            modeIndicator.textContent = mode.toUpperCase();
+            applyPlayerSkin();
+            updateJumpIndicator();
+            if (mode === 'ball') player.classList.add('rolling');
+        }
+
+        function startLevel(level) {
+            currentLevel = level;
+            const levelData = levels[level - 1];
+            gameSpeed = levelData.speed;
+            levelLength = levelData.length;
+            levelProgress = 0;
+            jumpsRemaining = maxJumps;
+            currentMode = 'cube';
+            gravityDirection = 1;
+            isHolding = false;
+            currentLevelDisplay.textContent = level;
+            levelNameDisplay.textContent = levelData.name;
+            dashboard.style.display = 'none';
+            gameContainer.style.display = 'block';
+            setMode('cube');
+            createStars();
+            updateJumpIndicator();
+            message.innerHTML = `Level ${level}: ${levelData.name}<span>${levelData.description}</span><span>Hold SPACE or Click to Start</span>`;
+            message.classList.remove('hidden');
+        }
+
+        function applyPlayerSkin() {
+            let skin = playerData.selectedSkin === -1 ? { primary: playerData.customColors.primary, secondary: playerData.customColors.secondary, shape: 'square' } : skins[playerData.selectedSkin];
+            player.style.background = skin.rainbow ? 'linear-gradient(135deg, red, orange, yellow, green, blue, purple)' : `linear-gradient(135deg, ${skin.primary}, ${skin.secondary})`;
+            player.style.border = '2px solid #fff';
+        }
+
+        function createStars() {
+            starsContainer.innerHTML = '';
+            for (let i = 0; i < 50; i++) {
+                const star = document.createElement('div');
+                star.className = 'star';
+                star.style.left = Math.random() * 100 + '%';
+                star.style.top = Math.random() * 60 + '%';
+                star.style.animationDelay = Math.random() * 2 + 's';
+                starsContainer.appendChild(star);
+            }
+        }
+
+        function backToDashboard() {
+            isGameRunning = false;
+            cancelAnimationFrame(animationId);
+            clearTimeout(spawnTimeout);
+            clearTimeout(portalTimeout);
+            obstacles.forEach(obs => obs.remove()); obstacles = [];
+            powerups.forEach(p => p.remove()); powerups = [];
+            portals.forEach(p => p.remove()); portals = [];
+            // Clean up victory overlay if exists
+            const existingOverlay = document.getElementById('victoryOverlay');
+            if (existingOverlay) existingOverlay.remove();
+            gameContainer.style.display = 'none';
+            dashboard.style.display = 'block';
+            renderLevels();
+            updateStats();
+        }
+
+        function handleInputStart() {
+            if (!isGameRunning) return;
+            isHolding = true;
+
+            if (currentMode === 'cube' && jumpsRemaining > 0) {
+                playerVelocity = jumpStrength * gravityDirection;
+                jumpsRemaining--;
+                updateJumpIndicator();
+                player.classList.remove('jumping');
+                void player.offsetWidth;
+                player.classList.add('jumping');
+            } else if (currentMode === 'ball') {
+                gravityDirection *= -1;
+            }
+        }
+
+        function handleInputEnd() {
+            isHolding = false;
+        }
+
+        function createObstacle() {
+            const levelData = levels[currentLevel - 1];
+            const rnd = seededRandom || Math.random;
+            const obstacleType = levelData.obstacleTypes[Math.floor(rnd() * levelData.obstacleTypes.length)];
+            const obstacle = document.createElement('div');
+            obstacle.className = `obstacle ${obstacleType}`;
+            obstacle.style.right = '-120px';
+
+            if (['air-spike', 'floating-spike'].includes(obstacleType)) obstacle.style.bottom = (120 + rnd() * 180) + 'px';
+            else if (obstacleType === 'down-spike') obstacle.style.bottom = (200 + rnd() * 120) + 'px';
+            else if (obstacleType === 'floating-block') obstacle.style.bottom = (100 + rnd() * 150) + 'px';
+            else if (obstacleType === 'platform') obstacle.style.bottom = (80 + rnd() * 100) + 'px';
+
+            if (levelData.hasMovingObstacles && rnd() < 0.25 && !['ceiling-spike', 'laser', 'floating-block', 'air-spike', 'down-spike', 'pillar'].includes(obstacleType)) {
+                obstacle.classList.add(levelData.hasFastMoving && rnd() < 0.5 ? 'fast-moving' : 'moving');
+            }
+
+            game.appendChild(obstacle);
+            obstacles.push(obstacle);
+
+            if (levelData.hasJumpOrbs && rnd() < 0.18) setTimeout(() => { if (isGameRunning) createJumpOrb(); }, 300);
+        }
+
+        // Create air obstacles specifically for ship and UFO modes
+        function createAirObstacle() {
+            if (!isGameRunning) return;
+            if (currentMode !== 'ship' && currentMode !== 'ufo') return;
+
+            const rnd = seededRandom || Math.random;
+            const airTypes = ['air-spike', 'down-spike', 'floating-block'];
+            const airType = airTypes[Math.floor(rnd() * airTypes.length)];
+
+            const obstacle = document.createElement('div');
+            obstacle.className = `obstacle ${airType}`;
+            obstacle.style.right = '-60px';
+
+            // Position in the air zone where ship/UFO typically flies
+            if (airType === 'down-spike') {
+                obstacle.style.bottom = (250 + rnd() * 150) + 'px';
+            } else if (airType === 'floating-block') {
+                obstacle.style.bottom = (150 + rnd() * 200) + 'px';
+            } else {
+                obstacle.style.bottom = (120 + rnd() * 220) + 'px';
+            }
+
+            game.appendChild(obstacle);
+            obstacles.push(obstacle);
+        }
+
+        function createJumpOrb() {
+            const rnd = seededRandom || Math.random;
+            const orb = document.createElement('div');
+            orb.className = 'powerup jump-orb';
+            orb.style.right = '-30px';
+            orb.style.bottom = (100 + rnd() * 150) + 'px';
+            game.appendChild(orb);
+            powerups.push(orb);
+        }
+
+        function createPortal() {
+            const rnd = seededRandom || Math.random;
+            const levelData = levels[currentLevel - 1];
+            if (!levelData.portalTypes || levelData.portalTypes.length === 0) return;
+            const portalType = levelData.portalTypes[Math.floor(rnd() * levelData.portalTypes.length)];
+            if (portalType === currentMode) return;
+            if (portalType === 'gravity-up' && gravityDirection === -1) return;
+            if (portalType === 'gravity-down' && gravityDirection === 1) return;
+            const portal = document.createElement('div');
+            portal.className = `portal ${portalType}-portal`;
+            portal.dataset.type = portalType;
+            portal.style.right = '-40px';
+            game.appendChild(portal);
+            portals.push(portal);
+        }
+
+        function spawnObstacles() {
+            if (!isGameRunning) return;
+            const rnd = seededRandom || Math.random;
+            createObstacle();
+            const levelData = levels[currentLevel - 1];
+            if (levelData.difficulty >= 3 && rnd() < 0.3) setTimeout(() => { if (isGameRunning) createObstacle(); }, 200);
+            if (levelData.difficulty >= 4 && rnd() < 0.25) setTimeout(() => { if (isGameRunning) createObstacle(); }, 400);
+            if (levelData.difficulty >= 5 && rnd() < 0.2) setTimeout(() => { if (isGameRunning) createObstacle(); }, 550);
+
+            // Spawn air obstacles for ship/UFO modes
+            if ((currentMode === 'ship' || currentMode === 'ufo') && rnd() < 0.4) {
+                setTimeout(() => { if (isGameRunning) createAirObstacle(); }, 150);
+            }
+
+            const delay = levelData.spawnRate.min + rnd() * (levelData.spawnRate.max - levelData.spawnRate.min);
+            spawnTimeout = setTimeout(spawnObstacles, delay);
+        }
+
+        function spawnPortals() {
+            if (!isGameRunning) return;
+            const rnd = seededRandom || Math.random;
+            const levelData = levels[currentLevel - 1];
+            if (levelData.portalTypes && levelData.portalTypes.length > 0 && rnd() < (levelData.portalFrequency || 0.1)) createPortal();
+            portalTimeout = setTimeout(spawnPortals, 2500 + rnd() * 4000);
+        }
+
+        function updateGame() {
+            if (!isGameRunning) return;
+
+            const groundY = 60;
+            const ceilingY = 400;
+
+            switch (currentMode) {
+                case 'cube':
+                    playerVelocity -= gravity * gravityDirection;
+                    playerY += playerVelocity;
+                    if (gravityDirection === 1 && playerY <= 0) { playerY = 0; jumpsRemaining = maxJumps; updateJumpIndicator(); player.classList.remove('jumping'); }
+                    else if (gravityDirection === -1 && playerY >= ceilingY - groundY - 40) { playerY = ceilingY - groundY - 40; jumpsRemaining = maxJumps; updateJumpIndicator(); player.classList.remove('jumping'); }
+                    break;
+                case 'ship':
+                    if (isHolding) { playerVelocity += 1.5 * gravityDirection; player.classList.add('flying-up'); player.classList.remove('flying-down'); }
+                    else { playerVelocity -= 1.0 * gravityDirection; player.classList.add('flying-down'); player.classList.remove('flying-up'); }
+                    playerVelocity = Math.max(-14, Math.min(14, playerVelocity));
+                    playerY += playerVelocity;
+                    if (playerY <= 0) playerY = 0;
+                    if (playerY >= ceilingY - groundY - 30) playerY = ceilingY - groundY - 30;
+                    break;
+                case 'ufo':
+                    if (isHolding) { playerVelocity += 1.2 * gravityDirection; }
+                    else { playerVelocity -= 0.7 * gravityDirection; }
+                    playerVelocity = Math.max(-12, Math.min(12, playerVelocity));
+                    playerY += playerVelocity;
+                    if (playerY <= 0) playerY = 0;
+                    if (playerY >= ceilingY - groundY - 35) playerY = ceilingY - groundY - 35;
+                    break;
+                case 'wave':
+                    if (isHolding) { playerY += 7 * gravityDirection; player.classList.add('moving-up'); player.classList.remove('moving-down'); }
+                    else { playerY -= 7 * gravityDirection; player.classList.add('moving-down'); player.classList.remove('moving-up'); }
+                    if (playerY <= 0) playerY = 0;
+                    if (playerY >= ceilingY - groundY - 35) playerY = ceilingY - groundY - 35;
+                    break;
+                case 'ball':
+                    playerVelocity -= gravity * gravityDirection;
+                    playerY += playerVelocity;
+                    if (gravityDirection === 1 && playerY <= 0) { playerY = 0; playerVelocity = 0; }
+                    else if (gravityDirection === -1 && playerY >= ceilingY - groundY - 40) { playerY = ceilingY - groundY - 40; playerVelocity = 0; }
+                    break;
+            }
+
+            player.style.bottom = (groundY + playerY) + 'px';
+
+            levelProgress += gameSpeed * 0.025;
+            const progressPercent = Math.min((levelProgress / levelLength) * 100, 100);
+            progressFill.style.width = progressPercent + '%';
+            score = Math.floor(progressPercent);
+            scoreDisplay.textContent = score + '%';
+
+            if (progressPercent >= 100) { levelComplete(); return; }
+
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                const obstacle = obstacles[i];
+                let obstacleRight = parseInt(obstacle.style.right) || 0;
+                obstacleRight += gameSpeed;
+                obstacle.style.right = obstacleRight + 'px';
+
+                const playerRect = player.getBoundingClientRect();
+                const obstacleRect = obstacle.getBoundingClientRect();
+                const hitboxShrink = 10;
+
+                if (playerRect.left + hitboxShrink < obstacleRect.right - hitboxShrink &&
+                    playerRect.right - hitboxShrink > obstacleRect.left + hitboxShrink &&
+                    playerRect.top + hitboxShrink < obstacleRect.bottom - hitboxShrink &&
+                    playerRect.bottom - hitboxShrink > obstacleRect.top + hitboxShrink) {
+                    gameOver(); return;
+                }
+
+                if (obstacleRight > 1100) { obstacle.remove(); obstacles.splice(i, 1); }
+            }
+
+            for (let i = powerups.length - 1; i >= 0; i--) {
+                const powerup = powerups[i];
+                let powerupRight = parseInt(powerup.style.right) || 0;
+                powerupRight += gameSpeed;
+                powerup.style.right = powerupRight + 'px';
+
+                const playerRect = player.getBoundingClientRect();
+                const powerupRect = powerup.getBoundingClientRect();
+
+                if (playerRect.left < powerupRect.right && playerRect.right > powerupRect.left &&
+                    playerRect.top < powerupRect.bottom && playerRect.bottom > powerupRect.top) {
+                    if (currentMode === 'cube') { jumpsRemaining = maxJumps; updateJumpIndicator(); }
+                    powerup.remove(); powerups.splice(i, 1); continue;
+                }
+                if (powerupRight > 1100) { powerup.remove(); powerups.splice(i, 1); }
+            }
+
+            for (let i = portals.length - 1; i >= 0; i--) {
+                const portal = portals[i];
+                let portalRight = parseInt(portal.style.right) || 0;
+                portalRight += gameSpeed;
+                portal.style.right = portalRight + 'px';
+
+                const playerRect = player.getBoundingClientRect();
+                const portalRect = portal.getBoundingClientRect();
+
+                if (playerRect.left < portalRect.right && playerRect.right > portalRect.left &&
+                    playerRect.top < portalRect.bottom && playerRect.bottom > portalRect.top) {
+                    const portalType = portal.dataset.type;
+                    if (portalType === 'gravity-up') gravityDirection = -1;
+                    else if (portalType === 'gravity-down') gravityDirection = 1;
+                    else { setMode(portalType); gravityDirection = 1; }
+                    portal.remove(); portals.splice(i, 1); continue;
+                }
+                if (portalRight > 1100) { portal.remove(); portals.splice(i, 1); }
+            }
+
+            animationId = requestAnimationFrame(updateGame);
+        }
+
+        function playVictoryAnimation() {
+            // Create overlay container
+            const overlay = document.createElement('div');
+            overlay.className = 'victory-overlay';
+            overlay.id = 'victoryOverlay';
+            game.appendChild(overlay);
+
+            // White flash effect
+            const flash = document.createElement('div');
+            flash.className = 'victory-flash';
+            overlay.appendChild(flash);
+
+            // Create colorful particles
+            const particleColors = ['#00ff88', '#00d4ff', '#ff4757', '#f9ca24', '#a55eea', '#ff6b6b', '#feca57'];
+            for (let i = 0; i < 60; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'victory-particle';
+                particle.style.left = Math.random() * 100 + '%';
+                particle.style.top = '-20px';
+                particle.style.background = particleColors[Math.floor(Math.random() * particleColors.length)];
+                particle.style.animationDelay = (Math.random() * 0.5) + 's';
+                particle.style.animationDuration = (1.5 + Math.random()) + 's';
+                particle.style.width = (8 + Math.random() * 12) + 'px';
+                particle.style.height = particle.style.width;
+                overlay.appendChild(particle);
+            }
+
+            // Victory text
+            const victoryText = document.createElement('div');
+            victoryText.className = 'victory-text';
+            victoryText.textContent = 'LEVEL COMPLETE!';
+            overlay.appendChild(victoryText);
+
+            // Star bursts
+            for (let i = 0; i < 8; i++) {
+                setTimeout(() => {
+                    const star = document.createElement('div');
+                    star.className = 'star-burst';
+                    star.style.left = (20 + Math.random() * 60) + '%';
+                    star.style.top = (20 + Math.random() * 60) + '%';
+                    overlay.appendChild(star);
+                }, i * 100);
+            }
+
+            // Remove overlay after animation
+            setTimeout(() => {
+                const existingOverlay = document.getElementById('victoryOverlay');
+                if (existingOverlay) existingOverlay.remove();
+            }, 3000);
+        }
+
+        function levelComplete() {
+            isGameRunning = false;
+            cancelAnimationFrame(animationId);
+            clearTimeout(spawnTimeout);
+            clearTimeout(portalTimeout);
+
+            // Play victory animation
+            playVictoryAnimation();
+
+            if (playerData.bestScores[currentLevel - 1] < 100) {
+                playerData.bestScores[currentLevel - 1] = 100;
+                playerData.levelsCompleted++;
+                playerData.starsEarned += levels[currentLevel - 1].difficulty;
+            }
+            if (currentLevel < 20) playerData.unlockedLevels[currentLevel] = true;
+            savePlayerData();
+
+            // Delay showing the message to let animation play
+            setTimeout(() => {
+                message.innerHTML = `Level Complete!<span>+${levels[currentLevel - 1].difficulty} Stars</span><span>Hold SPACE or Click to Continue</span>`;
+                message.classList.remove('hidden');
+            }, 800);
+        }
+
+        function startGame() {
+            if (isGameRunning) return;
+            isGameRunning = true;
+
+            // Reset seeded random for consistent level layout
+            resetLevelSeed();
+
+            // Clean up any victory overlay from previous level
+            const existingOverlay = document.getElementById('victoryOverlay');
+            if (existingOverlay) existingOverlay.remove();
+
+            levelProgress = 0;
+            playerY = 0;
+            playerVelocity = 0;
+            jumpsRemaining = maxJumps;
+            gravityDirection = 1;
+            isHolding = false;
+            scoreDisplay.textContent = '0%';
+            progressFill.style.width = '0%';
+            message.classList.add('hidden');
+            player.style.bottom = '60px';
+            setMode('cube');
+            updateJumpIndicator();
+            playerData.totalAttempts++;
+            savePlayerData();
+            obstacles.forEach(obs => obs.remove()); obstacles = [];
+            powerups.forEach(p => p.remove()); powerups = [];
+            portals.forEach(p => p.remove()); portals = [];
+            updateGame();
+            setTimeout(spawnObstacles, 800);
+            setTimeout(spawnPortals, 2000);
+        }
+
+        function gameOver() {
+            isGameRunning = false;
+            cancelAnimationFrame(animationId);
+            clearTimeout(spawnTimeout);
+            clearTimeout(portalTimeout);
+            const currentProgress = Math.floor((levelProgress / levelLength) * 100);
+            if (currentProgress > playerData.bestScores[currentLevel - 1]) playerData.bestScores[currentLevel - 1] = currentProgress;
+            savePlayerData();
+            message.innerHTML = `Crashed at ${currentProgress}%<span>Hold SPACE or Click to Retry</span>`;
+            message.classList.remove('hidden');
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' && gameContainer.style.display !== 'none') {
+                e.preventDefault();
+                if (!isGameRunning) startGame();
+                else if (!e.repeat) handleInputStart();
+            }
+        });
+
+        document.addEventListener('keyup', (e) => { if (e.code === 'Space') handleInputEnd(); });
+
+        game.addEventListener('mousedown', (e) => {
+            if (e.target.classList.contains('back-btn')) return;
+            if (!isGameRunning) startGame();
+            else handleInputStart();
+        });
+
+        game.addEventListener('mouseup', () => handleInputEnd());
+        game.addEventListener('mouseleave', () => handleInputEnd());
+
+        game.addEventListener('touchstart', (e) => {
+            if (e.target.classList.contains('back-btn')) return;
+            e.preventDefault();
+            if (!isGameRunning) startGame();
+            else handleInputStart();
+        });
+
+        game.addEventListener('touchend', (e) => { e.preventDefault(); handleInputEnd(); });
+
+        initDashboard();
+    </script>
 </body>
 </html>
