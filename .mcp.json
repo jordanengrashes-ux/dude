@@ -1,0 +1,1 @@
+{ "mcpServers": { "ct-devmcp": { "type": "http", "url": "https://devmcp.ct839.com/mcp" }, "context7": { "type": "http", "url": "https://mcp.context7.com/mcp" }, "vexmcp": { "type": "http", "url": "https://vexmcp.ct839.com/mcp" } } }
