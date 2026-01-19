@@ -627,14 +627,41 @@
             </div>
         </div>
         <button class="games-btn" onclick="openSpaceShooter()">🎮 Space Shooter</button>
+        <button class="games-btn" onclick="openArenaShooter()">⚔️ Arena Shooter</button>
+        <button class="games-btn" onclick="openTankGame()">🏆 Tank.io</button>
+        <button class="games-btn" onclick="openCarDrifter()">🚗 Car Drifter</button>
     </div>
 
     <div class="space-shooter-container" id="spaceShooterContainer">
         <button class="back-btn" onclick="closeSpaceShooter()">← Back</button>
         <div class="shooter-score">Score: <span id="shooterScore">0</span></div>
-        <div class="shooter-lives">Lives: <span id="shooterLives">3</span></div>
+        <div class="shooter-lives" id="shooterLives">❤️❤️❤️</div>
         <canvas id="shooterCanvas"></canvas>
         <div class="shooter-message" id="shooterMessage"></div>
+    </div>
+
+    <div class="space-shooter-container" id="arenaShooterContainer">
+        <button class="back-btn" onclick="closeArenaShooter()">← Back</button>
+        <div class="shooter-score">Score: <span id="arenaScore">0</span></div>
+        <div class="shooter-lives" id="arenaLives">❤️❤️❤️</div>
+        <canvas id="arenaCanvas"></canvas>
+        <div class="shooter-message" id="arenaMessage"></div>
+    </div>
+
+    <div class="space-shooter-container" id="tankGameContainer">
+        <button class="back-btn" onclick="closeTankGame()">← Back</button>
+        <div class="shooter-score">Score: <span id="tankScore">0</span></div>
+        <div class="shooter-lives" id="tankLives">❤️❤️❤️</div>
+        <canvas id="tankCanvas"></canvas>
+        <div class="shooter-message" id="tankMessage"></div>
+    </div>
+
+    <div class="space-shooter-container" id="carDrifterContainer">
+        <button class="back-btn" onclick="closeCarDrifter()">← Back</button>
+        <div class="shooter-score">Score: <span id="carScore">0</span></div>
+        <div class="shooter-lives" id="carLives">❤️❤️❤️</div>
+        <canvas id="carCanvas"></canvas>
+        <div class="shooter-message" id="carMessage"></div>
     </div>
 
     <div class="game-container" id="game">
@@ -829,7 +856,8 @@
 
         function updateShooterStats() {
             document.getElementById('shooterScore').textContent = shooterScore;
-            document.getElementById('shooterLives').textContent = shooterLives;
+            const hearts = '❤️'.repeat(shooterLives) + '🖤'.repeat(3 - shooterLives);
+            document.getElementById('shooterLives').textContent = hearts;
         }
 
         function shooterFireBullet() {
@@ -1004,6 +1032,504 @@
             message.classList.add('active');
             setTimeout(() => {
                 closeSpaceShooter();
+                dashboard.style.display = 'block';
+            }, 2500);
+        }
+
+        // ============ ARENA SHOOTER ============
+        let arenaGameRunning = false;
+        let arenaScore = 0;
+        let arenaLives = 3;
+        let arenaCanvas, arenaCtx;
+        let arenaPlayer = { x: 200, y: 250, radius: 15, angle: 0 };
+        let arenaBullets = [];
+        let arenaEnemies = [];
+        let arenaWave = 1;
+        let arenaEnemiesKilled = 0;
+        let arenaAnimationId = null;
+        let arenaKeys = {};
+
+        function openArenaShooter() {
+            arenaCanvas = document.getElementById('arenaCanvas');
+            arenaCtx = arenaCanvas.getContext('2d');
+            arenaCanvas.width = 400;
+            arenaCanvas.height = 500;
+            document.getElementById('arenaShooterContainer').classList.add('active');
+            document.getElementById('arenaMessage').classList.remove('active');
+            arenaScore = 0;
+            arenaLives = 3;
+            arenaBullets = [];
+            arenaEnemies = [];
+            arenaWave = 1;
+            arenaEnemiesKilled = 0;
+            arenaGameRunning = true;
+            updateArenaStats();
+            startArenaGame();
+            spawnArenaWave();
+        }
+
+        function closeArenaShooter() {
+            arenaGameRunning = false;
+            cancelAnimationFrame(arenaAnimationId);
+            document.getElementById('arenaShooterContainer').classList.remove('active');
+        }
+
+        function updateArenaStats() {
+            document.getElementById('arenaScore').textContent = arenaScore;
+            const hearts = '❤️'.repeat(arenaLives) + '🖤'.repeat(3 - arenaLives);
+            document.getElementById('arenaLives').textContent = hearts;
+        }
+
+        function spawnArenaWave() {
+            for (let i = 0; i < 3 + arenaWave; i++) {
+                const angle = (i / (3 + arenaWave)) * Math.PI * 2;
+                arenaEnemies.push({
+                    x: 200 + Math.cos(angle) * 180,
+                    y: 250 + Math.sin(angle) * 180,
+                    radius: 8,
+                    speed: 1 + arenaWave * 0.2,
+                    angle: Math.atan2(250 - (250 + Math.sin(angle) * 180), 200 - (200 + Math.cos(angle) * 180))
+                });
+            }
+        }
+
+        function updateArenaGame() {
+            if (!arenaGameRunning) return;
+            arenaCtx.fillStyle = '#0f0f23';
+            arenaCtx.fillRect(0, 0, arenaCanvas.width, arenaCanvas.height);
+
+            // Draw arena circle
+            arenaCtx.strokeStyle = '#00d4ff';
+            arenaCtx.lineWidth = 2;
+            arenaCtx.beginPath();
+            arenaCtx.arc(200, 250, 200, 0, Math.PI * 2);
+            arenaCtx.stroke();
+
+            // Player rotation
+            if (arenaKeys['ArrowLeft']) arenaPlayer.angle -= 0.1;
+            if (arenaKeys['ArrowRight']) arenaPlayer.angle += 0.1;
+            if (arenaKeys[' ']) {
+                arenaBullets.push({
+                    x: arenaPlayer.x + Math.cos(arenaPlayer.angle) * 15,
+                    y: arenaPlayer.y + Math.sin(arenaPlayer.angle) * 15,
+                    angle: arenaPlayer.angle,
+                    speed: 6,
+                    radius: 3
+                });
+            }
+
+            // Draw player
+            arenaCtx.fillStyle = '#00d4ff';
+            arenaCtx.beginPath();
+            arenaCtx.arc(arenaPlayer.x, arenaPlayer.y, arenaPlayer.radius, 0, Math.PI * 2);
+            arenaCtx.fill();
+            arenaCtx.strokeStyle = '#00ff88';
+            arenaCtx.lineWidth = 2;
+            arenaCtx.beginPath();
+            arenaCtx.moveTo(arenaPlayer.x, arenaPlayer.y);
+            arenaCtx.lineTo(arenaPlayer.x + Math.cos(arenaPlayer.angle) * 20, arenaPlayer.y + Math.sin(arenaPlayer.angle) * 20);
+            arenaCtx.stroke();
+
+            // Update bullets
+            for (let i = arenaBullets.length - 1; i >= 0; i--) {
+                const b = arenaBullets[i];
+                b.x += Math.cos(b.angle) * b.speed;
+                b.y += Math.sin(b.angle) * b.speed;
+                arenaCtx.fillStyle = '#ffff00';
+                arenaCtx.beginPath();
+                arenaCtx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+                arenaCtx.fill();
+                if (Math.hypot(b.x - 200, b.y - 250) > 220) arenaBullets.splice(i, 1);
+            }
+
+            // Update enemies
+            for (let i = arenaEnemies.length - 1; i >= 0; i--) {
+                const e = arenaEnemies[i];
+                e.x += Math.cos(e.angle) * e.speed;
+                e.y += Math.sin(e.angle) * e.speed;
+                arenaCtx.fillStyle = '#ff4757';
+                arenaCtx.beginPath();
+                arenaCtx.arc(e.x, e.y, e.radius, 0, Math.PI * 2);
+                arenaCtx.fill();
+
+                // Collision with player
+                if (Math.hypot(e.x - arenaPlayer.x, e.y - arenaPlayer.y) < arenaPlayer.radius + e.radius) {
+                    arenaLives--;
+                    updateArenaStats();
+                    arenaEnemies.splice(i, 1);
+                    if (arenaLives <= 0) {
+                        arenaGameRunning = false;
+                        showArenaGameOver();
+                        return;
+                    }
+                }
+            }
+
+            // Bullet-enemy collisions
+            for (let i = arenaBullets.length - 1; i >= 0; i--) {
+                for (let j = arenaEnemies.length - 1; j >= 0; j--) {
+                    if (Math.hypot(arenaBullets[i].x - arenaEnemies[j].x, arenaBullets[i].y - arenaEnemies[j].y) < 10) {
+                        arenaScore += 25;
+                        arenaEnemiesKilled++;
+                        arenaBullets.splice(i, 1);
+                        arenaEnemies.splice(j, 1);
+                        updateArenaStats();
+                        if (arenaEnemies.length === 0) {
+                            arenaWave++;
+                            spawnArenaWave();
+                        }
+                        break;
+                    }
+                }
+            }
+
+            arenaAnimationId = requestAnimationFrame(updateArenaGame);
+        }
+
+        function startArenaGame() {
+            window.addEventListener('keydown', (e) => {
+                arenaKeys[e.key] = true;
+                if (e.key === ' ') e.preventDefault();
+            });
+            window.addEventListener('keyup', (e) => {
+                arenaKeys[e.key] = false;
+            });
+            updateArenaGame();
+        }
+
+        function showArenaGameOver() {
+            const message = document.getElementById('arenaMessage');
+            message.innerHTML = `Game Over!<br>Final Score: ${arenaScore}<br>Wave: ${arenaWave}`;
+            message.classList.add('active');
+            setTimeout(() => {
+                closeArenaShooter();
+                dashboard.style.display = 'block';
+            }, 2500);
+        }
+
+        // ============ TANK.IO ============
+        let tankGameRunning = false;
+        let tankScore = 0;
+        let tankLives = 3;
+        let tankCanvas, tankCtx;
+        let tankPlayer = { x: 200, y: 250, radius: 20, vx: 0, vy: 0, gunAngle: 0, size: 20 };
+        let tankBullets = [];
+        let tankEnemies = [];
+        let tankAnimationId = null;
+        let tankKeys = {};
+
+        function openTankGame() {
+            tankCanvas = document.getElementById('tankCanvas');
+            tankCtx = tankCanvas.getContext('2d');
+            tankCanvas.width = 400;
+            tankCanvas.height = 500;
+            document.getElementById('tankGameContainer').classList.add('active');
+            document.getElementById('tankMessage').classList.remove('active');
+            tankScore = 0;
+            tankLives = 3;
+            tankBullets = [];
+            tankEnemies = [];
+            tankPlayer = { x: 200, y: 250, radius: 20, vx: 0, vy: 0, gunAngle: 0, size: 20 };
+            tankGameRunning = true;
+            updateTankStats();
+            startTankGame();
+            spawnTankEnemies();
+        }
+
+        function closeTankGame() {
+            tankGameRunning = false;
+            cancelAnimationFrame(tankAnimationId);
+            document.getElementById('tankGameContainer').classList.remove('active');
+        }
+
+        function updateTankStats() {
+            document.getElementById('tankScore').textContent = tankScore;
+            const hearts = '❤️'.repeat(tankLives) + '🖤'.repeat(3 - tankLives);
+            document.getElementById('tankLives').textContent = hearts;
+        }
+
+        function spawnTankEnemies() {
+            for (let i = 0; i < 3; i++) {
+                tankEnemies.push({
+                    x: Math.random() * 400,
+                    y: Math.random() * 500,
+                    radius: 10,
+                    vx: (Math.random() - 0.5) * 2,
+                    vy: (Math.random() - 0.5) * 2,
+                    size: 10,
+                    health: 1
+                });
+            }
+        }
+
+        function updateTankGame() {
+            if (!tankGameRunning) return;
+            tankCtx.fillStyle = '#0f0f23';
+            tankCtx.fillRect(0, 0, tankCanvas.width, tankCanvas.height);
+
+            // Player movement
+            if (tankKeys['w'] || tankKeys['W']) { tankPlayer.vy -= 0.3; }
+            if (tankKeys['s'] || tankKeys['S']) { tankPlayer.vy += 0.3; }
+            if (tankKeys['a'] || tankKeys['A']) { tankPlayer.vx -= 0.3; }
+            if (tankKeys['d'] || tankKeys['D']) { tankPlayer.vx += 0.3; }
+
+            tankPlayer.vx *= 0.95;
+            tankPlayer.vy *= 0.95;
+            tankPlayer.x += tankPlayer.vx;
+            tankPlayer.y += tankPlayer.vy;
+
+            tankPlayer.x = Math.max(tankPlayer.size, Math.min(400 - tankPlayer.size, tankPlayer.x));
+            tankPlayer.y = Math.max(tankPlayer.size, Math.min(500 - tankPlayer.size, tankPlayer.y));
+
+            // Gun angle
+            if (tankKeys['ArrowLeft']) tankPlayer.gunAngle -= 0.05;
+            if (tankKeys['ArrowRight']) tankPlayer.gunAngle += 0.05;
+            if (tankKeys[' ']) {
+                tankBullets.push({
+                    x: tankPlayer.x + Math.cos(tankPlayer.gunAngle) * 20,
+                    y: tankPlayer.y + Math.sin(tankPlayer.gunAngle) * 20,
+                    vx: Math.cos(tankPlayer.gunAngle) * 6,
+                    vy: Math.sin(tankPlayer.gunAngle) * 6,
+                    radius: 4
+                });
+            }
+
+            // Draw player
+            tankCtx.fillStyle = '#00d4ff';
+            tankCtx.beginPath();
+            tankCtx.arc(tankPlayer.x, tankPlayer.y, tankPlayer.size, 0, Math.PI * 2);
+            tankCtx.fill();
+            tankCtx.strokeStyle = '#00ff88';
+            tankCtx.lineWidth = 2;
+            tankCtx.beginPath();
+            tankCtx.moveTo(tankPlayer.x, tankPlayer.y);
+            tankCtx.lineTo(tankPlayer.x + Math.cos(tankPlayer.gunAngle) * 25, tankPlayer.y + Math.sin(tankPlayer.gunAngle) * 25);
+            tankCtx.stroke();
+
+            // Update and draw bullets
+            for (let i = tankBullets.length - 1; i >= 0; i--) {
+                const b = tankBullets[i];
+                b.x += b.vx;
+                b.y += b.vy;
+                tankCtx.fillStyle = '#ffff00';
+                tankCtx.beginPath();
+                tankCtx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+                tankCtx.fill();
+                if (b.x < 0 || b.x > 400 || b.y < 0 || b.y > 500) tankBullets.splice(i, 1);
+            }
+
+            // Update enemies
+            for (let i = tankEnemies.length - 1; i >= 0; i--) {
+                const e = tankEnemies[i];
+                e.x += e.vx;
+                e.y += e.vy;
+                if (e.x < e.size || e.x > 400 - e.size) e.vx *= -1;
+                if (e.y < e.size || e.y > 500 - e.size) e.vy *= -1;
+
+                tankCtx.fillStyle = '#ff4757';
+                tankCtx.beginPath();
+                tankCtx.arc(e.x, e.y, e.size, 0, Math.PI * 2);
+                tankCtx.fill();
+
+                // Collision with player
+                if (Math.hypot(e.x - tankPlayer.x, e.y - tankPlayer.y) < tankPlayer.size + e.size) {
+                    tankLives--;
+                    updateTankStats();
+                    tankEnemies.splice(i, 1);
+                    if (tankLives <= 0) {
+                        tankGameRunning = false;
+                        showTankGameOver();
+                        return;
+                    }
+                }
+            }
+
+            // Bullet-enemy collisions
+            for (let i = tankBullets.length - 1; i >= 0; i--) {
+                for (let j = tankEnemies.length - 1; j >= 0; j--) {
+                    if (Math.hypot(tankBullets[i].x - tankEnemies[j].x, tankBullets[i].y - tankEnemies[j].y) < 15) {
+                        tankScore += 10;
+                        tankPlayer.size += 2;
+                        tankBullets.splice(i, 1);
+                        tankEnemies.splice(j, 1);
+                        updateTankStats();
+                        break;
+                    }
+                }
+            }
+
+            if (tankEnemies.length === 0) spawnTankEnemies();
+            tankAnimationId = requestAnimationFrame(updateTankGame);
+        }
+
+        function startTankGame() {
+            window.addEventListener('keydown', (e) => {
+                tankKeys[e.key] = true;
+                if (e.key === ' ') e.preventDefault();
+            });
+            window.addEventListener('keyup', (e) => {
+                tankKeys[e.key] = false;
+            });
+            updateTankGame();
+        }
+
+        function showTankGameOver() {
+            const message = document.getElementById('tankMessage');
+            message.innerHTML = `Game Over!<br>Final Score: ${tankScore}<br>Tank Size: ${tankPlayer.size}`;
+            message.classList.add('active');
+            setTimeout(() => {
+                closeTankGame();
+                dashboard.style.display = 'block';
+            }, 2500);
+        }
+
+        // ============ CAR DRIFTER ============
+        let carGameRunning = false;
+        let carScore = 0;
+        let carLives = 3;
+        let carCanvas, carCtx;
+        let carPlayer = { x: 200, y: 400, width: 20, height: 30, angle: -Math.PI / 2, vx: 0, vy: 0, driftAmount: 0 };
+        let carObstacles = [];
+        let carCoins = [];
+        let carAnimationId = null;
+        let carKeys = {};
+        let carDistance = 0;
+
+        function openCarDrifter() {
+            carCanvas = document.getElementById('carCanvas');
+            carCtx = carCanvas.getContext('2d');
+            carCanvas.width = 400;
+            carCanvas.height = 500;
+            document.getElementById('carDrifterContainer').classList.add('active');
+            document.getElementById('carMessage').classList.remove('active');
+            carScore = 0;
+            carLives = 3;
+            carObstacles = [];
+            carCoins = [];
+            carPlayer = { x: 200, y: 400, width: 20, height: 30, angle: -Math.PI / 2, vx: 0, vy: 0, driftAmount: 0 };
+            carDistance = 0;
+            carGameRunning = true;
+            updateCarStats();
+            startCarGame();
+        }
+
+        function closeCarDrifter() {
+            carGameRunning = false;
+            cancelAnimationFrame(carAnimationId);
+            document.getElementById('carDrifterContainer').classList.remove('active');
+        }
+
+        function updateCarStats() {
+            document.getElementById('carScore').textContent = carScore;
+            const hearts = '❤️'.repeat(carLives) + '🖤'.repeat(3 - carLives);
+            document.getElementById('carLives').textContent = hearts;
+        }
+
+        function updateCarGame() {
+            if (!carGameRunning) return;
+            carCtx.fillStyle = '#0f0f23';
+            carCtx.fillRect(0, 0, carCanvas.width, carCanvas.height);
+
+            // Draw road
+            carCtx.fillStyle = '#2a2a4a';
+            carCtx.fillRect(50, 0, 300, carCanvas.height);
+            carCtx.strokeStyle = '#00d4ff';
+            carCtx.lineWidth = 2;
+            carCtx.setLineDash([20, 20]);
+            for (let i = (carDistance % 40) - 40; i < carCanvas.height; i += 40) {
+                carCtx.beginPath();
+                carCtx.moveTo(200, i);
+                carCtx.lineTo(200, i + 20);
+                carCtx.stroke();
+            }
+            carCtx.setLineDash([]);
+
+            // Car movement
+            carPlayer.vy += 0.5;
+            if (carKeys['ArrowLeft']) { carPlayer.angle -= 0.15; carPlayer.driftAmount = -10; }
+            if (carKeys['ArrowRight']) { carPlayer.angle += 0.15; carPlayer.driftAmount = 10; }
+            carPlayer.driftAmount *= 0.9;
+
+            carPlayer.x += Math.cos(carPlayer.angle) * 3 + carPlayer.driftAmount;
+            carPlayer.y += carPlayer.vy * 0.3;
+            carDistance += carPlayer.vy * 0.3;
+
+            carPlayer.x = Math.max(60, Math.min(340, carPlayer.x));
+
+            // Draw car
+            carCtx.save();
+            carCtx.translate(carPlayer.x, carPlayer.y);
+            carCtx.rotate(carPlayer.angle);
+            carCtx.fillStyle = '#ff6b6b';
+            carCtx.fillRect(-10, -15, 20, 30);
+            carCtx.fillStyle = '#00d4ff';
+            carCtx.fillRect(-8, -10, 8, 10);
+            carCtx.fillRect(0, -10, 8, 10);
+            carCtx.restore();
+
+            // Spawn obstacles and coins
+            if (carDistance % 100 < 5) {
+                if (Math.random() > 0.5) carCoins.push({ x: 100 + Math.random() * 200, y: -20 });
+                else carObstacles.push({ x: 100 + Math.random() * 200, y: -30, width: 40, height: 30 });
+            }
+
+            // Update coins
+            for (let i = carCoins.length - 1; i >= 0; i--) {
+                carCoins[i].y += 3;
+                carCtx.fillStyle = '#ffd700';
+                carCtx.beginPath();
+                carCtx.arc(carCoins[i].x, carCoins[i].y, 5, 0, Math.PI * 2);
+                carCtx.fill();
+
+                if (Math.hypot(carCoins[i].x - carPlayer.x, carCoins[i].y - carPlayer.y) < 20) {
+                    carScore += 10;
+                    carCoins.splice(i, 1);
+                    updateCarStats();
+                }
+                if (carCoins[i].y > 500) carCoins.splice(i, 1);
+            }
+
+            // Update obstacles
+            for (let i = carObstacles.length - 1; i >= 0; i--) {
+                carObstacles[i].y += 3;
+                carCtx.fillStyle = '#ff4757';
+                carCtx.fillRect(carObstacles[i].x - 20, carObstacles[i].y, 40, 30);
+
+                if (carPlayer.x > carObstacles[i].x - 25 &&
+                    carPlayer.x < carObstacles[i].x + 25 &&
+                    carPlayer.y > carObstacles[i].y - 20 &&
+                    carPlayer.y < carObstacles[i].y + 30) {
+                    carLives--;
+                    updateCarStats();
+                    carObstacles.splice(i, 1);
+                    if (carLives <= 0) {
+                        carGameRunning = false;
+                        showCarGameOver();
+                        return;
+                    }
+                }
+                if (carObstacles[i].y > 500) carObstacles.splice(i, 1);
+            }
+
+            carAnimationId = requestAnimationFrame(updateCarGame);
+        }
+
+        function startCarGame() {
+            window.addEventListener('keydown', (e) => {
+                carKeys[e.key] = true;
+            });
+            window.addEventListener('keyup', (e) => {
+                carKeys[e.key] = false;
+            });
+            updateCarGame();
+        }
+
+        function showCarGameOver() {
+            const message = document.getElementById('carMessage');
+            message.innerHTML = `Game Over!<br>Final Score: ${carScore}`;
+            message.classList.add('active');
+            setTimeout(() => {
+                closeCarDrifter();
                 dashboard.style.display = 'block';
             }, 2500);
         }
