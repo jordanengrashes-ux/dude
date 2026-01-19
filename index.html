@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Geometry Dash</title>
+    <title>Super Minigames</title>
     <style>
         * {
             margin: 0;
@@ -1236,34 +1236,63 @@
         function updateShooterGame() {
             if (!shooterGameRunning) return;
 
-            shooterCtx.clearRect(0, 0, shooterCanvas.width, shooterCanvas.height);
+            // 3D space background with gradient
+            const bgGradient = shooterCtx.createLinearGradient(0, 0, 0, shooterCanvas.height);
+            bgGradient.addColorStop(0, '#1a1a3e');
+            bgGradient.addColorStop(1, '#0f0f23');
+            shooterCtx.fillStyle = bgGradient;
+            shooterCtx.fillRect(0, 0, shooterCanvas.width, shooterCanvas.height);
 
-            // Draw background stars
+            // 3D parallax stars for depth
             shooterCtx.fillStyle = '#ffffff';
-            for (let i = 0; i < 20; i++) {
+            for (let i = 0; i < 30; i++) {
                 const x = (i * 50 + shooterScore / 10) % shooterCanvas.width;
                 const y = (i * 60) % shooterCanvas.height;
-                shooterCtx.fillRect(x, y, 2, 2);
+                const size = 1 + (i % 3);
+                shooterCtx.globalAlpha = 0.3 + (i % 2) * 0.4;
+                shooterCtx.fillRect(x, y, size, size);
             }
+            shooterCtx.globalAlpha = 1;
 
             // Player movement
             if (shooterKeys['ArrowLeft'] && shooterPlayer.x > 0) shooterPlayer.x -= shooterPlayer.speed;
             if (shooterKeys['ArrowRight'] && shooterPlayer.x + shooterPlayer.width < shooterCanvas.width) shooterPlayer.x += shooterPlayer.speed;
             if (shooterKeys[' ']) shooterFireBullet();
 
-            // Draw player (spaceship)
+            // Draw player spaceship with 3D effect
             shooterCtx.fillStyle = '#00d4ff';
+            shooterCtx.shadowColor = 'rgba(0, 212, 255, 0.6)';
+            shooterCtx.shadowBlur = 15;
             shooterCtx.fillRect(shooterPlayer.x, shooterPlayer.y, shooterPlayer.width, shooterPlayer.height);
+            
+            // Cockpit with 3D glow
             shooterCtx.fillStyle = '#00ff88';
+            shooterCtx.globalAlpha = 0.8;
             shooterCtx.fillRect(shooterPlayer.x + 5, shooterPlayer.y - 8, 4, 8);
             shooterCtx.fillRect(shooterPlayer.x + shooterPlayer.width - 9, shooterPlayer.y - 8, 4, 8);
+            shooterCtx.globalAlpha = 1;
+            shooterCtx.shadowColor = 'transparent';
 
-            // Update and draw bullets
+            // Update and draw bullets with trail
             for (let i = shooterBullets.length - 1; i >= 0; i--) {
                 const bullet = shooterBullets[i];
                 bullet.y -= bullet.speed;
+                
+                // Bullet trail (3D effect)
+                shooterCtx.strokeStyle = 'rgba(255, 255, 0, 0.3)';
+                shooterCtx.lineWidth = 2;
+                shooterCtx.beginPath();
+                shooterCtx.moveTo(bullet.x, bullet.y + 15);
+                shooterCtx.lineTo(bullet.x, bullet.y + 20);
+                shooterCtx.stroke();
+                
+                // Bullet glow
                 shooterCtx.fillStyle = '#ffff00';
+                shooterCtx.shadowColor = 'rgba(255, 255, 0, 0.8)';
+                shooterCtx.shadowBlur = 10;
                 shooterCtx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
+                shooterCtx.shadowColor = 'transparent';
+                
                 if (bullet.y < 0) shooterBullets.splice(i, 1);
             }
 
@@ -1455,10 +1484,27 @@
 
         function updateArenaGame() {
             if (!arenaGameRunning) return;
-            arenaCtx.fillStyle = '#0f0f23';
+            
+            // 3D gradient background
+            const arenaGradient = arenaCtx.createRadialGradient(200, 250, 100, 200, 250, 300);
+            arenaGradient.addColorStop(0, '#1a3a4a');
+            arenaGradient.addColorStop(1, '#0f0f23');
+            arenaCtx.fillStyle = arenaGradient;
             arenaCtx.fillRect(0, 0, arenaCanvas.width, arenaCanvas.height);
 
-            // Draw arena circle
+            // Draw 3D arena circle with shadow
+            arenaCtx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+            arenaCtx.beginPath();
+            arenaCtx.arc(202, 252, 200, 0, Math.PI * 2);
+            arenaCtx.fill();
+
+            // Arena circle with glow
+            arenaCtx.strokeStyle = 'rgba(0, 212, 255, 0.3)';
+            arenaCtx.lineWidth = 4;
+            arenaCtx.beginPath();
+            arenaCtx.arc(200, 250, 200, 0, Math.PI * 2);
+            arenaCtx.stroke();
+            
             arenaCtx.strokeStyle = '#00d4ff';
             arenaCtx.lineWidth = 2;
             arenaCtx.beginPath();
@@ -1478,39 +1524,86 @@
                 });
             }
 
-            // Draw player
+            // Draw player with 3D effect
+            // Shadow
+            arenaCtx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            arenaCtx.beginPath();
+            arenaCtx.arc(arenaPlayer.x + 2, arenaPlayer.y + 2, arenaPlayer.radius, 0, Math.PI * 2);
+            arenaCtx.fill();
+            
+            // Player glow
+            arenaCtx.fillStyle = 'rgba(0, 212, 255, 0.4)';
+            arenaCtx.beginPath();
+            arenaCtx.arc(arenaPlayer.x, arenaPlayer.y, arenaPlayer.radius + 3, 0, Math.PI * 2);
+            arenaCtx.fill();
+
+            // Player body
             arenaCtx.fillStyle = '#00d4ff';
             arenaCtx.beginPath();
             arenaCtx.arc(arenaPlayer.x, arenaPlayer.y, arenaPlayer.radius, 0, Math.PI * 2);
             arenaCtx.fill();
-            arenaCtx.strokeStyle = '#00ff88';
-            arenaCtx.lineWidth = 2;
+
+            // Gun barrel with glow
+            arenaCtx.strokeStyle = 'rgba(0, 255, 136, 0.6)';
+            arenaCtx.lineWidth = 4;
+            arenaCtx.shadowColor = 'rgba(0, 255, 136, 0.5)';
+            arenaCtx.shadowBlur = 8;
             arenaCtx.beginPath();
             arenaCtx.moveTo(arenaPlayer.x, arenaPlayer.y);
             arenaCtx.lineTo(arenaPlayer.x + Math.cos(arenaPlayer.angle) * 20, arenaPlayer.y + Math.sin(arenaPlayer.angle) * 20);
             arenaCtx.stroke();
+            arenaCtx.shadowColor = 'transparent';
 
-            // Update bullets
+            // Update bullets with glow
             for (let i = arenaBullets.length - 1; i >= 0; i--) {
                 const b = arenaBullets[i];
                 b.x += Math.cos(b.angle) * b.speed;
                 b.y += Math.sin(b.angle) * b.speed;
+                
+                // Bullet glow
+                arenaCtx.fillStyle = 'rgba(255, 255, 0, 0.3)';
+                arenaCtx.beginPath();
+                arenaCtx.arc(b.x, b.y, b.radius + 3, 0, Math.PI * 2);
+                arenaCtx.fill();
+                
+                // Bullet
                 arenaCtx.fillStyle = '#ffff00';
+                arenaCtx.shadowColor = 'rgba(255, 255, 0, 0.7)';
+                arenaCtx.shadowBlur = 6;
                 arenaCtx.beginPath();
                 arenaCtx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
                 arenaCtx.fill();
+                arenaCtx.shadowColor = 'transparent';
+                
                 if (Math.hypot(b.x - 200, b.y - 250) > 220) arenaBullets.splice(i, 1);
             }
 
-            // Update enemies
+            // Update enemies with 3D effect
             for (let i = arenaEnemies.length - 1; i >= 0; i--) {
                 const e = arenaEnemies[i];
                 e.x += Math.cos(e.angle) * e.speed;
                 e.y += Math.sin(e.angle) * e.speed;
+                
+                // Enemy shadow
+                arenaCtx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+                arenaCtx.beginPath();
+                arenaCtx.arc(e.x + 1.5, e.y + 1.5, e.radius, 0, Math.PI * 2);
+                arenaCtx.fill();
+                
+                // Enemy glow
+                arenaCtx.fillStyle = 'rgba(255, 68, 68, 0.3)';
+                arenaCtx.beginPath();
+                arenaCtx.arc(e.x, e.y, e.radius + 2, 0, Math.PI * 2);
+                arenaCtx.fill();
+
+                // Enemy body
                 arenaCtx.fillStyle = '#ff4757';
+                arenaCtx.shadowColor = 'rgba(255, 68, 68, 0.6)';
+                arenaCtx.shadowBlur = 8;
                 arenaCtx.beginPath();
                 arenaCtx.arc(e.x, e.y, e.radius, 0, Math.PI * 2);
                 arenaCtx.fill();
+                arenaCtx.shadowColor = 'transparent';
 
                 // Collision with player
                 if (Math.hypot(e.x - arenaPlayer.x, e.y - arenaPlayer.y) < arenaPlayer.radius + e.radius) {
@@ -1634,7 +1727,12 @@
 
         function updateTankGame() {
             if (!tankGameRunning) return;
-            tankCtx.fillStyle = '#0f0f23';
+            
+            // 3D gradient background
+            const tankGradient = tankCtx.createLinearGradient(0, 0, 0, tankCanvas.height);
+            tankGradient.addColorStop(0, '#1a3a4a');
+            tankGradient.addColorStop(1, '#0f0f23');
+            tankCtx.fillStyle = tankGradient;
             tankCtx.fillRect(0, 0, tankCanvas.width, tankCanvas.height);
 
             // Player movement
@@ -1664,31 +1762,66 @@
                 });
             }
 
-            // Draw player
-            tankCtx.fillStyle = '#00d4ff';
+            // Draw player with 3D effect
+            // Tank shadow
+            tankCtx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            tankCtx.beginPath();
+            tankCtx.arc(tankPlayer.x + 2, tankPlayer.y + 2, tankPlayer.size, 0, Math.PI * 2);
+            tankCtx.fill();
+
+            // Tank glow
+            tankCtx.fillStyle = 'rgba(0, 212, 255, 0.3)';
+            tankCtx.beginPath();
+            tankCtx.arc(tankPlayer.x, tankPlayer.y, tankPlayer.size + 2, 0, Math.PI * 2);
+            tankCtx.fill();
+
+            // Tank body with gradient
+            const tankBodyGradient = tankCtx.createRadialGradient(tankPlayer.x, tankPlayer.y, 0, tankPlayer.x, tankPlayer.y, tankPlayer.size);
+            tankBodyGradient.addColorStop(0, '#00ffff');
+            tankBodyGradient.addColorStop(1, '#0088cc');
+            tankCtx.fillStyle = tankBodyGradient;
+            tankCtx.shadowColor = 'rgba(0, 212, 255, 0.6)';
+            tankCtx.shadowBlur = 10;
             tankCtx.beginPath();
             tankCtx.arc(tankPlayer.x, tankPlayer.y, tankPlayer.size, 0, Math.PI * 2);
             tankCtx.fill();
-            tankCtx.strokeStyle = '#00ff88';
-            tankCtx.lineWidth = 2;
+
+            // Gun barrel with glow
+            tankCtx.strokeStyle = 'rgba(0, 255, 136, 0.8)';
+            tankCtx.lineWidth = 4;
+            tankCtx.shadowColor = 'rgba(0, 255, 136, 0.6)';
+            tankCtx.shadowBlur = 10;
             tankCtx.beginPath();
             tankCtx.moveTo(tankPlayer.x, tankPlayer.y);
             tankCtx.lineTo(tankPlayer.x + Math.cos(tankPlayer.gunAngle) * 25, tankPlayer.y + Math.sin(tankPlayer.gunAngle) * 25);
             tankCtx.stroke();
+            tankCtx.shadowColor = 'transparent';
 
-            // Update and draw bullets
+            // Update and draw bullets with glow
             for (let i = tankBullets.length - 1; i >= 0; i--) {
                 const b = tankBullets[i];
                 b.x += b.vx;
                 b.y += b.vy;
+                
+                // Bullet glow
+                tankCtx.fillStyle = 'rgba(255, 255, 0, 0.3)';
+                tankCtx.beginPath();
+                tankCtx.arc(b.x, b.y, b.radius + 2, 0, Math.PI * 2);
+                tankCtx.fill();
+                
+                // Bullet
                 tankCtx.fillStyle = '#ffff00';
+                tankCtx.shadowColor = 'rgba(255, 255, 0, 0.7)';
+                tankCtx.shadowBlur = 6;
                 tankCtx.beginPath();
                 tankCtx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
                 tankCtx.fill();
+                tankCtx.shadowColor = 'transparent';
+                
                 if (b.x < 0 || b.x > 400 || b.y < 0 || b.y > 500) tankBullets.splice(i, 1);
             }
 
-            // Update enemies
+            // Update enemies with 3D effect
             for (let i = tankEnemies.length - 1; i >= 0; i--) {
                 const e = tankEnemies[i];
                 e.x += e.vx;
@@ -1696,10 +1829,29 @@
                 if (e.x < e.size || e.x > 400 - e.size) e.vx *= -1;
                 if (e.y < e.size || e.y > 500 - e.size) e.vy *= -1;
 
-                tankCtx.fillStyle = '#ff4757';
+                // Enemy shadow
+                tankCtx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+                tankCtx.beginPath();
+                tankCtx.arc(e.x + 1.5, e.y + 1.5, e.size, 0, Math.PI * 2);
+                tankCtx.fill();
+
+                // Enemy glow
+                tankCtx.fillStyle = 'rgba(255, 68, 68, 0.3)';
+                tankCtx.beginPath();
+                tankCtx.arc(e.x, e.y, e.size + 2, 0, Math.PI * 2);
+                tankCtx.fill();
+
+                // Enemy body with gradient
+                const enemyGradient = tankCtx.createRadialGradient(e.x, e.y, 0, e.x, e.y, e.size);
+                enemyGradient.addColorStop(0, '#ff8888');
+                enemyGradient.addColorStop(1, '#cc0000');
+                tankCtx.fillStyle = enemyGradient;
+                tankCtx.shadowColor = 'rgba(255, 68, 68, 0.6)';
+                tankCtx.shadowBlur = 8;
                 tankCtx.beginPath();
                 tankCtx.arc(e.x, e.y, e.size, 0, Math.PI * 2);
                 tankCtx.fill();
+                tankCtx.shadowColor = 'transparent';
 
                 // Collision with player
                 if (Math.hypot(e.x - tankPlayer.x, e.y - tankPlayer.y) < tankPlayer.size + e.size) {
@@ -1797,14 +1949,25 @@
 
         function updateCarGame() {
             if (!carGameRunning) return;
-            carCtx.fillStyle = '#0f0f23';
+            
+            // Clear with gradient background for 3D effect
+            const gradient = carCtx.createLinearGradient(0, 0, 0, carCanvas.height);
+            gradient.addColorStop(0, '#1a1a3e');
+            gradient.addColorStop(1, '#0f0f23');
+            carCtx.fillStyle = gradient;
             carCtx.fillRect(0, 0, carCanvas.width, carCanvas.height);
 
-            // Draw road
+            // Draw 3D road with perspective
             carCtx.fillStyle = '#2a2a4a';
             carCtx.fillRect(50, 0, 300, carCanvas.height);
+            
+            // Draw road edges with 3D shadow effect
+            carCtx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            carCtx.fillRect(50, 0, 5, carCanvas.height);
+            carCtx.fillRect(345, 0, 5, carCanvas.height);
+            
             carCtx.strokeStyle = '#00d4ff';
-            carCtx.lineWidth = 2;
+            carCtx.lineWidth = 3;
             carCtx.setLineDash([20, 20]);
             for (let i = (carDistance % 40) - 40; i < carCanvas.height; i += 40) {
                 carCtx.beginPath();
@@ -1816,25 +1979,60 @@
 
             // Car movement
             carPlayer.vy += 0.5;
-            if (carKeys['ArrowLeft']) { carPlayer.angle -= 0.15; carPlayer.driftAmount = -10; }
-            if (carKeys['ArrowRight']) { carPlayer.angle += 0.15; carPlayer.driftAmount = 10; }
+            carPlayer.vy = Math.min(carPlayer.vy, 8);
+            
+            if (carKeys['ArrowLeft'] && carPlayer.x > 70) { 
+                carPlayer.angle -= 0.15; 
+                carPlayer.driftAmount = -12; 
+            }
+            if (carKeys['ArrowRight'] && carPlayer.x < 330) { 
+                carPlayer.angle += 0.15; 
+                carPlayer.driftAmount = 12; 
+            }
             carPlayer.driftAmount *= 0.9;
 
             carPlayer.x += Math.cos(carPlayer.angle) * 3 + carPlayer.driftAmount;
-            carPlayer.y += carPlayer.vy * 0.3;
+            carPlayer.y = 380; // Keep car at bottom
             carDistance += carPlayer.vy * 0.3;
 
-            carPlayer.x = Math.max(60, Math.min(340, carPlayer.x));
+            carPlayer.x = Math.max(70, Math.min(330, carPlayer.x));
 
-            // Draw car
+            // Draw car with 3D shadow
+            carCtx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+            carCtx.fillRect(carPlayer.x - 12, carPlayer.y + 25, 24, 10);
+            
+            // Draw car body with 3D effect
             carCtx.save();
             carCtx.translate(carPlayer.x, carPlayer.y);
             carCtx.rotate(carPlayer.angle);
-            carCtx.fillStyle = '#ff6b6b';
+            
+            // Car body with gradient
+            const carGradient = carCtx.createLinearGradient(-10, -15, -10, 15);
+            carGradient.addColorStop(0, '#ff8787');
+            carGradient.addColorStop(1, '#ff4757');
+            carCtx.fillStyle = carGradient;
             carCtx.fillRect(-10, -15, 20, 30);
+            
+            // Car roof
+            carCtx.fillStyle = '#ff6b6b';
+            carCtx.fillRect(-9, -10, 18, 10);
+            
+            // Windows with 3D effect
             carCtx.fillStyle = '#00d4ff';
-            carCtx.fillRect(-8, -10, 8, 10);
-            carCtx.fillRect(0, -10, 8, 10);
+            carCtx.globalAlpha = 0.7;
+            carCtx.fillRect(-8, -10, 7, 8);
+            carCtx.fillRect(1, -10, 7, 8);
+            carCtx.globalAlpha = 1;
+            
+            // Headlights
+            carCtx.fillStyle = '#ffff00';
+            carCtx.beginPath();
+            carCtx.arc(-5, -14, 2, 0, Math.PI * 2);
+            carCtx.fill();
+            carCtx.beginPath();
+            carCtx.arc(5, -14, 2, 0, Math.PI * 2);
+            carCtx.fill();
+            
             carCtx.restore();
 
             // Spawn obstacles and coins
@@ -1847,9 +2045,12 @@
             for (let i = carCoins.length - 1; i >= 0; i--) {
                 carCoins[i].y += 3;
                 carCtx.fillStyle = '#ffd700';
+                carCtx.shadowColor = 'rgba(255, 215, 0, 0.5)';
+                carCtx.shadowBlur = 8;
                 carCtx.beginPath();
-                carCtx.arc(carCoins[i].x, carCoins[i].y, 5, 0, Math.PI * 2);
+                carCtx.arc(carCoins[i].x, carCoins[i].y, 6, 0, Math.PI * 2);
                 carCtx.fill();
+                carCtx.shadowColor = 'transparent';
 
                 if (Math.hypot(carCoins[i].x - carPlayer.x, carCoins[i].y - carPlayer.y) < 20) {
                     carScore += 10;
@@ -1859,11 +2060,24 @@
                 if (carCoins[i].y > 500) carCoins.splice(i, 1);
             }
 
-            // Update obstacles
+            // Update obstacles with 3D effect
             for (let i = carObstacles.length - 1; i >= 0; i--) {
                 carObstacles[i].y += 3;
-                carCtx.fillStyle = '#ff4757';
+                
+                // Obstacle shadow
+                carCtx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+                carCtx.fillRect(carObstacles[i].x - 20, carObstacles[i].y + 25, 40, 8);
+                
+                // Obstacle body
+                const obsGradient = carCtx.createLinearGradient(carObstacles[i].x, carObstacles[i].y, carObstacles[i].x, carObstacles[i].y + 30);
+                obsGradient.addColorStop(0, '#ff6b6b');
+                obsGradient.addColorStop(1, '#ff4757');
+                carCtx.fillStyle = obsGradient;
                 carCtx.fillRect(carObstacles[i].x - 20, carObstacles[i].y, 40, 30);
+                
+                carCtx.strokeStyle = '#ff0000';
+                carCtx.lineWidth = 2;
+                carCtx.strokeRect(carObstacles[i].x - 20, carObstacles[i].y, 40, 30);
 
                 if (carPlayer.x > carObstacles[i].x - 25 &&
                     carPlayer.x < carObstacles[i].x + 25 &&
