@@ -524,6 +524,105 @@
             box-shadow: 0 0 25px rgba(255, 107, 107, 0.6);
         }
 
+        .games-hub-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .game-hub-card {
+            background: linear-gradient(135deg, #2d2d5a, #1a1a3e);
+            border: 2px solid #00d4ff;
+            border-radius: 10px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: center;
+        }
+
+        .game-hub-card:hover {
+            border-color: #ff6b6b;
+            transform: translateY(-5px);
+            box-shadow: 0 0 20px rgba(255, 107, 107, 0.4);
+        }
+
+        .game-hub-icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+
+        .game-hub-title {
+            color: #00d4ff;
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+
+        .game-hub-desc {
+            color: #aaa;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+
+        .game-info-box {
+            background: linear-gradient(135deg, #2d2d5a, #1a1a3e);
+            border: 2px solid #00d4ff;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            color: #fff;
+        }
+
+        .game-info-box h2 {
+            color: #00d4ff;
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
+        .game-info-box p {
+            margin: 8px 0;
+            line-height: 1.6;
+            color: #ccc;
+        }
+
+        .game-info-box ul {
+            list-style: none;
+            padding: 0;
+            margin: 10px 0;
+        }
+
+        .game-info-box li {
+            padding: 5px 0;
+            color: #ccc;
+            border-bottom: 1px solid #3d3d5a;
+        }
+
+        .game-info-box li:last-child {
+            border-bottom: none;
+        }
+
+        .play-btn {
+            display: block;
+            margin: 20px auto;
+            background: linear-gradient(135deg, #00ff88, #00d4ff);
+            color: #000;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
+        }
+
+        .play-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 30px rgba(0, 255, 136, 0.6);
+        }
+
         .space-shooter-container {
             position: fixed;
             top: 0;
@@ -626,10 +725,111 @@
                 <div class="mode-badge ball">BALL - Tap Flip</div>
             </div>
         </div>
-        <button class="games-btn" onclick="openSpaceShooter()">🎮 Space Shooter</button>
-        <button class="games-btn" onclick="openArenaShooter()">⚔️ Arena Shooter</button>
-        <button class="games-btn" onclick="openTankGame()">🏆 Tank.io</button>
-        <button class="games-btn" onclick="openCarDrifter()">🚗 Car Drifter</button>
+        <button class="games-btn" onclick="goToGameHub()">🎮 Mini Games Hub</button>
+    </div>
+
+    <!-- GAMES HUB DASHBOARD -->
+    <div class="dashboard" id="gamesHubDashboard">
+        <button class="back-btn" onclick="backToDashboard()">← Back</button>
+        <h1>Mini Games</h1>
+        <div class="games-hub-grid">
+            <div class="game-hub-card" onclick="goToSpaceShooterDash()">
+                <div class="game-hub-icon">🎮</div>
+                <div class="game-hub-title">Space Shooter</div>
+                <div class="game-hub-desc">Destroy waves of enemies from above</div>
+            </div>
+            <div class="game-hub-card" onclick="goToArenaShooterDash()">
+                <div class="game-hub-icon">⚔️</div>
+                <div class="game-hub-title">Arena Shooter</div>
+                <div class="game-hub-desc">Survive in a circular arena</div>
+            </div>
+            <div class="game-hub-card" onclick="goToTankDash()">
+                <div class="game-hub-icon">🏆</div>
+                <div class="game-hub-title">Tank.io</div>
+                <div class="game-hub-desc">Drive and destroy enemy tanks</div>
+            </div>
+            <div class="game-hub-card" onclick="goToCarDrifterDash()">
+                <div class="game-hub-icon">🚗</div>
+                <div class="game-hub-title">Car Drifter</div>
+                <div class="game-hub-desc">Collect coins and avoid obstacles</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SPACE SHOOTER DASHBOARD -->
+    <div class="dashboard" id="spaceShooterDash">
+        <button class="back-btn" onclick="goToGameHub()">← Back</button>
+        <h1>Space Shooter</h1>
+        <div class="game-info-box">
+            <h2>How to Play</h2>
+            <p><strong>Controls:</strong> Arrow Left/Right to move, Spacebar to shoot</p>
+            <p><strong>Goal:</strong> Destroy incoming enemy ships</p>
+            <p><strong>Features:</strong></p>
+            <ul>
+                <li>3 Lives to start</li>
+                <li>Collect red hearts to restore health</li>
+                <li>Game gets harder as you progress</li>
+                <li>Score increases with difficulty</li>
+            </ul>
+        </div>
+        <button class="play-btn" onclick="startSpaceShooterGame()">PLAY NOW</button>
+    </div>
+
+    <!-- ARENA SHOOTER DASHBOARD -->
+    <div class="dashboard" id="arenaShooterDash">
+        <button class="back-btn" onclick="goToGameHub()">← Back</button>
+        <h1>Arena Shooter</h1>
+        <div class="game-info-box">
+            <h2>How to Play</h2>
+            <p><strong>Controls:</strong> Arrow Left/Right to rotate, Spacebar to shoot</p>
+            <p><strong>Goal:</strong> Destroy all enemies in each wave</p>
+            <p><strong>Features:</strong></p>
+            <ul>
+                <li>3 Lives to start</li>
+                <li>Waves increase in difficulty</li>
+                <li>360-degree arena combat</li>
+                <li>Bonus points for eliminating waves</li>
+            </ul>
+        </div>
+        <button class="play-btn" onclick="startArenaShooterGame()">PLAY NOW</button>
+    </div>
+
+    <!-- TANK.IO DASHBOARD -->
+    <div class="dashboard" id="tankDash">
+        <button class="back-btn" onclick="goToGameHub()">← Back</button>
+        <h1>Tank.io</h1>
+        <div class="game-info-box">
+            <h2>How to Play</h2>
+            <p><strong>Controls:</strong> WASD to move, Arrow Left/Right to aim, Spacebar to shoot</p>
+            <p><strong>Goal:</strong> Destroy enemy tanks and survive</p>
+            <p><strong>Features:</strong></p>
+            <ul>
+                <li>3 Lives to start</li>
+                <li>Your tank grows as you destroy enemies</li>
+                <li>Continuous enemy spawning</li>
+                <li>Bigger tank = more power</li>
+            </ul>
+        </div>
+        <button class="play-btn" onclick="startTankGame()">PLAY NOW</button>
+    </div>
+
+    <!-- CAR DRIFTER DASHBOARD -->
+    <div class="dashboard" id="carDrifterDash">
+        <button class="back-btn" onclick="goToGameHub()">← Back</button>
+        <h1>Car Drifter</h1>
+        <div class="game-info-box">
+            <h2>How to Play</h2>
+            <p><strong>Controls:</strong> Arrow Left/Right to drift and turn</p>
+            <p><strong>Goal:</strong> Collect coins and avoid obstacles</p>
+            <p><strong>Features:</strong></p>
+            <ul>
+                <li>3 Lives to start</li>
+                <li>Collect golden coins for points</li>
+                <li>Avoid red obstacles</li>
+                <li>Smooth drifting mechanics</li>
+            </ul>
+        </div>
+        <button class="play-btn" onclick="startCarDrifterGame()">PLAY NOW</button>
     </div>
 
     <div class="space-shooter-container" id="spaceShooterContainer">
@@ -826,6 +1026,64 @@
         let shooterLastFireTime = 0;
         let shooterFireCooldown = 200; // milliseconds
         let shooterHeartSpawnChance = 0.015;
+
+        // ============ NAVIGATION FUNCTIONS ============
+        function goToGameHub() {
+            dashboard.style.display = 'none';
+            document.getElementById('gamesHubDashboard').style.display = 'block';
+            document.getElementById('spaceShooterDash').style.display = 'none';
+            document.getElementById('arenaShooterDash').style.display = 'none';
+            document.getElementById('tankDash').style.display = 'none';
+            document.getElementById('carDrifterDash').style.display = 'none';
+            document.getElementById('spaceShooterContainer').classList.remove('active');
+            document.getElementById('arenaShooterContainer').classList.remove('active');
+            document.getElementById('tankGameContainer').classList.remove('active');
+            document.getElementById('carDrifterContainer').classList.remove('active');
+        }
+
+        function goToSpaceShooterDash() {
+            dashboard.style.display = 'none';
+            document.getElementById('gamesHubDashboard').style.display = 'none';
+            document.getElementById('spaceShooterDash').style.display = 'block';
+        }
+
+        function goToArenaShooterDash() {
+            dashboard.style.display = 'none';
+            document.getElementById('gamesHubDashboard').style.display = 'none';
+            document.getElementById('arenaShooterDash').style.display = 'block';
+        }
+
+        function goToTankDash() {
+            dashboard.style.display = 'none';
+            document.getElementById('gamesHubDashboard').style.display = 'none';
+            document.getElementById('tankDash').style.display = 'block';
+        }
+
+        function goToCarDrifterDash() {
+            dashboard.style.display = 'none';
+            document.getElementById('gamesHubDashboard').style.display = 'none';
+            document.getElementById('carDrifterDash').style.display = 'block';
+        }
+
+        function startSpaceShooterGame() {
+            document.getElementById('spaceShooterDash').style.display = 'none';
+            openSpaceShooter();
+        }
+
+        function startArenaShooterGame() {
+            document.getElementById('arenaShooterDash').style.display = 'none';
+            openArenaShooter();
+        }
+
+        function startTankGame() {
+            document.getElementById('tankDash').style.display = 'none';
+            openTankGame();
+        }
+
+        function startCarDrifterGame() {
+            document.getElementById('carDrifterDash').style.display = 'none';
+            openCarDrifter();
+        }
 
         function openSpaceShooter() {
             shooterCanvas = document.getElementById('shooterCanvas');
@@ -1032,7 +1290,7 @@
             message.classList.add('active');
             setTimeout(() => {
                 closeSpaceShooter();
-                dashboard.style.display = 'block';
+                document.getElementById('spaceShooterDash').style.display = 'block';
             }, 2500);
         }
 
@@ -1203,7 +1461,7 @@
             message.classList.add('active');
             setTimeout(() => {
                 closeArenaShooter();
-                dashboard.style.display = 'block';
+                document.getElementById('arenaShooterDash').style.display = 'block';
             }, 2500);
         }
 
@@ -1379,7 +1637,7 @@
             message.classList.add('active');
             setTimeout(() => {
                 closeTankGame();
-                dashboard.style.display = 'block';
+                document.getElementById('tankDash').style.display = 'block';
             }, 2500);
         }
 
@@ -1530,7 +1788,7 @@
             message.classList.add('active');
             setTimeout(() => {
                 closeCarDrifter();
-                dashboard.style.display = 'block';
+                document.getElementById('carDrifterDash').style.display = 'block';
             }, 2500);
         }
 
