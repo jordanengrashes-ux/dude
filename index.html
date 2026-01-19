@@ -503,6 +503,122 @@
         .mode-badge.ufo { background: linear-gradient(135deg, #a55eea, #5f27cd); }
         .mode-badge.wave { background: linear-gradient(135deg, #00d4ff, #0984e3); }
         .mode-badge.ball { background: linear-gradient(135deg, #ff9ff3, #f368e0); }
+
+        .games-btn {
+            display: block;
+            margin: 20px auto 0;
+            background: linear-gradient(135deg, #ff6b6b, #feca57);
+            color: #000;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 0 15px rgba(255, 107, 107, 0.3);
+        }
+
+        .games-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 25px rgba(255, 107, 107, 0.6);
+        }
+
+        .games-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+
+        .games-modal-overlay.active {
+            display: flex;
+        }
+
+        .games-modal {
+            background: linear-gradient(135deg, #0f0f23, #1a1a3e);
+            border: 3px solid #ff6b6b;
+            border-radius: 15px;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 0 50px rgba(255, 107, 107, 0.4);
+            position: relative;
+        }
+
+        .games-modal h2 {
+            color: #ff6b6b;
+            font-size: 28px;
+            margin-bottom: 20px;
+            text-shadow: 0 0 20px rgba(255, 107, 107, 0.5);
+            text-align: center;
+        }
+
+        .games-links {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .game-link {
+            display: flex;
+            flex-direction: column;
+            padding: 15px;
+            background: linear-gradient(135deg, #2d2d5a, #1a1a3e);
+            border: 2px solid #ff6b6b;
+            border-radius: 8px;
+            text-decoration: none;
+            color: #fff;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .game-link:hover {
+            background: linear-gradient(135deg, #3d3d6a, #2a2a4e);
+            border-color: #feca57;
+            transform: translateX(5px);
+            box-shadow: 0 0 15px rgba(255, 107, 107, 0.4);
+        }
+
+        .game-title {
+            color: #ff6b6b;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .game-desc {
+            color: #aaa;
+            font-size: 11px;
+            margin-top: 5px;
+        }
+
+        .modal-close-btn {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: linear-gradient(135deg, #ff6b6b, #ff4757);
+            color: #fff;
+            border: none;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 18px;
+            font-weight: bold;
+            transition: transform 0.2s;
+        }
+
+        .modal-close-btn:hover {
+            transform: scale(1.15);
+        }
     </style>
 </head>
 <body>
@@ -543,6 +659,48 @@
                 <div class="mode-badge ball">BALL - Tap Flip</div>
             </div>
         </div>
+        <button class="games-btn" onclick="openGamesModal()">🎮 Other Games</button>
+    </div>
+
+    <div class="games-modal-overlay" id="gamesModalOverlay" onclick="closeGamesModal(event)">
+        <div class="games-modal" onclick="event.stopPropagation()">
+            <button class="modal-close-btn" onclick="closeGamesModal()">✕</button>
+            <h2>Shooting Games</h2>
+            <div class="games-links">
+                <a href="https://agar.io/" target="_blank" class="game-link">
+                    <span class="game-title">Agar.io</span>
+                    <span class="game-desc">Eat cells and grow bigger</span>
+                </a>
+                <a href="https://slither.io/" target="_blank" class="game-link">
+                    <span class="game-title">Slither.io</span>
+                    <span class="game-desc">Classic snake multiplayer</span>
+                </a>
+                <a href="https://diep.io/" target="_blank" class="game-link">
+                    <span class="game-title">Diep.io</span>
+                    <span class="game-desc">Tank shooting action</span>
+                </a>
+                <a href="https://krunker.io/" target="_blank" class="game-link">
+                    <span class="game-title">Krunker.io</span>
+                    <span class="game-desc">Fast-paced FPS game</span>
+                </a>
+                <a href="https://surviv.io/" target="_blank" class="game-link">
+                    <span class="game-title">Surviv.io</span>
+                    <span class="game-desc">Battle royale shooter</span>
+                </a>
+                <a href="https://generals.io/" target="_blank" class="game-link">
+                    <span class="game-title">Generals.io</span>
+                    <span class="game-desc">Strategy warfare game</span>
+                </a>
+                <a href="https://play.google.com/store/apps/details?id=com.builtin.space" target="_blank" class="game-link">
+                    <span class="game-title">Space Shooter</span>
+                    <span class="game-desc">Classic space shooter</span>
+                </a>
+                <a href="https://zombsroyale.io/" target="_blank" class="game-link">
+                    <span class="game-title">Zombs Royale</span>
+                    <span class="game-desc">2D battle royale game</span>
+                </a>
+            </div>
+        </div>
     </div>
 
     <div class="game-container" id="game">
@@ -579,6 +737,7 @@
         const jump1Dot = document.getElementById('jump1');
         const jump2Dot = document.getElementById('jump2');
         const modeIndicator = document.getElementById('modeIndicator');
+        const gamesModalOverlay = document.getElementById('gamesModalOverlay');
 
         let isGameRunning = false;
         let score = 0;
@@ -680,6 +839,15 @@
                     playerData.bestScores = [...playerData.bestScores, ...Array(20 - playerData.bestScores.length).fill(0)];
                 }
             }
+        }
+
+        function openGamesModal() {
+            gamesModalOverlay.classList.add('active');
+        }
+
+        function closeGamesModal(event) {
+            if (event && event.target !== gamesModalOverlay) return;
+            gamesModalOverlay.classList.remove('active');
         }
 
         function savePlayerData() {
