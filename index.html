@@ -659,6 +659,7 @@
             { name: 'Laser Intro', difficulty: 4, speed: 9.5, length: 95, obstacleTypes: ['spike', 'double-spike', 'laser', 'saw', 'air-spike'], spawnRate: { min: 650, max: 1100 }, hasJumpOrbs: true, portalTypes: ['cube', 'ship', 'ufo'], portalFrequency: 0.1, hasMovingObstacles: true, description: 'Dodge lasers' },
             { name: 'Chaos Zone', difficulty: 4, speed: 10, length: 100, obstacleTypes: ['spike', 'double-spike', 'triple-spike', 'tall-spike', 'saw', 'wall', 'spike-pit'], spawnRate: { min: 600, max: 1000 }, hasJumpOrbs: true, portalTypes: ['cube', 'ship', 'ufo', 'wave', 'ball'], portalFrequency: 0.1, hasMovingObstacles: true, description: 'Pure chaos' },
             { name: 'Gravity Hell', difficulty: 4, speed: 10.5, length: 105, obstacleTypes: ['spike', 'triple-spike', 'ceiling-spike', 'saw', 'laser'], spawnRate: { min: 550, max: 950 }, hasJumpOrbs: true, portalTypes: ['ball', 'cube', 'gravity-up', 'gravity-down'], portalFrequency: 0.12, hasMovingObstacles: true, description: 'Flip madness' },
+            { name: 'Gravity Hell', difficulty: 4, speed: 10.5, length: 105, obstacleTypes: ['spike', 'triple-spike', 'ceiling-spike', 'saw', 'laser'], spawnRate: { min: 550, max: 950 }, hasJumpOrbs: true, portalTypes: ['ball', 'cube', 'gravity-up', 'gravity-down'], portalFrequency: 0.12, hasMovingObstacles: true, description: 'Flip madness' },
             { name: 'Laser Fury', difficulty: 5, speed: 11, length: 110, obstacleTypes: ['spike', 'double-spike', 'triple-spike', 'laser', 'saw', 'ceiling-spike'], spawnRate: { min: 500, max: 900 }, hasJumpOrbs: true, portalTypes: ['cube', 'ship', 'ufo', 'wave', 'ball', 'gravity-up', 'gravity-down'], portalFrequency: 0.1, hasMovingObstacles: true, description: 'Laser hell' },
             { name: 'Death Run', difficulty: 5, speed: 11.5, length: 120, obstacleTypes: ['spike', 'double-spike', 'triple-spike', 'tall-spike', 'giant-spike', 'saw', 'wall', 'laser'], spawnRate: { min: 450, max: 850 }, hasJumpOrbs: true, portalTypes: ['cube', 'ship', 'ufo', 'wave', 'ball', 'gravity-up', 'gravity-down'], portalFrequency: 0.08, hasMovingObstacles: true, hasFastMoving: true, description: 'Run or die' },
             { name: 'Nightmare', difficulty: 5, speed: 12, length: 130, obstacleTypes: ['spike', 'double-spike', 'triple-spike', 'tall-spike', 'giant-spike', 'saw', 'wall', 'laser', 'ceiling-spike', 'pillar'], spawnRate: { min: 400, max: 800 }, hasJumpOrbs: true, portalTypes: ['cube', 'ship', 'ufo', 'wave', 'ball', 'gravity-up', 'gravity-down'], portalFrequency: 0.08, hasMovingObstacles: true, hasFastMoving: true, description: 'Bad dreams' },
@@ -1127,6 +1128,15 @@
                 message.innerHTML = `Level Complete!<span>+${levels[currentLevel - 1].difficulty} Stars</span><span>Hold SPACE or Click to Continue</span>`;
                 message.classList.remove('hidden');
             }, 800);
+
+            // Auto-advance to next level after 3 seconds
+            setTimeout(() => {
+                if (currentLevel < 20) {
+                    startLevel(currentLevel + 1);
+                } else {
+                    message.innerHTML = `You Completed All Levels!<span>You are a legend!</span>`;
+                }
+            }, 3800);
         }
 
         function startGame() {
