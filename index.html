@@ -623,6 +623,87 @@
             box-shadow: 0 0 30px rgba(0, 255, 136, 0.6);
         }
 
+        .home-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .home-screen h1 {
+            font-size: 56px;
+            color: #00d4ff;
+            text-shadow: 0 0 30px rgba(0, 212, 255, 0.8);
+            margin-bottom: 10px;
+            animation: glow 2s ease-in-out infinite;
+        }
+
+        @keyframes glow {
+            0%, 100% { text-shadow: 0 0 20px rgba(0, 212, 255, 0.5); }
+            50% { text-shadow: 0 0 40px rgba(0, 212, 255, 0.8); }
+        }
+
+        .home-screen p {
+            color: #00ff88;
+            font-size: 18px;
+            margin-bottom: 40px;
+            text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+        }
+
+        .home-buttons {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+            max-width: 600px;
+        }
+
+        .home-btn {
+            flex: 1;
+            min-width: 150px;
+            padding: 20px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+        }
+
+        .home-btn-dash {
+            background: linear-gradient(135deg, #00ff88, #00d4ff);
+            color: #000;
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
+        }
+
+        .home-btn-dash:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 30px rgba(0, 255, 136, 0.6);
+        }
+
+        .home-btn-games {
+            background: linear-gradient(135deg, #ff6b6b, #feca57);
+            color: #000;
+            box-shadow: 0 0 20px rgba(255, 107, 107, 0.3);
+        }
+
+        .home-btn-games:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 30px rgba(255, 107, 107, 0.6);
+        }
+
+        .home-screen.hidden {
+            display: none;
+        }
+
         .space-shooter-container {
             position: fixed;
             top: 0;
@@ -688,6 +769,16 @@
     </style>
 </head>
 <body>
+    <!-- HOME SCREEN -->
+    <div class="home-screen" id="homeScreen">
+        <h1>🎮 GAME HUB 🎮</h1>
+        <p>Choose Your Adventure</p>
+        <div class="home-buttons">
+            <button class="home-btn home-btn-dash" onclick="goToGeometryDash()">📈 Geometry Dash</button>
+            <button class="home-btn home-btn-games" onclick="goToGameHub()">🎯 Mini Games</button>
+        </div>
+    </div>
+
     <div class="dashboard" id="dashboard">
         <h1>Geometry Dash</h1>
         <div class="stats-bar">
@@ -1028,7 +1119,18 @@
         let shooterHeartSpawnChance = 0.015;
 
         // ============ NAVIGATION FUNCTIONS ============
+        function goToGeometryDash() {
+            document.getElementById('homeScreen').classList.add('hidden');
+            dashboard.style.display = 'block';
+            document.getElementById('gamesHubDashboard').style.display = 'none';
+            document.getElementById('spaceShooterDash').style.display = 'none';
+            document.getElementById('arenaShooterDash').style.display = 'none';
+            document.getElementById('tankDash').style.display = 'none';
+            document.getElementById('carDrifterDash').style.display = 'none';
+        }
+
         function goToGameHub() {
+            document.getElementById('homeScreen').classList.add('hidden');
             dashboard.style.display = 'none';
             document.getElementById('gamesHubDashboard').style.display = 'block';
             document.getElementById('spaceShooterDash').style.display = 'none';
@@ -1489,9 +1591,10 @@
             tankEnemies = [];
             tankPlayer = { x: 200, y: 250, radius: 20, vx: 0, vy: 0, gunAngle: 0, size: 20 };
             tankGameRunning = true;
+            tankKeys = {};
             updateTankStats();
-            startTankGame();
             spawnTankEnemies();
+            startTankGame();
         }
 
         function closeTankGame() {
@@ -1508,9 +1611,18 @@
 
         function spawnTankEnemies() {
             for (let i = 0; i < 3; i++) {
+                let x, y, validSpawn = false;
+                while (!validSpawn) {
+                    x = 80 + Math.random() * 240;
+                    y = 80 + Math.random() * 340;
+                    // Ensure enemies don't spawn near player
+                    if (Math.hypot(x - 200, y - 250) > 100) {
+                        validSpawn = true;
+                    }
+                }
                 tankEnemies.push({
-                    x: Math.random() * 400,
-                    y: Math.random() * 500,
+                    x: x,
+                    y: y,
                     radius: 10,
                     vx: (Math.random() - 0.5) * 2,
                     vy: (Math.random() - 0.5) * 2,
@@ -1926,9 +2038,9 @@
             const existingOverlay = document.getElementById('victoryOverlay');
             if (existingOverlay) existingOverlay.remove();
             gameContainer.style.display = 'none';
-            dashboard.style.display = 'block';
-            renderLevels();
-            updateStats();
+            document.getElementById('homeScreen').classList.remove('hidden');
+            dashboard.style.display = 'none';
+            document.getElementById('gamesHubDashboard').style.display = 'none';
         }
 
         function handleInputStart() {
@@ -2322,7 +2434,21 @@
 
         game.addEventListener('touchend', (e) => { e.preventDefault(); handleInputEnd(); });
 
-        initDashboard();
+        // Initialize on page load
+        function initializeApp() {
+            // Show home screen first
+            document.getElementById('homeScreen').classList.remove('hidden');
+            dashboard.style.display = 'none';
+            document.getElementById('gamesHubDashboard').style.display = 'none';
+            document.getElementById('spaceShooterDash').style.display = 'none';
+            document.getElementById('arenaShooterDash').style.display = 'none';
+            document.getElementById('tankDash').style.display = 'none';
+            document.getElementById('carDrifterDash').style.display = 'none';
+            // Load game data
+            loadPlayerData();
+        }
+
+        initializeApp();
     </script>
 </body>
 </html>
