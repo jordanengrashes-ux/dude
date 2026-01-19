@@ -524,100 +524,67 @@
             box-shadow: 0 0 25px rgba(255, 107, 107, 0.6);
         }
 
-        .games-modal-overlay {
+        .space-shooter-container {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.7);
+            background: #0f0f23;
             display: none;
-            justify-content: center;
+            flex-direction: column;
             align-items: center;
-            z-index: 100;
+            justify-content: center;
+            z-index: 99;
         }
 
-        .games-modal-overlay.active {
+        .space-shooter-container.active {
             display: flex;
         }
 
-        .games-modal {
-            background: linear-gradient(135deg, #0f0f23, #1a1a3e);
-            border: 3px solid #ff6b6b;
-            border-radius: 15px;
-            padding: 30px;
-            max-width: 500px;
-            width: 90%;
-            max-height: 80vh;
-            overflow-y: auto;
-            box-shadow: 0 0 50px rgba(255, 107, 107, 0.4);
-            position: relative;
+        #shooterCanvas {
+            border: 3px solid #00d4ff;
+            background: linear-gradient(to bottom, #0f0f23, #1a1a3e);
+            box-shadow: 0 0 30px rgba(0, 212, 255, 0.3);
+            margin: 20px 0;
         }
 
-        .games-modal h2 {
-            color: #ff6b6b;
-            font-size: 28px;
-            margin-bottom: 20px;
-            text-shadow: 0 0 20px rgba(255, 107, 107, 0.5);
-            text-align: center;
-        }
-
-        .games-links {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-
-        .game-link {
-            display: flex;
-            flex-direction: column;
-            padding: 15px;
-            background: linear-gradient(135deg, #2d2d5a, #1a1a3e);
-            border: 2px solid #ff6b6b;
-            border-radius: 8px;
-            text-decoration: none;
-            color: #fff;
-            transition: all 0.3s;
-            cursor: pointer;
-        }
-
-        .game-link:hover {
-            background: linear-gradient(135deg, #3d3d6a, #2a2a4e);
-            border-color: #feca57;
-            transform: translateX(5px);
-            box-shadow: 0 0 15px rgba(255, 107, 107, 0.4);
-        }
-
-        .game-title {
-            color: #ff6b6b;
-            font-weight: bold;
-            font-size: 14px;
-        }
-
-        .game-desc {
-            color: #aaa;
-            font-size: 11px;
-            margin-top: 5px;
-        }
-
-        .modal-close-btn {
+        .shooter-score {
             position: absolute;
-            top: 15px;
-            right: 15px;
-            background: linear-gradient(135deg, #ff6b6b, #ff4757);
-            color: #fff;
-            border: none;
-            width: 30px;
-            height: 30px;
-            border-radius: 50%;
-            cursor: pointer;
-            font-size: 18px;
+            top: 60px;
+            right: 20px;
+            color: #00d4ff;
+            font-size: 20px;
             font-weight: bold;
-            transition: transform 0.2s;
+            text-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
         }
 
-        .modal-close-btn:hover {
-            transform: scale(1.15);
+        .shooter-lives {
+            position: absolute;
+            top: 60px;
+            left: 20px;
+            color: #ff4757;
+            font-size: 20px;
+            font-weight: bold;
+            text-shadow: 0 0 10px rgba(255, 71, 87, 0.5);
+        }
+
+        .shooter-message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #00ff88;
+            font-size: 28px;
+            font-weight: bold;
+            text-align: center;
+            text-shadow: 0 0 20px rgba(0, 255, 136, 0.8);
+            display: none;
+            z-index: 10;
+        }
+
+        .shooter-message.active {
+            display: block;
         }
     </style>
 </head>
@@ -659,48 +626,15 @@
                 <div class="mode-badge ball">BALL - Tap Flip</div>
             </div>
         </div>
-        <button class="games-btn" onclick="openGamesModal()">🎮 Other Games</button>
+        <button class="games-btn" onclick="openSpaceShooter()">🎮 Space Shooter</button>
     </div>
 
-    <div class="games-modal-overlay" id="gamesModalOverlay" onclick="closeGamesModal(event)">
-        <div class="games-modal" onclick="event.stopPropagation()">
-            <button class="modal-close-btn" onclick="closeGamesModal()">✕</button>
-            <h2>Shooting Games</h2>
-            <div class="games-links">
-                <a href="https://agar.io/" target="_blank" class="game-link">
-                    <span class="game-title">Agar.io</span>
-                    <span class="game-desc">Eat cells and grow bigger</span>
-                </a>
-                <a href="https://slither.io/" target="_blank" class="game-link">
-                    <span class="game-title">Slither.io</span>
-                    <span class="game-desc">Classic snake multiplayer</span>
-                </a>
-                <a href="https://diep.io/" target="_blank" class="game-link">
-                    <span class="game-title">Diep.io</span>
-                    <span class="game-desc">Tank shooting action</span>
-                </a>
-                <a href="https://krunker.io/" target="_blank" class="game-link">
-                    <span class="game-title">Krunker.io</span>
-                    <span class="game-desc">Fast-paced FPS game</span>
-                </a>
-                <a href="https://surviv.io/" target="_blank" class="game-link">
-                    <span class="game-title">Surviv.io</span>
-                    <span class="game-desc">Battle royale shooter</span>
-                </a>
-                <a href="https://generals.io/" target="_blank" class="game-link">
-                    <span class="game-title">Generals.io</span>
-                    <span class="game-desc">Strategy warfare game</span>
-                </a>
-                <a href="https://play.google.com/store/apps/details?id=com.builtin.space" target="_blank" class="game-link">
-                    <span class="game-title">Space Shooter</span>
-                    <span class="game-desc">Classic space shooter</span>
-                </a>
-                <a href="https://zombsroyale.io/" target="_blank" class="game-link">
-                    <span class="game-title">Zombs Royale</span>
-                    <span class="game-desc">2D battle royale game</span>
-                </a>
-            </div>
-        </div>
+    <div class="space-shooter-container" id="spaceShooterContainer">
+        <button class="back-btn" onclick="closeSpaceShooter()">← Back</button>
+        <div class="shooter-score">Score: <span id="shooterScore">0</span></div>
+        <div class="shooter-lives">Lives: <span id="shooterLives">3</span></div>
+        <canvas id="shooterCanvas"></canvas>
+        <div class="shooter-message" id="shooterMessage"></div>
     </div>
 
     <div class="game-container" id="game">
@@ -737,7 +671,6 @@
         const jump1Dot = document.getElementById('jump1');
         const jump2Dot = document.getElementById('jump2');
         const modeIndicator = document.getElementById('modeIndicator');
-        const gamesModalOverlay = document.getElementById('gamesModalOverlay');
 
         let isGameRunning = false;
         let score = 0;
@@ -842,12 +775,181 @@
         }
 
         function openGamesModal() {
-            gamesModalOverlay.classList.add('active');
+            // This function is no longer used
         }
 
         function closeGamesModal(event) {
-            if (event && event.target !== gamesModalOverlay) return;
-            gamesModalOverlay.classList.remove('active');
+            // This function is no longer used
+        }
+
+        // Space Shooter Game Variables
+        let shooterGameRunning = false;
+        let shooterScore = 0;
+        let shooterLives = 3;
+        let shooterCanvas, shooterCtx;
+        let shooterPlayer = { x: 150, y: 300, width: 30, height: 30, speed: 5 };
+        let shooterBullets = [];
+        let shooterEnemies = [];
+        let shooterGameSpeed = 1;
+        let shooterSpawnRate = 60;
+        let shooterSpawnCounter = 0;
+        let shooterAnimationId = null;
+        let shooterKeys = {};
+
+        function openSpaceShooter() {
+            shooterCanvas = document.getElementById('shooterCanvas');
+            shooterCtx = shooterCanvas.getContext('2d');
+            shooterCanvas.width = 400;
+            shooterCanvas.height = 500;
+            document.getElementById('spaceShooterContainer').classList.add('active');
+            document.getElementById('shooterMessage').classList.remove('active');
+            shooterScore = 0;
+            shooterLives = 3;
+            shooterBullets = [];
+            shooterEnemies = [];
+            shooterGameRunning = true;
+            shooterSpawnCounter = 0;
+            updateShooterStats();
+            startShooterGame();
+        }
+
+        function closeSpaceShooter() {
+            shooterGameRunning = false;
+            cancelAnimationFrame(shooterAnimationId);
+            document.getElementById('spaceShooterContainer').classList.remove('active');
+        }
+
+        function updateShooterStats() {
+            document.getElementById('shooterScore').textContent = shooterScore;
+            document.getElementById('shooterLives').textContent = shooterLives;
+        }
+
+        function shooterFireBullet() {
+            shooterBullets.push({
+                x: shooterPlayer.x + shooterPlayer.width / 2 - 2,
+                y: shooterPlayer.y,
+                width: 4,
+                height: 12,
+                speed: 8
+            });
+        }
+
+        function updateShooterGame() {
+            if (!shooterGameRunning) return;
+
+            shooterCtx.clearRect(0, 0, shooterCanvas.width, shooterCanvas.height);
+
+            // Draw background stars
+            shooterCtx.fillStyle = '#ffffff';
+            for (let i = 0; i < 20; i++) {
+                const x = (i * 50 + shooterScore / 10) % shooterCanvas.width;
+                const y = (i * 60) % shooterCanvas.height;
+                shooterCtx.fillRect(x, y, 2, 2);
+            }
+
+            // Player movement
+            if (shooterKeys['ArrowLeft'] && shooterPlayer.x > 0) shooterPlayer.x -= shooterPlayer.speed;
+            if (shooterKeys['ArrowRight'] && shooterPlayer.x + shooterPlayer.width < shooterCanvas.width) shooterPlayer.x += shooterPlayer.speed;
+            if (shooterKeys[' ']) shooterFireBullet();
+
+            // Draw player (spaceship)
+            shooterCtx.fillStyle = '#00d4ff';
+            shooterCtx.fillRect(shooterPlayer.x, shooterPlayer.y, shooterPlayer.width, shooterPlayer.height);
+            shooterCtx.fillStyle = '#00ff88';
+            shooterCtx.fillRect(shooterPlayer.x + 5, shooterPlayer.y - 8, 4, 8);
+            shooterCtx.fillRect(shooterPlayer.x + shooterPlayer.width - 9, shooterPlayer.y - 8, 4, 8);
+
+            // Update and draw bullets
+            for (let i = shooterBullets.length - 1; i >= 0; i--) {
+                const bullet = shooterBullets[i];
+                bullet.y -= bullet.speed;
+                shooterCtx.fillStyle = '#ffff00';
+                shooterCtx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
+                if (bullet.y < 0) shooterBullets.splice(i, 1);
+            }
+
+            // Spawn enemies
+            shooterSpawnCounter++;
+            if (shooterSpawnCounter > shooterSpawnRate) {
+                shooterEnemies.push({
+                    x: Math.random() * (shooterCanvas.width - 25),
+                    y: -25,
+                    width: 25,
+                    height: 25,
+                    speed: 2 + shooterGameSpeed * 0.5
+                });
+                shooterSpawnCounter = 0;
+                if (shooterSpawnRate > 30) shooterSpawnRate--;
+            }
+
+            // Update and draw enemies
+            for (let i = shooterEnemies.length - 1; i >= 0; i--) {
+                const enemy = shooterEnemies[i];
+                enemy.y += enemy.speed;
+                shooterCtx.fillStyle = '#ff4757';
+                shooterCtx.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
+                shooterCtx.fillStyle = '#ff0000';
+                shooterCtx.fillRect(enemy.x + 5, enemy.y + 5, 5, 5);
+                shooterCtx.fillRect(enemy.x + 15, enemy.y + 5, 5, 5);
+
+                // Check if enemy hit player
+                if (enemy.x < shooterPlayer.x + shooterPlayer.width &&
+                    enemy.x + enemy.width > shooterPlayer.x &&
+                    enemy.y < shooterPlayer.y + shooterPlayer.height &&
+                    enemy.y + enemy.height > shooterPlayer.y) {
+                    shooterLives--;
+                    updateShooterStats();
+                    shooterEnemies.splice(i, 1);
+                    if (shooterLives <= 0) {
+                        shooterGameRunning = false;
+                        showShooterGameOver();
+                        return;
+                    }
+                }
+
+                // Check if enemy is off screen
+                if (enemy.y > shooterCanvas.height) {
+                    shooterEnemies.splice(i, 1);
+                }
+            }
+
+            // Check bullet-enemy collisions
+            for (let i = shooterBullets.length - 1; i >= 0; i--) {
+                const bullet = shooterBullets[i];
+                for (let j = shooterEnemies.length - 1; j >= 0; j--) {
+                    const enemy = shooterEnemies[j];
+                    if (bullet.x < enemy.x + enemy.width &&
+                        bullet.x + bullet.width > enemy.x &&
+                        bullet.y < enemy.y + enemy.height &&
+                        bullet.y + bullet.height > enemy.y) {
+                        shooterScore += 10 + Math.floor(shooterGameSpeed * 5);
+                        shooterGameSpeed += 0.01;
+                        shooterBullets.splice(i, 1);
+                        shooterEnemies.splice(j, 1);
+                        updateShooterStats();
+                        break;
+                    }
+                }
+            }
+
+            shooterAnimationId = requestAnimationFrame(updateShooterGame);
+        }
+
+        function startShooterGame() {
+            window.addEventListener('keydown', (e) => {
+                shooterKeys[e.key] = true;
+                if (e.key === ' ') e.preventDefault();
+            });
+            window.addEventListener('keyup', (e) => {
+                shooterKeys[e.key] = false;
+            });
+            updateShooterGame();
+        }
+
+        function showShooterGameOver() {
+            const message = document.getElementById('shooterMessage');
+            message.innerHTML = `Game Over!<br>Final Score: ${shooterScore}<br>Press Back to Return`;
+            message.classList.add('active');
         }
 
         function savePlayerData() {
