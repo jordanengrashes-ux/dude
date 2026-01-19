@@ -790,11 +790,15 @@
         let shooterPlayer = { x: 150, y: 300, width: 30, height: 30, speed: 5 };
         let shooterBullets = [];
         let shooterEnemies = [];
+        let shooterHearts = [];
         let shooterGameSpeed = 1;
         let shooterSpawnRate = 60;
         let shooterSpawnCounter = 0;
         let shooterAnimationId = null;
         let shooterKeys = {};
+        let shooterLastFireTime = 0;
+        let shooterFireCooldown = 200; // milliseconds
+        let shooterHeartSpawnChance = 0.015;
 
         function openSpaceShooter() {
             shooterCanvas = document.getElementById('shooterCanvas');
@@ -807,8 +811,12 @@
             shooterLives = 3;
             shooterBullets = [];
             shooterEnemies = [];
-            shooterGameRunning = true;
+            shooterHearts = [];
+            shooterGameSpeed = 1;
+            shooterSpawnRate = 60;
             shooterSpawnCounter = 0;
+            shooterLastFireTime = 0;
+            shooterGameRunning = true;
             updateShooterStats();
             startShooterGame();
         }
@@ -825,6 +833,9 @@
         }
 
         function shooterFireBullet() {
+            const currentTime = Date.now();
+            if (currentTime - shooterLastFireTime < shooterFireCooldown) return;
+            shooterLastFireTime = currentTime;
             shooterBullets.push({
                 x: shooterPlayer.x + shooterPlayer.width / 2 - 2,
                 y: shooterPlayer.y,
@@ -882,6 +893,38 @@
                 if (shooterSpawnRate > 30) shooterSpawnRate--;
             }
 
+            // Update and draw hearts
+            for (let i = shooterHearts.length - 1; i >= 0; i--) {
+                const heart = shooterHearts[i];
+                heart.y += 2;
+                // Draw heart
+                shooterCtx.fillStyle = '#ff1744';
+                shooterCtx.beginPath();
+                shooterCtx.moveTo(heart.x + 7, heart.y);
+                shooterCtx.bezierCurveTo(heart.x + 10, heart.y - 3, heart.x + 13, heart.y - 3, heart.x + 13, heart.y + 2);
+                shooterCtx.bezierCurveTo(heart.x + 13, heart.y + 5, heart.x + 10, heart.y + 8, heart.x + 7, heart.y + 10);
+                shooterCtx.bezierCurveTo(heart.x + 4, heart.y + 8, heart.x + 1, heart.y + 5, heart.x + 1, heart.y + 2);
+                shooterCtx.bezierCurveTo(heart.x + 1, heart.y - 3, heart.x + 4, heart.y - 3, heart.x + 7, heart.y);
+                shooterCtx.fill();
+
+                // Check if player collected heart
+                if (heart.x < shooterPlayer.x + shooterPlayer.width &&
+                    heart.x + 14 > shooterPlayer.x &&
+                    heart.y < shooterPlayer.y + shooterPlayer.height &&
+                    heart.y + 14 > shooterPlayer.y) {
+                    if (shooterLives < 3) {
+                        shooterLives++;
+                        updateShooterStats();
+                    }
+                    shooterHearts.splice(i, 1);
+                }
+
+                // Remove if off screen
+                if (heart.y > shooterCanvas.height) {
+                    shooterHearts.splice(i, 1);
+                }
+            }
+
             // Update and draw enemies
             for (let i = shooterEnemies.length - 1; i >= 0; i--) {
                 const enemy = shooterEnemies[i];
@@ -927,6 +970,15 @@
                         shooterBullets.splice(i, 1);
                         shooterEnemies.splice(j, 1);
                         updateShooterStats();
+                        // Random heart spawn
+                        if (Math.random() < shooterHeartSpawnChance) {
+                            shooterHearts.push({
+                                x: enemy.x,
+                                y: enemy.y,
+                                width: 14,
+                                height: 14
+                            });
+                        }
                         break;
                     }
                 }
@@ -948,8 +1000,12 @@
 
         function showShooterGameOver() {
             const message = document.getElementById('shooterMessage');
-            message.innerHTML = `Game Over!<br>Final Score: ${shooterScore}<br>Press Back to Return`;
+            message.innerHTML = `Game Over!<br>Final Score: ${shooterScore}<br>Returning to Dashboard...`;
             message.classList.add('active');
+            setTimeout(() => {
+                closeSpaceShooter();
+                dashboard.style.display = 'block';
+            }, 2500);
         }
 
         function savePlayerData() {
