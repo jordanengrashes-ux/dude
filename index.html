@@ -766,6 +766,34 @@
         .shooter-message.active {
             display: block;
         }
+
+        /* Level Editor Styles */
+        .editor-modal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 900px;
+            max-width: 95%;
+            background: linear-gradient(135deg,#0f0f23,#1a1a3e);
+            border: 3px solid #00d4ff;
+            padding: 16px;
+            border-radius: 10px;
+            z-index: 2000;
+            box-shadow: 0 0 30px rgba(0,212,255,0.2);
+            display: none;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .editor-header { display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;color:#00d4ff; }
+        .editor-canvas { border:2px solid #333;border-radius:6px; background:#0e0e1a;cursor:crosshair;display:block;margin:10px 0; }
+        .editor-controls { display:flex;gap:8px;margin-top:10px;align-items:flex-start;flex-wrap:wrap; }
+        .editor-palette { display:flex;gap:6px;flex-wrap:wrap; }
+        .palette-btn { padding:8px 10px;border-radius:6px;border:none;cursor:pointer;background:#222;color:#fff;font-size:11px;transition:all 0.2s; }
+        .palette-btn:hover { background:#333; }
+        .editor-footer { display:flex;justify-content:space-between;margin-top:12px; }
+        .editor-list { max-height:140px; overflow:auto; background:#0e0e1a;border:1px solid #222;padding:8px;border-radius:6px;color:#ccc;font-size:11px; }
     </style>
 </head>
 <body>
@@ -776,6 +804,54 @@
         <div class="home-buttons">
             <button class="home-btn home-btn-dash" onclick="goToGeometryDash()">📈 Geometry Dash</button>
             <button class="home-btn home-btn-games" onclick="goToGameHub()">🎯 Mini Games</button>
+        </div>
+    </div>
+
+    <!-- LEVEL EDITOR MODAL -->
+    <div class="editor-modal" id="levelEditor">
+        <div class="editor-header">
+            <div><strong style="color:#00d4ff">Level Editor</strong> <span id="editorLevelLabel" style="color:#aaa;margin-left:8px"></span></div>
+            <div><button class="back-btn" onclick="closeLevelEditor()">✕</button></div>
+        </div>
+        <canvas id="editorCanvas" class="editor-canvas" width="850" height="250"></canvas>
+        <div style="color:#888;font-size:11px;margin:-8px 0 8px 0">← Click on grid to place items at any position →</div>
+        <div class="editor-controls">
+            <div class="editor-palette">
+                <div style="margin-bottom:8px;color:#888;font-size:11px">Obstacles</div>
+                <button class="palette-btn" data-type="spike" onclick="selectEditorObstacle('spike', this)">Spike</button>
+                <button class="palette-btn" data-type="double-spike" onclick="selectEditorObstacle('double-spike', this)">Double</button>
+                <button class="palette-btn" data-type="triple-spike" onclick="selectEditorObstacle('triple-spike', this)">Triple</button>
+                <button class="palette-btn" data-type="block" onclick="selectEditorObstacle('block', this)">Block</button>
+                <button class="palette-btn" data-type="saw" onclick="selectEditorObstacle('saw', this)">Saw</button>
+                <button class="palette-btn" data-type="laser" onclick="selectEditorObstacle('laser', this)">Laser</button>
+                <button class="palette-btn" data-type="wall" onclick="selectEditorObstacle('wall', this)">Wall</button>
+            </div>
+            <div class="editor-palette" style="margin-top:8px">
+                <div style="margin-bottom:8px;color:#888;font-size:11px">Portals & Powerups</div>
+                <button class="palette-btn" data-type="jump-orb" onclick="selectEditorObstacle('jump-orb', this)">Orb</button>
+                <button class="palette-btn" data-type="cube-portal" onclick="selectEditorObstacle('cube-portal', this)">Cube</button>
+                <button class="palette-btn" data-type="ship-portal" onclick="selectEditorObstacle('ship-portal', this)">Ship</button>
+                <button class="palette-btn" data-type="ufo-portal" onclick="selectEditorObstacle('ufo-portal', this)">UFO</button>
+                <button class="palette-btn" data-type="wave-portal" onclick="selectEditorObstacle('wave-portal', this)">Wave</button>
+                <button class="palette-btn" data-type="ball-portal" onclick="selectEditorObstacle('ball-portal', this)">Ball</button>
+            </div>
+            <div style="margin-left:auto;display:flex;gap:8px">
+                <button class="play-btn" onclick="playEditorLevel()">▶ Play</button>
+                <button class="play-btn" style="background:linear-gradient(135deg,#ff9f1a,#ff6b6b)" onclick="clearEditorLayout()">Clear</button>
+            </div>
+        </div>
+        <div style="display:flex;gap:12px;margin-top:10px">
+            <div style="flex:1">
+                <div style="color:#00d4ff;margin-bottom:6px">Placed Items</div>
+                <div class="editor-list" id="editorList"></div>
+            </div>
+            <div style="width:220px">
+                <div style="color:#00d4ff;margin-bottom:6px">Actions</div>
+                <div style="display:flex;flex-direction:column;gap:8px">
+                    <button class="play-btn" onclick="saveEditorLayout()">Save Layout</button>
+                    <button class="games-btn" onclick="loadEditorLayout()">Load Saved</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -816,6 +892,10 @@
                 <div class="mode-badge ball">BALL - Tap Flip</div>
             </div>
         </div>
+        <div style="display:flex;gap:10px;justify-content:center;align-items:center;">
+            <button class="play-btn" onclick="startLevel(currentLevel)">▶ Play</button>
+            <button class="play-btn" style="background:linear-gradient(135deg,#ffd166,#ff6b6b);" onclick="openLevelEditor()">✎ Edit Level</button>
+        </div>
         <button class="games-btn" onclick="goToGameHub()">🎮 Mini Games Hub</button>
     </div>
 
@@ -843,6 +923,11 @@
                 <div class="game-hub-icon">🚗</div>
                 <div class="game-hub-title">Car Drifter</div>
                 <div class="game-hub-desc">Collect coins and avoid obstacles</div>
+            </div>
+            <div class="game-hub-card" onclick="goToMinecraftDash()">
+                <div class="game-hub-icon">⛏️</div>
+                <div class="game-hub-title">3D Blocks</div>
+                <div class="game-hub-desc">Mine, build, and explore in 3D</div>
             </div>
         </div>
     </div>
@@ -953,6 +1038,22 @@
         <div class="shooter-lives" id="carLives">❤️❤️❤️</div>
         <canvas id="carCanvas"></canvas>
         <div class="shooter-message" id="carMessage"></div>
+    </div>
+
+    <!-- MINECRAFT 3D BLOCKS DASHBOARD -->
+    <div class="dashboard" id="minecraftDash">
+        <button class="back-btn" onclick="backToDashboard()">← Back</button>
+        <h1>⛏️ 3D Blocks</h1>
+        <div class="dashboard-section">
+            <h2>Mine, Build & Explore</h2>
+            <ul style="color: #aaa; margin: 10px 0; padding-left: 20px;">
+                <li>Full 3D world with realistic terrain</li>
+                <li>Break and place 9 different block types</li>
+                <li>Collect resources in your inventory</li>
+                <li>Customize your character with 8 unique skins</li>
+            </ul>
+        </div>
+        <button class="play-btn" onclick="goToMinecraftGame()">PLAY NOW</button>
     </div>
 
     <div class="game-container" id="game">
@@ -1120,13 +1221,23 @@
 
         // ============ NAVIGATION FUNCTIONS ============
         function goToGeometryDash() {
-            document.getElementById('homeScreen').classList.add('hidden');
-            dashboard.style.display = 'block';
-            document.getElementById('gamesHubDashboard').style.display = 'none';
-            document.getElementById('spaceShooterDash').style.display = 'none';
-            document.getElementById('arenaShooterDash').style.display = 'none';
-            document.getElementById('tankDash').style.display = 'none';
-            document.getElementById('carDrifterDash').style.display = 'none';
+            try {
+                document.getElementById('homeScreen').classList.add('hidden');
+                dashboard.style.display = 'block';
+                document.getElementById('gamesHubDashboard').style.display = 'none';
+                document.getElementById('spaceShooterDash').style.display = 'none';
+                document.getElementById('arenaShooterDash').style.display = 'none';
+                document.getElementById('tankDash').style.display = 'none';
+                document.getElementById('carDrifterDash').style.display = 'none';
+                document.getElementById('minecraftDash').style.display = 'none';
+                document.getElementById('levelEditor').style.display = 'none';
+                console.log('Dashboard display set to block');
+                initDashboard(); // Initialize skins, levels, and stats
+                console.log('Dashboard initialized');
+            } catch(e) {
+                console.error('Error loading dashboard:', e);
+                alert('Error: ' + e.message);
+            }
         }
 
         function goToGameHub() {
@@ -1165,6 +1276,16 @@
             dashboard.style.display = 'none';
             document.getElementById('gamesHubDashboard').style.display = 'none';
             document.getElementById('carDrifterDash').style.display = 'block';
+        }
+
+        function goToMinecraftDash() {
+            dashboard.style.display = 'none';
+            document.getElementById('gamesHubDashboard').style.display = 'none';
+            document.getElementById('minecraftDash').style.display = 'block';
+        }
+
+        function goToMinecraftGame() {
+            window.location.href = 'mincraft-game.html';
         }
 
         function startSpaceShooterGame() {
@@ -2123,10 +2244,20 @@
         }
 
         function initDashboard() {
-            loadPlayerData();
-            renderSkins();
-            renderLevels();
-            updateStats();
+            try {
+                console.log('initDashboard called');
+                loadPlayerData();
+                console.log('playerData loaded:', playerData);
+                renderSkins();
+                console.log('skins rendered');
+                renderLevels();
+                console.log('levels rendered');
+                updateStats();
+                console.log('stats updated');
+            } catch(e) {
+                console.error('Error in initDashboard:', e);
+                alert('Dashboard error: ' + e.message);
+            }
         }
 
         function renderSkins() {
@@ -2241,10 +2372,13 @@
         }
 
         function backToDashboard() {
+            // clear any scheduled custom spawns
+            scheduledCustomTimeouts.forEach(t=>clearTimeout(t)); scheduledCustomTimeouts = [];
             isGameRunning = false;
             cancelAnimationFrame(animationId);
             clearTimeout(spawnTimeout);
             clearTimeout(portalTimeout);
+            clearTimeout(autoAdvanceTimeout);
             obstacles.forEach(obs => obs.remove()); obstacles = [];
             powerups.forEach(p => p.remove()); powerups = [];
             portals.forEach(p => p.remove()); portals = [];
@@ -2542,11 +2676,133 @@
             }, 3000);
         }
 
+        // ============ LEVEL EDITOR FUNCTIONALITY ============
+        let editorSelectedType = 'spike';
+    let editorLayout = []; // {type, percent, height}
+    let customLayouts = {};
+    let scheduledCustomTimeouts = [];
+    let editorCanvas = null;
+    let editorCtx = null;
+
+    function openLevelEditor() {
+        const modal = document.getElementById('levelEditor');
+        modal.style.display = 'block';
+        document.getElementById('editorLevelLabel').textContent = `Level ${currentLevel}`;
+        
+        // init canvas if not done
+        if (!editorCanvas) {
+            editorCanvas = document.getElementById('editorCanvas');
+            editorCtx = editorCanvas.getContext('2d');
+        }
+        
+        const raw = localStorage.getItem('customLayouts_v1');
+        if (raw) customLayouts = JSON.parse(raw);
+        editorLayout = customLayouts[currentLevel] ? customLayouts[currentLevel].slice() : [];
+        renderEditor();
+    }
+
+    function closeLevelEditor() { document.getElementById('levelEditor').style.display = 'none'; }
+
+    function selectEditorObstacle(type, el) {
+        editorSelectedType = type;
+        document.querySelectorAll('.palette-btn').forEach(b => b.style.boxShadow = '');
+        if (el) el.style.boxShadow = '0 0 10px rgba(0,212,255,0.5)';
+    }
+
+    function renderEditor() {
+        if (!editorCanvas) return;
+        const w = editorCanvas.width, h = editorCanvas.height;
+        
+        // clear and draw grid background
+        editorCtx.fillStyle = '#0e0e1a';
+        editorCtx.fillRect(0, 0, w, h);
+        
+        // draw grid lines (light)
+        editorCtx.strokeStyle = '#1a3a4a';
+        editorCtx.lineWidth = 1;
+        for (let i = 0; i <= 10; i++) {
+            const x = (i / 10) * w;
+            editorCtx.beginPath();
+            editorCtx.moveTo(x, 0);
+            editorCtx.lineTo(x, h);
+            editorCtx.stroke();
+        }
+        for (let i = 0; i <= 5; i++) {
+            const y = (i / 5) * h;
+            editorCtx.beginPath();
+            editorCtx.moveTo(0, y);
+            editorCtx.lineTo(w, y);
+            editorCtx.stroke();
+        }
+        
+        // draw placed items
+        editorLayout.forEach((item, idx) => {
+            const x = (item.percent / 100) * w;
+            const y = item.height * h;
+            
+            // color by type
+            let color = '#ff4757';
+            if (item.type === 'jump-orb') color = '#00ff88';
+            else if (item.type.includes('portal')) color = '#00d4ff';
+            else if (item.type.includes('spike')) color = '#ff6b4a';
+            
+            editorCtx.fillStyle = color;
+            editorCtx.beginPath();
+            editorCtx.arc(x, y, 8, 0, Math.PI * 2);
+            editorCtx.fill();
+            
+            editorCtx.strokeStyle = '#fff';
+            editorCtx.lineWidth = 2;
+            editorCtx.beginPath();
+            editorCtx.arc(x, y, 8, 0, Math.PI * 2);
+            editorCtx.stroke();
+        });
+        
+        // render list
+        const list = document.getElementById('editorList');
+        list.innerHTML = editorLayout.map((it,i)=>`<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #1a3a4a"><span>${i+1}. ${it.type}</span><span>${Math.round(it.percent)}% H:${Math.round(it.height*100)}%</span></div>`).join('');
+    }
+
+    document.addEventListener('click', (e) => {
+        if (e.target.id !== 'editorCanvas') return;
+        const rect = editorCanvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const percent = Math.max(0, Math.min(100, (x / editorCanvas.width) * 100));
+        const height = Math.max(0, Math.min(1, y / editorCanvas.height));
+        editorLayout.push({ type: editorSelectedType, percent, height });
+
+        function removeEditorItem(idx) { editorLayout.splice(idx,1); renderEditor(); }
+
+        function saveEditorLayout() {
+            customLayouts[currentLevel] = editorLayout.slice();
+            localStorage.setItem('customLayouts_v1', JSON.stringify(customLayouts));
+            alert('Layout saved for level ' + currentLevel);
+        }
+
+        function loadEditorLayout() {
+            const raw = localStorage.getItem('customLayouts_v1');
+            if (raw) customLayouts = JSON.parse(raw);
+            editorLayout = customLayouts[currentLevel] ? customLayouts[currentLevel].slice() : [];
+            renderEditor();
+        }
+
+        function clearEditorLayout() { editorLayout = []; renderEditor(); }
+
+        function playEditorLevel() {
+            saveEditorLayout();
+            closeLevelEditor();
+            startLevel(currentLevel);
+        }
+
+        let autoAdvanceTimeout = null;
+
         function levelComplete() {
             isGameRunning = false;
             cancelAnimationFrame(animationId);
             clearTimeout(spawnTimeout);
             clearTimeout(portalTimeout);
+            clearTimeout(autoAdvanceTimeout);
 
             // Play victory animation
             playVictoryAnimation();
@@ -2559,25 +2815,43 @@
             if (currentLevel < 20) playerData.unlockedLevels[currentLevel] = true;
             savePlayerData();
 
-            // Delay showing the message to let animation play
+            // Show completion message
             setTimeout(() => {
-                message.innerHTML = `Level Complete!<span>+${levels[currentLevel - 1].difficulty} Stars</span><span>Hold SPACE or Click to Continue</span>`;
+                if (currentLevel < 20) {
+                    message.innerHTML = `Level Complete!<span>+${levels[currentLevel - 1].difficulty} Stars</span><span>Starting Level ${currentLevel + 1}...</span>`;
+                } else {
+                    message.innerHTML = `All Levels Complete!<span>+${levels[currentLevel - 1].difficulty} Stars</span><span>You are a legend!</span>`;
+                }
                 message.classList.remove('hidden');
             }, 800);
 
-            // Auto-advance to next level after 3 seconds
-            setTimeout(() => {
-                if (currentLevel < 20) {
-                    startLevel(currentLevel + 1);
-                } else {
-                    message.innerHTML = `You Completed All Levels!<span>You are a legend!</span>`;
-                }
-            }, 3800);
+            // Auto-advance to next level
+            if (currentLevel < 20) {
+                autoAdvanceTimeout = setTimeout(() => {
+                    // Clean up current level
+                    obstacles.forEach(obs => obs.remove()); obstacles = [];
+                    powerups.forEach(p => p.remove()); powerups = [];
+                    portals.forEach(p => p.remove()); portals = [];
+                    const overlay = document.getElementById('victoryOverlay');
+                    if (overlay) overlay.remove();
+
+                    // Move to next level and auto-start
+                    currentLevel++;
+                    const levelData = levels[currentLevel - 1];
+                    gameSpeed = levelData.speed;
+                    levelLength = levelData.length;
+                    currentLevelDisplay.textContent = currentLevel;
+                    levelNameDisplay.textContent = levelData.name;
+                    message.classList.add('hidden');
+                    startGame();
+                }, 3000);
+            }
         }
 
         function startGame() {
             if (isGameRunning) return;
             isGameRunning = true;
+            clearTimeout(autoAdvanceTimeout);
 
             // Reset seeded random for consistent level layout
             resetLevelSeed();
@@ -2604,11 +2878,59 @@
             powerups.forEach(p => p.remove()); powerups = [];
             portals.forEach(p => p.remove()); portals = [];
             updateGame();
-            setTimeout(spawnObstacles, 800);
-            setTimeout(spawnPortals, 2000);
+            // If a custom layout exists for this level, schedule custom spawns and skip random spawning
+            const raw = localStorage.getItem('customLayouts_v1');
+            const hasCustom = raw && JSON.parse(raw)[currentLevel] && JSON.parse(raw)[currentLevel].length > 0;
+            if (hasCustom) {
+                // schedule custom spawns based on saved percent and height positions
+                const custom = JSON.parse(raw)[currentLevel];
+                const durationFrames = Math.max(60, Math.round(levelLength / (gameSpeed * 0.025)));
+                const durationMs = durationFrames * (1000/60);
+                scheduledCustomTimeouts.forEach(t=>clearTimeout(t)); scheduledCustomTimeouts = [];
+                custom.forEach(item => {
+                    const delay = Math.max(0, (item.percent/100) * durationMs + 800);
+                    const t = setTimeout(() => {
+                        if (!isGameRunning) return;
+                        const groundY = 60, ceilingY = 400;
+                        
+                        // Create element based on type
+                        if (item.type === 'jump-orb') {
+                            const orb = document.createElement('div');
+                            orb.className = 'powerup jump-orb';
+                            orb.style.right = '-30px';
+                            orb.style.bottom = ((1 - item.height) * (ceilingY - groundY - 30) + groundY) + 'px';
+                            game.appendChild(orb);
+                            powerups.push(orb);
+                        } else if (item.type.includes('portal')) {
+                            const portalType = item.type.replace('-portal', '');
+                            const portal = document.createElement('div');
+                            portal.className = `portal ${item.type}`;
+                            portal.dataset.type = portalType;
+                            portal.style.right = '-40px';
+                            portal.style.bottom = ((1 - item.height) * (ceilingY - groundY - 100) + groundY) + 'px';
+                            game.appendChild(portal);
+                            portals.push(portal);
+                        } else {
+                            // regular obstacle
+                            const obstacle = document.createElement('div');
+                            obstacle.className = `obstacle ${item.type}`;
+                            obstacle.style.right = '-120px';
+                            obstacle.style.bottom = ((1 - item.height) * (ceilingY - groundY - 60) + groundY) + 'px';
+                            game.appendChild(obstacle);
+                            obstacles.push(obstacle);
+                        }
+                    }, delay);
+                    scheduledCustomTimeouts.push(t);
+                });
+            } else {
+                setTimeout(spawnObstacles, 800);
+                setTimeout(spawnPortals, 2000);
+            }
         }
 
         function gameOver() {
+            // clear any scheduled custom spawns
+            scheduledCustomTimeouts.forEach(t=>clearTimeout(t)); scheduledCustomTimeouts = [];
             isGameRunning = false;
             cancelAnimationFrame(animationId);
             clearTimeout(spawnTimeout);
@@ -2658,6 +2980,7 @@
             document.getElementById('arenaShooterDash').style.display = 'none';
             document.getElementById('tankDash').style.display = 'none';
             document.getElementById('carDrifterDash').style.display = 'none';
+            document.getElementById('minecraftDash').style.display = 'none';
             // Load game data
             loadPlayerData();
         }
