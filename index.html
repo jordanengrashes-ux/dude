@@ -1224,6 +1224,7 @@
             try {
                 document.getElementById('homeScreen').classList.add('hidden');
                 dashboard.style.display = 'block';
+                gameContainer.style.display = 'none';
                 document.getElementById('gamesHubDashboard').style.display = 'none';
                 document.getElementById('spaceShooterDash').style.display = 'none';
                 document.getElementById('arenaShooterDash').style.display = 'none';
@@ -1231,9 +1232,17 @@
                 document.getElementById('carDrifterDash').style.display = 'none';
                 document.getElementById('minecraftDash').style.display = 'none';
                 document.getElementById('levelEditor').style.display = 'none';
-                console.log('Dashboard display set to block');
-                initDashboard(); // Initialize skins, levels, and stats
-                console.log('Dashboard initialized');
+                document.getElementById('spaceShooterContainer').classList.remove('active');
+                document.getElementById('arenaShooterContainer').classList.remove('active');
+                document.getElementById('tankGameContainer').classList.remove('active');
+                document.getElementById('carDrifterContainer').classList.remove('active');
+                // Stop any running game
+                isGameRunning = false;
+                cancelAnimationFrame(animationId);
+                clearTimeout(spawnTimeout);
+                clearTimeout(portalTimeout);
+                clearTimeout(autoAdvanceTimeout);
+                initDashboard();
             } catch(e) {
                 console.error('Error loading dashboard:', e);
                 alert('Error: ' + e.message);
