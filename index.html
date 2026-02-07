@@ -1097,6 +1097,7 @@
         let obstacles = [];
         let powerups = [];
         let portals = [];
+        let autoAdvanceTimeout = null;
         let animationId;
         let playerY = 0;
         let playerVelocity = 0;
@@ -2803,8 +2804,6 @@
             closeLevelEditor();
             startLevel(currentLevel);
         }
-
-        let autoAdvanceTimeout = null;
 
         function levelComplete() {
             isGameRunning = false;
