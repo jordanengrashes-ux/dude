@@ -787,13 +787,20 @@
         }
 
         .editor-header { display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;color:#00d4ff; }
-        .editor-canvas { border:2px solid #333;border-radius:6px; background:#0e0e1a;cursor:crosshair;display:block;margin:10px 0; }
+        .editor-canvas-wrap { position:relative; margin:10px 0; }
+        .editor-canvas { border:2px solid #333;border-radius:6px; background:#0e0e1a;cursor:crosshair;display:block; }
         .editor-controls { display:flex;gap:8px;margin-top:10px;align-items:flex-start;flex-wrap:wrap; }
         .editor-palette { display:flex;gap:6px;flex-wrap:wrap; }
         .palette-btn { padding:8px 10px;border-radius:6px;border:none;cursor:pointer;background:#222;color:#fff;font-size:11px;transition:all 0.2s; }
         .palette-btn:hover { background:#333; }
+        .palette-btn.active { box-shadow: 0 0 10px rgba(0,212,255,0.6); background:#1a3a4a; }
         .editor-footer { display:flex;justify-content:space-between;margin-top:12px; }
         .editor-list { max-height:140px; overflow:auto; background:#0e0e1a;border:1px solid #222;padding:8px;border-radius:6px;color:#ccc;font-size:11px; }
+        .editor-item-row { display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #1a3a4a;align-items:center; }
+        .editor-item-row button { background:#ff4757;border:none;color:#fff;border-radius:4px;cursor:pointer;padding:2px 6px;font-size:10px; }
+        .editor-size-controls { display:flex; gap:6px; align-items:center; margin-top:8px; }
+        .editor-size-controls label { color:#aaa; font-size:11px; }
+        .editor-size-controls input[type=range] { width:80px; }
     </style>
 </head>
 <body>
@@ -813,36 +820,49 @@
             <div><strong style="color:#00d4ff">Level Editor</strong> <span id="editorLevelLabel" style="color:#aaa;margin-left:8px"></span></div>
             <div><button class="back-btn" onclick="closeLevelEditor()">✕</button></div>
         </div>
-        <canvas id="editorCanvas" class="editor-canvas" width="850" height="250"></canvas>
-        <div style="color:#888;font-size:11px;margin:-8px 0 8px 0">← Click on grid to place items at any position →</div>
+        <div class="editor-canvas-wrap">
+            <canvas id="editorCanvas" class="editor-canvas" width="850" height="300"></canvas>
+        </div>
+        <div style="color:#888;font-size:11px;margin:-8px 0 8px 0">Click to place | Right-click to delete | Items snap to grid</div>
         <div class="editor-controls">
-            <div class="editor-palette">
-                <div style="margin-bottom:8px;color:#888;font-size:11px">Obstacles</div>
-                <button class="palette-btn" data-type="spike" onclick="selectEditorObstacle('spike', this)">Spike</button>
-                <button class="palette-btn" data-type="double-spike" onclick="selectEditorObstacle('double-spike', this)">Double</button>
-                <button class="palette-btn" data-type="triple-spike" onclick="selectEditorObstacle('triple-spike', this)">Triple</button>
-                <button class="palette-btn" data-type="block" onclick="selectEditorObstacle('block', this)">Block</button>
-                <button class="palette-btn" data-type="saw" onclick="selectEditorObstacle('saw', this)">Saw</button>
-                <button class="palette-btn" data-type="laser" onclick="selectEditorObstacle('laser', this)">Laser</button>
-                <button class="palette-btn" data-type="wall" onclick="selectEditorObstacle('wall', this)">Wall</button>
+            <div>
+                <div class="editor-palette">
+                    <div style="margin-bottom:8px;color:#888;font-size:11px">Obstacles</div>
+                    <button class="palette-btn active" data-type="spike" onclick="selectEditorObstacle('spike', this)">Spike</button>
+                    <button class="palette-btn" data-type="double-spike" onclick="selectEditorObstacle('double-spike', this)">Double</button>
+                    <button class="palette-btn" data-type="triple-spike" onclick="selectEditorObstacle('triple-spike', this)">Triple</button>
+                    <button class="palette-btn" data-type="block" onclick="selectEditorObstacle('block', this)">Block</button>
+                    <button class="palette-btn" data-type="platform" onclick="selectEditorObstacle('platform', this)">Platform</button>
+                    <button class="palette-btn" data-type="saw" onclick="selectEditorObstacle('saw', this)">Saw</button>
+                    <button class="palette-btn" data-type="laser" onclick="selectEditorObstacle('laser', this)">Laser</button>
+                    <button class="palette-btn" data-type="wall" onclick="selectEditorObstacle('wall', this)">Wall</button>
+                </div>
+                <div class="editor-palette" style="margin-top:8px">
+                    <div style="margin-bottom:8px;color:#888;font-size:11px">Portals & Powerups</div>
+                    <button class="palette-btn" data-type="jump-orb" onclick="selectEditorObstacle('jump-orb', this)">Orb</button>
+                    <button class="palette-btn" data-type="cube-portal" onclick="selectEditorObstacle('cube-portal', this)">Cube</button>
+                    <button class="palette-btn" data-type="ship-portal" onclick="selectEditorObstacle('ship-portal', this)">Ship</button>
+                    <button class="palette-btn" data-type="ufo-portal" onclick="selectEditorObstacle('ufo-portal', this)">UFO</button>
+                    <button class="palette-btn" data-type="wave-portal" onclick="selectEditorObstacle('wave-portal', this)">Wave</button>
+                    <button class="palette-btn" data-type="ball-portal" onclick="selectEditorObstacle('ball-portal', this)">Ball</button>
+                </div>
+                <div class="editor-size-controls">
+                    <label>Width:</label>
+                    <input type="range" id="editorSizeW" min="0.5" max="3" step="0.25" value="1" oninput="document.getElementById('edSizeWVal').textContent=this.value+'x'">
+                    <span id="edSizeWVal" style="color:#00d4ff;font-size:11px">1x</span>
+                    <label style="margin-left:10px">Height:</label>
+                    <input type="range" id="editorSizeH" min="0.5" max="3" step="0.25" value="1" oninput="document.getElementById('edSizeHVal').textContent=this.value+'x'">
+                    <span id="edSizeHVal" style="color:#00d4ff;font-size:11px">1x</span>
+                </div>
             </div>
-            <div class="editor-palette" style="margin-top:8px">
-                <div style="margin-bottom:8px;color:#888;font-size:11px">Portals & Powerups</div>
-                <button class="palette-btn" data-type="jump-orb" onclick="selectEditorObstacle('jump-orb', this)">Orb</button>
-                <button class="palette-btn" data-type="cube-portal" onclick="selectEditorObstacle('cube-portal', this)">Cube</button>
-                <button class="palette-btn" data-type="ship-portal" onclick="selectEditorObstacle('ship-portal', this)">Ship</button>
-                <button class="palette-btn" data-type="ufo-portal" onclick="selectEditorObstacle('ufo-portal', this)">UFO</button>
-                <button class="palette-btn" data-type="wave-portal" onclick="selectEditorObstacle('wave-portal', this)">Wave</button>
-                <button class="palette-btn" data-type="ball-portal" onclick="selectEditorObstacle('ball-portal', this)">Ball</button>
-            </div>
-            <div style="margin-left:auto;display:flex;gap:8px">
+            <div style="margin-left:auto;display:flex;gap:8px;align-self:flex-start">
                 <button class="play-btn" onclick="playEditorLevel()">▶ Play</button>
                 <button class="play-btn" style="background:linear-gradient(135deg,#ff9f1a,#ff6b6b)" onclick="clearEditorLayout()">Clear</button>
             </div>
         </div>
         <div style="display:flex;gap:12px;margin-top:10px">
             <div style="flex:1">
-                <div style="color:#00d4ff;margin-bottom:6px">Placed Items</div>
+                <div style="color:#00d4ff;margin-bottom:6px">Placed Items (<span id="editorItemCount">0</span>)</div>
                 <div class="editor-list" id="editorList"></div>
             </div>
             <div style="width:220px">
@@ -2544,9 +2564,9 @@
                     if (playerY >= ceilingY - groundY - 30) playerY = ceilingY - groundY - 30;
                     break;
                 case 'ufo':
-                    if (isHolding) { playerVelocity += 1.2 * gravityDirection; }
-                    else { playerVelocity -= 0.7 * gravityDirection; }
-                    playerVelocity = Math.max(-12, Math.min(12, playerVelocity));
+                    if (isHolding) { playerVelocity += 1.8 * gravityDirection; }
+                    else { playerVelocity -= 1.1 * gravityDirection; }
+                    playerVelocity = Math.max(-14, Math.min(14, playerVelocity));
                     playerY += playerVelocity;
                     if (playerY <= 0) playerY = 0;
                     if (playerY >= ceilingY - groundY - 35) playerY = ceilingY - groundY - 35;
@@ -2585,10 +2605,24 @@
                 const obstacleRect = obstacle.getBoundingClientRect();
                 const hitboxShrink = 10;
 
-                if (playerRect.left + hitboxShrink < obstacleRect.right - hitboxShrink &&
+                const colliding = playerRect.left + hitboxShrink < obstacleRect.right - hitboxShrink &&
                     playerRect.right - hitboxShrink > obstacleRect.left + hitboxShrink &&
                     playerRect.top + hitboxShrink < obstacleRect.bottom - hitboxShrink &&
-                    playerRect.bottom - hitboxShrink > obstacleRect.top + hitboxShrink) {
+                    playerRect.bottom - hitboxShrink > obstacleRect.top + hitboxShrink;
+
+                if (colliding && obstacle.dataset.platform === 'true') {
+                    // Platform: land on top if falling or standing
+                    const platBottom = parseInt(obstacle.style.bottom) || 60;
+                    const platH = obstacle.offsetHeight || 15;
+                    const platTop = platBottom + platH - 60; // relative to ground
+                    // Player is above or near the top of the platform and falling/stationary
+                    if (playerVelocity <= 0 && playerY >= platTop - 10) {
+                        playerY = platTop;
+                        playerVelocity = 0;
+                        if (currentMode === 'cube') { jumpsRemaining = maxJumps; updateJumpIndicator(); player.classList.remove('jumping'); }
+                        if (currentMode === 'ball') { playerVelocity = 0; }
+                    }
+                } else if (colliding) {
                     gameOver(); return;
                 }
 
@@ -2688,114 +2722,312 @@
 
         // ============ LEVEL EDITOR FUNCTIONALITY ============
         let editorSelectedType = 'spike';
-    let editorLayout = []; // {type, percent, height}
-    let customLayouts = {};
-    let scheduledCustomTimeouts = [];
-    let editorCanvas = null;
-    let editorCtx = null;
+        let editorLayout = []; // {type, percent, height, scaleW, scaleH}
+        let customLayouts = {};
+        let scheduledCustomTimeouts = [];
+        let editorCanvas = null;
+        let editorCtx = null;
+        const GRID_COLS = 40;
+        const GRID_ROWS = 12;
+        const GROUND_ROWS = 2; // bottom rows reserved for ground
 
-    function openLevelEditor() {
-        const modal = document.getElementById('levelEditor');
-        modal.style.display = 'block';
-        document.getElementById('editorLevelLabel').textContent = `Level ${currentLevel}`;
-        
-        // init canvas if not done
-        if (!editorCanvas) {
-            editorCanvas = document.getElementById('editorCanvas');
-            editorCtx = editorCanvas.getContext('2d');
+        // Default sizes for each obstacle type (in grid cells)
+        const EDITOR_ITEM_DEFAULTS = {
+            'spike':        { w: 1, h: 1, color: '#ff4757', deadly: true },
+            'double-spike': { w: 2, h: 1, color: '#ff4757', deadly: true },
+            'triple-spike': { w: 3, h: 1, color: '#ff4757', deadly: true },
+            'block':        { w: 1, h: 1, color: '#ff6b4a', deadly: false },
+            'platform':     { w: 2, h: 0.5, color: '#2ecc71', deadly: false },
+            'saw':          { w: 1.2, h: 1.2, color: '#c0392b', deadly: true },
+            'laser':        { w: 0.3, h: 4, color: '#ff0000', deadly: true },
+            'wall':         { w: 0.8, h: 3, color: '#e74c3c', deadly: true },
+            'jump-orb':     { w: 0.8, h: 0.8, color: '#00ff88', deadly: false },
+            'cube-portal':  { w: 0.8, h: 2.5, color: '#00ff88', deadly: false },
+            'ship-portal':  { w: 0.8, h: 2.5, color: '#ff6b6b', deadly: false },
+            'ufo-portal':   { w: 0.8, h: 2.5, color: '#a55eea', deadly: false },
+            'wave-portal':  { w: 0.8, h: 2.5, color: '#00d4ff', deadly: false },
+            'ball-portal':  { w: 0.8, h: 2.5, color: '#ff9ff3', deadly: false },
+        };
+
+        function openLevelEditor() {
+            const modal = document.getElementById('levelEditor');
+            modal.style.display = 'block';
+            document.getElementById('editorLevelLabel').textContent = `Level ${currentLevel}`;
+            if (!editorCanvas) {
+                editorCanvas = document.getElementById('editorCanvas');
+                editorCtx = editorCanvas.getContext('2d');
+                editorCanvas.addEventListener('contextmenu', (e) => e.preventDefault());
+                editorCanvas.addEventListener('mousedown', handleEditorClick);
+            }
+            const raw = localStorage.getItem('customLayouts_v2');
+            if (raw) customLayouts = JSON.parse(raw);
+            editorLayout = customLayouts[currentLevel] ? JSON.parse(JSON.stringify(customLayouts[currentLevel])) : [];
+            renderEditor();
         }
-        
-        const raw = localStorage.getItem('customLayouts_v1');
-        if (raw) customLayouts = JSON.parse(raw);
-        editorLayout = customLayouts[currentLevel] ? customLayouts[currentLevel].slice() : [];
-        renderEditor();
-    }
 
-    function closeLevelEditor() { document.getElementById('levelEditor').style.display = 'none'; }
+        function closeLevelEditor() { document.getElementById('levelEditor').style.display = 'none'; }
 
-    function selectEditorObstacle(type, el) {
-        editorSelectedType = type;
-        document.querySelectorAll('.palette-btn').forEach(b => b.style.boxShadow = '');
-        if (el) el.style.boxShadow = '0 0 10px rgba(0,212,255,0.5)';
-    }
-
-    function renderEditor() {
-        if (!editorCanvas) return;
-        const w = editorCanvas.width, h = editorCanvas.height;
-        
-        // clear and draw grid background
-        editorCtx.fillStyle = '#0e0e1a';
-        editorCtx.fillRect(0, 0, w, h);
-        
-        // draw grid lines (light)
-        editorCtx.strokeStyle = '#1a3a4a';
-        editorCtx.lineWidth = 1;
-        for (let i = 0; i <= 10; i++) {
-            const x = (i / 10) * w;
-            editorCtx.beginPath();
-            editorCtx.moveTo(x, 0);
-            editorCtx.lineTo(x, h);
-            editorCtx.stroke();
+        function selectEditorObstacle(type, el) {
+            editorSelectedType = type;
+            document.querySelectorAll('.palette-btn').forEach(b => b.classList.remove('active'));
+            if (el) el.classList.add('active');
         }
-        for (let i = 0; i <= 5; i++) {
-            const y = (i / 5) * h;
-            editorCtx.beginPath();
-            editorCtx.moveTo(0, y);
-            editorCtx.lineTo(w, y);
-            editorCtx.stroke();
+
+        function getGridPos(e) {
+            const rect = editorCanvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const cellW = editorCanvas.width / GRID_COLS;
+            const cellH = editorCanvas.height / GRID_ROWS;
+            const col = Math.floor(x / cellW);
+            const row = Math.floor(y / cellH);
+            return { col: Math.max(0, Math.min(GRID_COLS - 1, col)), row: Math.max(0, Math.min(GRID_ROWS - 1, row)), cellW, cellH };
         }
-        
-        // draw placed items
-        editorLayout.forEach((item, idx) => {
-            const x = (item.percent / 100) * w;
-            const y = item.height * h;
-            
-            // color by type
-            let color = '#ff4757';
-            if (item.type === 'jump-orb') color = '#00ff88';
-            else if (item.type.includes('portal')) color = '#00d4ff';
-            else if (item.type.includes('spike')) color = '#ff6b4a';
-            
-            editorCtx.fillStyle = color;
-            editorCtx.beginPath();
-            editorCtx.arc(x, y, 8, 0, Math.PI * 2);
-            editorCtx.fill();
-            
-            editorCtx.strokeStyle = '#fff';
+
+        function handleEditorClick(e) {
+            const { col, row, cellW, cellH } = getGridPos(e);
+
+            if (e.button === 2) {
+                // Right-click: delete item at this position
+                const idx = editorLayout.findIndex(it => {
+                    const def = EDITOR_ITEM_DEFAULTS[it.type] || { w:1, h:1 };
+                    const iw = def.w * (it.scaleW || 1);
+                    const ih = def.h * (it.scaleH || 1);
+                    return col >= it.col && col < it.col + Math.ceil(iw) && row >= it.row && row < it.row + Math.ceil(ih);
+                });
+                if (idx >= 0) { editorLayout.splice(idx, 1); renderEditor(); }
+                return;
+            }
+
+            // Left-click: place item snapped to grid
+            const scaleW = parseFloat(document.getElementById('editorSizeW').value) || 1;
+            const scaleH = parseFloat(document.getElementById('editorSizeH').value) || 1;
+            editorLayout.push({
+                type: editorSelectedType,
+                col: col,
+                row: row,
+                scaleW: scaleW,
+                scaleH: scaleH,
+                // Keep percent/height for backward compat with game spawning
+                percent: (col / GRID_COLS) * 100,
+                height: row / GRID_ROWS
+            });
+            renderEditor();
+        }
+
+        function drawEditorItem(ctx, item, cellW, cellH) {
+            const def = EDITOR_ITEM_DEFAULTS[item.type] || { w:1, h:1, color:'#ff4757' };
+            const sw = item.scaleW || 1;
+            const sh = item.scaleH || 1;
+            const x = item.col * cellW;
+            const y = item.row * cellH;
+            const w = def.w * sw * cellW;
+            const h = def.h * sh * cellH;
+
+            ctx.save();
+
+            if (item.type.includes('spike')) {
+                // Draw triangle spike(s)
+                const numSpikes = item.type === 'triple-spike' ? 3 : item.type === 'double-spike' ? 2 : 1;
+                const spikeW = w / numSpikes;
+                ctx.fillStyle = def.color;
+                for (let i = 0; i < numSpikes; i++) {
+                    const sx = x + i * spikeW;
+                    ctx.beginPath();
+                    ctx.moveTo(sx, y + h);
+                    ctx.lineTo(sx + spikeW / 2, y);
+                    ctx.lineTo(sx + spikeW, y + h);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 1;
+                for (let i = 0; i < numSpikes; i++) {
+                    const sx = x + i * spikeW;
+                    ctx.beginPath();
+                    ctx.moveTo(sx, y + h);
+                    ctx.lineTo(sx + spikeW / 2, y);
+                    ctx.lineTo(sx + spikeW, y + h);
+                    ctx.closePath();
+                    ctx.stroke();
+                }
+            } else if (item.type === 'saw') {
+                // Draw circle saw
+                const cx = x + w / 2, cy = y + h / 2, r = Math.min(w, h) / 2;
+                ctx.fillStyle = def.color;
+                ctx.beginPath();
+                ctx.arc(cx, cy, r, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([3, 3]);
+                ctx.beginPath();
+                ctx.arc(cx, cy, r, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            } else if (item.type === 'laser') {
+                // Red glowing laser beam
+                ctx.fillStyle = '#ff0000';
+                ctx.shadowColor = '#ff0000';
+                ctx.shadowBlur = 8;
+                ctx.fillRect(x, y, w, h);
+                ctx.shadowBlur = 0;
+                ctx.strokeStyle = '#ff6600';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(x, y, w, h);
+            } else if (item.type === 'jump-orb') {
+                // Green glowing orb
+                const cx = x + w / 2, cy = y + h / 2, r = Math.min(w, h) / 2;
+                const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+                grad.addColorStop(0, '#00ff88');
+                grad.addColorStop(1, '#00d4ff');
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.arc(cx, cy, r, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(cx, cy, r, 0, Math.PI * 2);
+                ctx.stroke();
+            } else if (item.type.includes('portal')) {
+                // Draw portal as rounded rectangle with gradient
+                const portalColors = {
+                    'cube-portal': ['#00ff88', '#00d4ff'],
+                    'ship-portal': ['#ff6b6b', '#feca57'],
+                    'ufo-portal': ['#a55eea', '#5f27cd'],
+                    'wave-portal': ['#00d4ff', '#0984e3'],
+                    'ball-portal': ['#ff9ff3', '#f368e0'],
+                };
+                const cols = portalColors[item.type] || ['#00d4ff', '#0984e3'];
+                const grad = ctx.createLinearGradient(x, y, x, y + h);
+                grad.addColorStop(0, cols[0]);
+                grad.addColorStop(1, cols[1]);
+                ctx.fillStyle = grad;
+                const r2 = Math.min(w / 2, 6);
+                ctx.beginPath();
+                ctx.moveTo(x + r2, y);
+                ctx.lineTo(x + w - r2, y);
+                ctx.quadraticCurveTo(x + w, y, x + w, y + r2);
+                ctx.lineTo(x + w, y + h - r2);
+                ctx.quadraticCurveTo(x + w, y + h, x + w - r2, y + h);
+                ctx.lineTo(x + r2, y + h);
+                ctx.quadraticCurveTo(x, y + h, x, y + h - r2);
+                ctx.lineTo(x, y + r2);
+                ctx.quadraticCurveTo(x, y, x + r2, y);
+                ctx.closePath();
+                ctx.fill();
+                // Label
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 9px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(item.type.replace('-portal', '').toUpperCase(), x + w / 2, y + h / 2 + 3);
+            } else if (item.type === 'platform') {
+                // Green platform
+                ctx.fillStyle = '#2ecc71';
+                ctx.fillRect(x, y, w, h);
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(x, y, w, h);
+                // Hatch pattern to indicate solid top
+                ctx.strokeStyle = '#27ae60';
+                ctx.lineWidth = 1;
+                for (let lx = x; lx < x + w; lx += 6) {
+                    ctx.beginPath();
+                    ctx.moveTo(lx, y);
+                    ctx.lineTo(lx + 3, y + h);
+                    ctx.stroke();
+                }
+            } else {
+                // block, wall, etc - solid rectangle
+                ctx.fillStyle = def.color;
+                ctx.fillRect(x, y, w, h);
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(x, y, w, h);
+            }
+
+            ctx.restore();
+        }
+
+        function renderEditor() {
+            if (!editorCanvas) return;
+            const w = editorCanvas.width, h = editorCanvas.height;
+            const cellW = w / GRID_COLS;
+            const cellH = h / GRID_ROWS;
+
+            // Clear
+            editorCtx.fillStyle = '#0e0e1a';
+            editorCtx.fillRect(0, 0, w, h);
+
+            // Draw ground area
+            editorCtx.fillStyle = '#1a1a3e';
+            editorCtx.fillRect(0, (GRID_ROWS - GROUND_ROWS) * cellH, w, GROUND_ROWS * cellH);
+            editorCtx.strokeStyle = '#00d4ff';
             editorCtx.lineWidth = 2;
             editorCtx.beginPath();
-            editorCtx.arc(x, y, 8, 0, Math.PI * 2);
+            editorCtx.moveTo(0, (GRID_ROWS - GROUND_ROWS) * cellH);
+            editorCtx.lineTo(w, (GRID_ROWS - GROUND_ROWS) * cellH);
             editorCtx.stroke();
-        });
-        
-        // render list
-        const list = document.getElementById('editorList');
-        list.innerHTML = editorLayout.map((it,i)=>`<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #1a3a4a"><span>${i+1}. ${it.type}</span><span>${Math.round(it.percent)}% H:${Math.round(it.height*100)}%</span></div>`).join('');
-    }
 
-    document.addEventListener('click', (e) => {
-        if (e.target.id !== 'editorCanvas') return;
-        const rect = editorCanvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-        const percent = Math.max(0, Math.min(100, (x / editorCanvas.width) * 100));
-        const height = Math.max(0, Math.min(1, y / editorCanvas.height));
-        editorLayout.push({ type: editorSelectedType, percent, height });
-        renderEditor();
-    });
+            // Draw grid lines
+            editorCtx.strokeStyle = '#1a2a3a';
+            editorCtx.lineWidth = 0.5;
+            for (let i = 0; i <= GRID_COLS; i++) {
+                const x = i * cellW;
+                editorCtx.beginPath();
+                editorCtx.moveTo(x, 0);
+                editorCtx.lineTo(x, h);
+                editorCtx.stroke();
+            }
+            for (let i = 0; i <= GRID_ROWS; i++) {
+                const y = i * cellH;
+                editorCtx.beginPath();
+                editorCtx.moveTo(0, y);
+                editorCtx.lineTo(w, y);
+                editorCtx.stroke();
+            }
 
-        function removeEditorItem(idx) { editorLayout.splice(idx,1); renderEditor(); }
+            // Thicker lines every 5 columns for visual reference
+            editorCtx.strokeStyle = '#2a3a4a';
+            editorCtx.lineWidth = 1;
+            for (let i = 0; i <= GRID_COLS; i += 5) {
+                const x = i * cellW;
+                editorCtx.beginPath();
+                editorCtx.moveTo(x, 0);
+                editorCtx.lineTo(x, h);
+                editorCtx.stroke();
+                // Percentage labels
+                editorCtx.fillStyle = '#3a4a5a';
+                editorCtx.font = '9px Arial';
+                editorCtx.textAlign = 'center';
+                editorCtx.fillText(Math.round(i / GRID_COLS * 100) + '%', x, 10);
+            }
+
+            // Draw placed items with real visuals
+            editorLayout.forEach((item) => { drawEditorItem(editorCtx, item, cellW, cellH); });
+
+            // Render list
+            const list = document.getElementById('editorList');
+            document.getElementById('editorItemCount').textContent = editorLayout.length;
+            list.innerHTML = editorLayout.map((it, i) => {
+                const sizeStr = (it.scaleW && it.scaleW !== 1) || (it.scaleH && it.scaleH !== 1) ? ` [${it.scaleW || 1}x${it.scaleH || 1}]` : '';
+                return `<div class="editor-item-row"><span>${i + 1}. ${it.type}${sizeStr}</span><span style="display:flex;gap:4px;align-items:center">${Math.round(it.percent)}%<button onclick="removeEditorItem(${i})">X</button></span></div>`;
+            }).join('');
+        }
+
+        function removeEditorItem(idx) { editorLayout.splice(idx, 1); renderEditor(); }
 
         function saveEditorLayout() {
-            customLayouts[currentLevel] = editorLayout.slice();
-            localStorage.setItem('customLayouts_v1', JSON.stringify(customLayouts));
+            customLayouts[currentLevel] = JSON.parse(JSON.stringify(editorLayout));
+            localStorage.setItem('customLayouts_v2', JSON.stringify(customLayouts));
             alert('Layout saved for level ' + currentLevel);
         }
 
         function loadEditorLayout() {
-            const raw = localStorage.getItem('customLayouts_v1');
+            const raw = localStorage.getItem('customLayouts_v2');
             if (raw) customLayouts = JSON.parse(raw);
-            editorLayout = customLayouts[currentLevel] ? customLayouts[currentLevel].slice() : [];
+            editorLayout = customLayouts[currentLevel] ? JSON.parse(JSON.stringify(customLayouts[currentLevel])) : [];
             renderEditor();
         }
 
@@ -2889,26 +3121,31 @@
             portals.forEach(p => p.remove()); portals = [];
             updateGame();
             // If a custom layout exists for this level, schedule custom spawns and skip random spawning
-            const raw = localStorage.getItem('customLayouts_v1');
+            const raw = localStorage.getItem('customLayouts_v2');
             const hasCustom = raw && JSON.parse(raw)[currentLevel] && JSON.parse(raw)[currentLevel].length > 0;
             if (hasCustom) {
-                // schedule custom spawns based on saved percent and height positions
                 const custom = JSON.parse(raw)[currentLevel];
                 const durationFrames = Math.max(60, Math.round(levelLength / (gameSpeed * 0.025)));
-                const durationMs = durationFrames * (1000/60);
-                scheduledCustomTimeouts.forEach(t=>clearTimeout(t)); scheduledCustomTimeouts = [];
+                const durationMs = durationFrames * (1000 / 60);
+                scheduledCustomTimeouts.forEach(t => clearTimeout(t)); scheduledCustomTimeouts = [];
                 custom.forEach(item => {
-                    const delay = Math.max(0, (item.percent/100) * durationMs + 800);
+                    const delay = Math.max(0, (item.percent / 100) * durationMs + 800);
                     const t = setTimeout(() => {
                         if (!isGameRunning) return;
                         const groundY = 60, ceilingY = 400;
-                        
-                        // Create element based on type
+                        const playH = ceilingY - groundY;
+                        // Convert grid row to bottom position (row 0 = top, GRID_ROWS = bottom)
+                        const bottomPos = groundY + playH * (1 - item.height) - 40;
+                        const def = EDITOR_ITEM_DEFAULTS[item.type] || { w: 1, h: 1 };
+                        const sw = item.scaleW || 1;
+                        const sh = item.scaleH || 1;
+
                         if (item.type === 'jump-orb') {
                             const orb = document.createElement('div');
                             orb.className = 'powerup jump-orb';
                             orb.style.right = '-30px';
-                            orb.style.bottom = ((1 - item.height) * (ceilingY - groundY - 30) + groundY) + 'px';
+                            orb.style.bottom = Math.max(groundY, bottomPos) + 'px';
+                            if (sw !== 1 || sh !== 1) { orb.style.transform = `scale(${sw}, ${sh})`; }
                             game.appendChild(orb);
                             powerups.push(orb);
                         } else if (item.type.includes('portal')) {
@@ -2917,15 +3154,28 @@
                             portal.className = `portal ${item.type}`;
                             portal.dataset.type = portalType;
                             portal.style.right = '-40px';
-                            portal.style.bottom = ((1 - item.height) * (ceilingY - groundY - 100) + groundY) + 'px';
+                            portal.style.bottom = Math.max(groundY, bottomPos) + 'px';
                             game.appendChild(portal);
                             portals.push(portal);
+                        } else if (item.type === 'platform') {
+                            const obstacle = document.createElement('div');
+                            obstacle.className = 'obstacle platform';
+                            obstacle.dataset.platform = 'true';
+                            obstacle.style.right = '-120px';
+                            obstacle.style.bottom = Math.max(groundY, bottomPos) + 'px';
+                            obstacle.style.width = (80 * sw) + 'px';
+                            obstacle.style.height = (15 * sh) + 'px';
+                            game.appendChild(obstacle);
+                            obstacles.push(obstacle);
                         } else {
-                            // regular obstacle
                             const obstacle = document.createElement('div');
                             obstacle.className = `obstacle ${item.type}`;
                             obstacle.style.right = '-120px';
-                            obstacle.style.bottom = ((1 - item.height) * (ceilingY - groundY - 60) + groundY) + 'px';
+                            obstacle.style.bottom = Math.max(groundY, bottomPos) + 'px';
+                            if (sw !== 1 || sh !== 1) {
+                                obstacle.style.transform = `scale(${sw}, ${sh})`;
+                                obstacle.style.transformOrigin = 'bottom center';
+                            }
                             game.appendChild(obstacle);
                             obstacles.push(obstacle);
                         }
