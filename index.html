@@ -2781,6 +2781,8 @@
         const percent = Math.max(0, Math.min(100, (x / editorCanvas.width) * 100));
         const height = Math.max(0, Math.min(1, y / editorCanvas.height));
         editorLayout.push({ type: editorSelectedType, percent, height });
+        renderEditor();
+    });
 
         function removeEditorItem(idx) { editorLayout.splice(idx,1); renderEditor(); }
 
