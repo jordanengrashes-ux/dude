@@ -913,7 +913,7 @@
             </div>
         </div>
         <div style="display:flex;gap:10px;justify-content:center;align-items:center;">
-            <button class="play-btn" onclick="startLevel(currentLevel)">▶ Play</button>
+            <button class="play-btn" onclick="startLevel(currentLevel); setTimeout(startGame, 100);">▶ Play</button>
             <button class="play-btn" style="background:linear-gradient(135deg,#ffd166,#ff6b6b);" onclick="openLevelEditor()">✎ Edit Level</button>
         </div>
         <button class="games-btn" onclick="goToGameHub()">🎮 Mini Games Hub</button>
@@ -2326,7 +2326,7 @@
             levels.forEach((level, index) => {
                 const levelCard = document.createElement('div');
                 levelCard.className = `level-card ${!playerData.unlockedLevels[index] ? 'locked' : ''}`;
-                if (playerData.unlockedLevels[index]) levelCard.onclick = () => startLevel(index + 1);
+                if (playerData.unlockedLevels[index]) levelCard.onclick = () => { startLevel(index + 1); setTimeout(startGame, 100); };
                 levelCard.innerHTML = `
                     <div class="level-number">${playerData.unlockedLevels[index] ? index + 1 : '<span class="lock-icon">🔒</span>'}</div>
                     <div class="level-name">${level.name}</div>
@@ -3037,6 +3037,7 @@
             saveEditorLayout();
             closeLevelEditor();
             startLevel(currentLevel);
+            setTimeout(startGame, 100);
         }
 
         function levelComplete() {
