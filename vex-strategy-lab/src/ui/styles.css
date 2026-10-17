@@ -608,3 +608,13 @@ main {
 .gantt-row .bar.fail {
   outline: 1px dashed #fff;
 }
+
+/* team mode / drivers */
+.dot { display: inline-block; width: 0.6em; height: 0.6em; border-radius: 50%; vertical-align: middle; }
+.dot.red { background: #e66767; }
+.dot.blue { background: #3987e5; }
+kbd { font: 600 0.78em/1 ui-monospace, SFMono-Regular, Menlo, monospace; background: #1f2023; border: 1px solid #3a3b3f; border-bottom-width: 2px; border-radius: 4px; padding: 0.15em 0.4em; color: #e6e6e3; white-space: nowrap; }
+.table.keys td { padding: 0.2em 0.4em; }
+.error { color: #ff8a80; }
+.card.drivers { margin-top: 0.75rem; }
+.card.drivers h4 { margin: 0 0 0.4rem; }

@@ -166,6 +166,13 @@ export class PlanExecutor implements Controller {
     }
   }
 
+  /** Take the robot back after a human drove it: drop the interrupted action and replan from here. */
+  resume(sim: MatchSim, r: SimRobot, reason: string) {
+    this.cur = null;
+    r.body.liftManual = null;
+    if (this.mpc.enabled) this.replan(sim, r, reason);
+  }
+
   /** Re-optimize the rest of the window from the current physical state. */
   replan(sim: MatchSim, r: SimRobot, reason: string) {
     const pose = r.body.pose();

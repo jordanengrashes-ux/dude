@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { FieldScene } from '../three/FieldScene';
 import { runner } from '../simRunner';
+import { localInput } from '../input';
+import { team } from '../../net/session';
 import { store, useApp } from '../store';
 import type { StepInfo } from '../../planner/model';
 
@@ -18,25 +20,44 @@ export function Field3D({ steps }: { steps: StepInfo[] | null }) {
     const sc = new FieldScene(canvas.current!);
     sceneRef.current = sc;
     // ?debug exposes the scene for automated screenshots / console inspection
-    if (new URLSearchParams(window.location.search).has('debug')) Object.assign(window as object, { __vexScene: sc, __vexRunner: runner });
+    if (new URLSearchParams(window.location.search).has('debug')) Object.assign(window as object, { __vexScene: sc, __vexRunner: runner, __vexTeam: team.session });
     const ro = new ResizeObserver(() => sc.resize(wrap.current!.clientWidth, wrap.current!.clientHeight));
     ro.observe(wrap.current!);
     let raf = 0;
     let last = performance.now();
     let trailTick = 0;
+    let robotSet: unknown[] = [];
     const loop = (now: number) => {
       const dt = (now - last) / 1000;
       last = now;
-      runner.frame(dt);
-      if (runner.sim) {
-        sc.sync(runner.sim, store.get().selection);
-        if (trailTick++ % 10 === 0) sc.setTrails(runner.sim.robots.map((r) => ({ id: r.id, alliance: r.alliance, pts: r.trail })));
+      localInput.pollGamepad();
+      // a team-mode guest draws the host's interpolated snapshots instead of local physics
+      const guest = team.role === 'guest';
+      if (!guest) runner.frame(dt);
+      const frame = guest ? (team.session?.frameAt() ?? null) : runner.sim ? runner.sim.sceneFrame() : null;
+      if (frame) {
+        const cfgs = frame.robots.map((r) => r.cfg);
+        if (cfgs.length !== robotSet.length || cfgs.some((c, i) => c !== robotSet[i])) {
+          sc.resetRobots();
+          robotSet = cfgs;
+        }
+        sc.sync(frame, store.get().selection);
+        if (trailTick++ % 10 === 0) sc.setTrails(frame.robots.map((r) => ({ id: r.id, alliance: r.alliance, pts: r.trail })));
       }
       sc.render();
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
+    // Browsers pause animation frames in hidden tabs; a team-mode host keeps the
+    // match running from (throttled, ~1 Hz) timers so the guests' game goes on.
+    let lastBg = performance.now();
+    const bg = setInterval(() => {
+      const now = performance.now();
+      if (document.hidden && team.role === 'host') runner.frame((now - lastBg) / 1000, 1.0);
+      lastBg = now;
+    }, 250);
     return () => {
+      clearInterval(bg);
       cancelAnimationFrame(raf);
       ro.disconnect();
       sc.dispose();
@@ -51,7 +72,7 @@ export function Field3D({ steps }: { steps: StepInfo[] | null }) {
   }, [steps, userSlot, slots]);
 
   const onClick = (e: React.MouseEvent) => {
-    const pick = sceneRef.current?.pick(e.clientX, e.clientY, runner.sim) ?? null;
+    const pick = sceneRef.current?.pick(e.clientX, e.clientY) ?? null;
     store.set({ selection: pick });
   };
 

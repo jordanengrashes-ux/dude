@@ -4,7 +4,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import { IN } from '../../core/units';
 import type { Vec2 } from '../../core/vec';
 import { buildGoals, buildLoaders, buildToggles, CUP, HALF, loadZones, PIN, TILE } from '../../field/geometry';
-import type { MatchSim } from '../../sim/match';
+import type { SceneFrame } from '../../sim/frame';
 import { toWorld } from '../../physics/frames';
 import type { HalfColor } from '../../rules/ruleset';
 import type { StepInfo } from '../../planner/model';
@@ -230,20 +230,25 @@ export class FieldScene {
     return this.toggleMeshes.get(id) ?? null;
   }
 
-  private ensureRobot(sim: MatchSim, id: string): RobotModel {
-    let m = this.robots.get(id);
+  private ensureRobot(fr: SceneFrame['robots'][number]): RobotModel {
+    let m = this.robots.get(fr.id);
     if (!m) {
-      const sr = sim.robot(id)!;
-      m = robotModel(id, sr.alliance, sr.cfg, this.mats);
-      m.chassis.userData.pick = { kind: 'robot', id } satisfies PickInfo;
-      const lbl = this.textSprite(id, '#f0efec', 0.06);
-      lbl.position.set(0, (sr.cfg.chassis.towerHeightIn + 5) * IN, 0);
+      m = robotModel(fr.id, fr.alliance, fr.cfg, this.mats);
+      m.chassis.userData.pick = { kind: 'robot', id: fr.id } satisfies PickInfo;
+      const lbl = this.textSprite(fr.id, '#f0efec', 0.06);
+      lbl.position.set(0, (fr.cfg.chassis.towerHeightIn + 5) * IN, 0);
       lbl.visible = this.showLabels;
       m.chassis.add(lbl);
       this.scene.add(m.chassis, m.carriage);
-      this.robots.set(id, m);
+      this.robots.set(fr.id, m);
     }
     return m;
+  }
+
+  /** Drop robot models (e.g. a different robot set after a rebuild or joining a room). */
+  resetRobots() {
+    for (const m of this.robots.values()) this.scene.remove(m.chassis, m.carriage);
+    this.robots.clear();
   }
 
   textSprite(text: string, color: string, height: number): THREE.Sprite {
@@ -342,17 +347,15 @@ export class FieldScene {
     }
   }
 
-  /** Copy the physical state into the scene. */
-  sync(sim: MatchSim, selection: PickInfo | null) {
-    const snap = sim.snapshot();
-    for (const r of snap.robots) {
-      const m = this.ensureRobot(sim, r.id);
+  /** Draw one frame of the match (local physics or a team-mode snapshot). */
+  sync(frame: SceneFrame, selection: PickInfo | null) {
+    for (const r of frame.robots) {
+      const m = this.ensureRobot(r);
       m.chassis.position.set(r.chassis.p.x, r.chassis.p.y, r.chassis.p.z);
       m.chassis.quaternion.set(r.chassis.q.x, r.chassis.q.y, r.chassis.q.z, r.chassis.q.w);
       m.carriage.position.set(r.carriage.p.x, r.carriage.p.y, r.carriage.p.z);
       m.carriage.quaternion.set(r.carriage.q.x, r.carriage.q.y, r.carriage.q.z, r.carriage.q.w);
-      const sr = sim.robot(r.id);
-      if (sr) m.setLift(sr.body.holderHeight() - sr.cfg.lift.holderMinHeightIn);
+      m.setLift(r.holderH - r.cfg.lift.holderMinHeightIn);
     }
     const mtx = new THREE.Matrix4();
     const q = new THREE.Quaternion();
@@ -363,11 +366,10 @@ export class FieldScene {
     let ic = 0;
     this.pinIds = [];
     this.cupIds = [];
-    for (const o of snap.objects) {
+    for (const o of frame.objects) {
       if (!o.p || !o.q) continue;
       q.set(o.q.x, o.q.y, o.q.z, o.q.w);
       up.set(0, 1, 0).applyQuaternion(q);
-      const obj = sim.objects.objects.get(o.id)!;
       const halfOff = ((o.kind === 'pin' ? PIN.half : CUP.half) / 2) * IN;
       for (const sign of [-1, 1]) {
         p.set(o.p.x + up.x * halfOff * sign, o.p.y + up.y * halfOff * sign, o.p.z + up.z * halfOff * sign);
@@ -376,7 +378,7 @@ export class FieldScene {
           // local −Y half = colors[0], +Y half = colors[1]
           const mesh = sign < 0 ? this.pinBottom : this.pinTop;
           mesh.setMatrixAt(ip, mtx);
-          mesh.setColorAt(ip, halfColor(obj.colors![sign < 0 ? 0 : 1]));
+          mesh.setColorAt(ip, halfColor(o.colors![sign < 0 ? 0 : 1]));
         } else {
           // local +Y half = gray, −Y half = clear
           (sign > 0 ? this.cupGray : this.cupClear).setMatrixAt(ic, mtx);
@@ -396,28 +398,20 @@ export class FieldScene {
       m.instanceMatrix.needsUpdate = true;
       if (m.instanceColor) m.instanceColor.needsUpdate = true;
     }
-    this.cad?.syncObjects(sim, snap);
-    for (const t of snap.toggles) {
-      const m = this.toggleMeshes.get(t.id)!;
-      const tb = sim.field.toggles.find((x) => x.geom.id === t.id)!;
-      const tp = tb.body.translation();
-      m.position.set(tp.x, tp.y, tp.z);
+    this.cad?.syncObjects(frame);
+    for (const t of frame.toggles) {
+      const m = this.toggleMeshes.get(t.id);
+      if (!m) continue;
+      m.position.set(t.p.x, t.p.y, t.p.z);
       m.quaternion.set(t.q.x, t.q.y, t.q.z, t.q.w);
     }
     // selection marker
     this.selectionRing.visible = false;
     if (selection) {
       let pos: { x: number; y: number; z: number } | null = null;
-      if (selection.kind === 'object') {
-        const b = sim.objects.objects.get(selection.id)?.body;
-        if (b) pos = b.translation();
-      } else if (selection.kind === 'robot') {
-        const r = sim.robot(selection.id);
-        if (r) pos = r.body.chassis.translation();
-      } else if (selection.kind === 'goal') {
-        const g = this.goalMeshes.get(selection.id);
-        if (g) pos = g.position;
-      }
+      if (selection.kind === 'object') pos = frame.objects.find((o) => o.id === selection.id)?.p ?? null;
+      else if (selection.kind === 'robot') pos = frame.robots.find((r) => r.id === selection.id)?.chassis.p ?? null;
+      else if (selection.kind === 'goal') pos = this.goalMeshes.get(selection.id)?.position ?? null;
       if (pos) {
         this.selectionRing.visible = true;
         this.selectionRing.position.set(pos.x, 0.01, pos.z);
@@ -427,7 +421,7 @@ export class FieldScene {
   }
 
   /** Pick the object under a canvas pixel. */
-  pick(x: number, y: number, _sim: MatchSim | null): PickInfo | null {
+  pick(x: number, y: number): PickInfo | null {
     const rect = this.canvas.getBoundingClientRect();
     const ndc = new THREE.Vector2(((x - rect.left) / rect.width) * 2 - 1, -((y - rect.top) / rect.height) * 2 + 1);
     this.raycaster.setFromCamera(ndc, this.camera);

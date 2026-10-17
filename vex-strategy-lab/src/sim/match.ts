@@ -23,6 +23,7 @@ import { CG, headingOf, toWorld, upOf, yawQuat, quatMul, type Quat, type V3 } fr
 import { ObjectManager, type SimObject } from '../physics/objects';
 import { loadRapier, type Rapier } from '../physics/rapier';
 import { RobotBody } from '../physics/robot';
+import type { SceneFrame } from './frame';
 
 /**
  * Match simulation: fixed-timestep physics (independent of rendering), the match
@@ -773,6 +774,23 @@ export class MatchSim {
         const q = tb.body.rotation();
         return { id: tb.geom.id, q: { x: q.x, y: q.y, z: q.z, w: q.w }, position: togglePosition(tb) };
       }),
+    };
+  }
+
+  /** Render frame of the current state (see sim/frame.ts). */
+  sceneFrame(): SceneFrame {
+    const pq = (b: { translation(): V3; rotation(): Quat }) => {
+      const t = b.translation();
+      const q = b.rotation();
+      return { p: { x: t.x, y: t.y, z: t.z }, q: { x: q.x, y: q.y, z: q.z, w: q.w } };
+    };
+    return {
+      t: this.t,
+      robots: this.robots.map((r) => ({ id: r.id, alliance: r.alliance, cfg: r.cfg, chassis: pq(r.body.chassis), carriage: pq(r.body.carriage), holderH: r.body.holderHeight(), trail: r.trail })),
+      objects: [...this.objects.objects.values()].map((o) =>
+        o.body ? { id: o.id, kind: o.kind, colors: o.colors, ...pq(o.body), stacked: o.mode === 'stacked' || o.mode === 'seating' } : { id: o.id, kind: o.kind, colors: o.colors, p: null, q: null },
+      ),
+      toggles: this.field.toggles.map((tb) => ({ id: tb.geom.id, ...pq(tb.body) })),
     };
   }
 

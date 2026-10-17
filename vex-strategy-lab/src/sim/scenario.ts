@@ -11,6 +11,7 @@ import type { UncertaintyConfig } from '../planner/robustness';
 import { DEFAULT_MPC, PlanExecutor, type MpcOptions } from './executor';
 import { MatchSim, type Controller, type RobotSetup, type Sensing, type SimRobot } from './match';
 import { approach, backOff, DEFAULT_TUNING } from './drive';
+import { SlotController, type DriverInput } from './driver';
 import { derivePerf } from '../robot/kinematics';
 
 /**
@@ -216,7 +217,12 @@ export interface BuiltScenario {
   sim: MatchSim;
   plans: Map<string, { actions: Action[]; world: PlanWorld; events: ExternalEvent[] }>;
   executors: Map<string, PlanExecutor>;
+  /** Every robot's slot: its bot, which a human driver can take over at any time. */
+  slots: Map<string, SlotController>;
 }
+
+/** Driver input for a slot this step (null = nobody is driving it). */
+export type InputSource = (slot: string) => DriverInput | null;
 
 export interface TrialPerturbation {
   motorScale: Record<string, number>;
@@ -226,9 +232,10 @@ export interface TrialPerturbation {
   objectJitterSd: number;
 }
 
-export async function buildMatch(sc: ScenarioConfig, manual?: Controller, perturb?: TrialPerturbation, prePlanned?: BuiltScenario['plans']): Promise<BuiltScenario> {
+export async function buildMatch(sc: ScenarioConfig, inputs?: InputSource, perturb?: TrialPerturbation, prePlanned?: BuiltScenario['plans']): Promise<BuiltScenario> {
   const plans = prePlanned ?? planScenario(sc);
   const executors = new Map<string, PlanExecutor>();
+  const slotCtl = new Map<string, SlotController>();
   const robots: RobotSetup[] = [];
   for (const slot of sc.slots) {
     if (!slot.enabled) continue;
@@ -263,17 +270,17 @@ export async function buildMatch(sc: ScenarioConfig, manual?: Controller, pertur
         ctl = new DefenderController(target, robot, sc.matchType === 'headToHead' ? sc.params.timing.autonomousSec : 0);
         break;
       }
-      case 'manual':
-        ctl = manual ?? new IdleController();
-        break;
       default:
         ctl = new IdleController();
     }
+    const sl = new SlotController(slot.slot, ctl, () => inputs?.(slot.slot) ?? null);
+    if (slot.strategy === 'manual') sl.setHuman('You');
+    slotCtl.set(slot.slot, sl);
     robots.push({
       id: slot.slot,
       alliance: slot.alliance,
       config: robot,
-      controller: ctl,
+      controller: sl,
       start: undefined, // starting poses come from the layout (editable in Field Setup)
       motorScale: perturb?.motorScale[slot.slot],
       tractionScale: perturb?.tractionScale[slot.slot],
@@ -281,7 +288,7 @@ export async function buildMatch(sc: ScenarioConfig, manual?: Controller, pertur
     });
   }
   const sim = await MatchSim.create({ params: sc.params, layout: sc.layout, robots, seed: sc.seed, objectJitterSd: perturb?.objectJitterSd });
-  return { sim, plans, executors };
+  return { sim, plans, executors, slots: slotCtl };
 }
 
 export interface PhysicsTrialStats {

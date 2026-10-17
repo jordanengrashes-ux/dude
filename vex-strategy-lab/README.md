@@ -1,0 +1,169 @@
+# VEX V5 Strategy Lab — Override (2026–2027)
+
+A browser-based simulator, strategy optimizer and team-play arena for the V5RC
+**Override** game (game manual v2.1). One to four robots play on a correctly scaled
+12 × 12 ft field in a deterministic rigid-body physics simulation (Rapier). The
+rules engine scores every state and explains each point. An optimizer searches for
+the best plan and reports honestly whether it is proven optimal. Bots fill any
+robot nobody is driving, and players can join a room to take them over.
+
+## Quick start
+
+```bash
+cd vex-strategy-lab
+npm ci
+npm run dev        # http://localhost:5173
+npm test           # unit, physics, planner, team-mode tests
+npm run build      # type-check + production build into dist/
+npm run report     # reproducible sample report → docs/sample-report.md / .json
+```
+
+Node 20+ is recommended.
+
+## Deploying
+
+The app is a static site; `vercel.json` is ready. On Vercel, import the repository,
+set **Root Directory** to `vex-strategy-lab`, and deploy (framework: Vite, output
+`dist`). Any static host works (`npm run build`, serve `dist/`).
+
+Online team mode talks directly from the browser to Supabase Realtime, so there is no
+server to deploy. Supabase cannot host the app itself: it serves `.html` files as
+plain text. The defaults in `src/net/config.ts` point at the project's Supabase
+instance with its publishable key, which is designed to ship in client code. To use
+another project, set these at build time:
+
+```
+VITE_SUPABASE_URL=https://<ref>.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_…
+```
+
+Realtime broadcast and presence need no tables. Rooms are public channels, so the
+project's **Realtime Settings → Allow public access** must stay on (it is on by
+default); turning it off enforces private channels, which would need Supabase Auth
+and RLS policies on `realtime.messages`.
+
+## Team mode
+
+Every robot starts as a bot (its optimized plan, a scripted Toggle patrol, a Midfield
+parker, a defender, …). In the **Team** tab:
+
+1. Enter a name, pick **Online (Supabase Realtime)** or **This browser only**
+   (other tabs on the same computer, no network), and **Create room**.
+2. Share the 5-letter code. Each player who **Join**s replaces a bot: the host's
+   partner first, then the opponents. Anyone can switch to a free robot from the
+   **Drivers** card, or **Hand back to bot**. When a player leaves (or disappears for
+   more than 6 s), the bot takes the robot back and replans from the current field.
+3. The host presses **Play**. During Autonomous every robot runs its program, as in a
+   real match; drivers take over at Driver Control (all match in Driver Skills).
+
+Without a room, the same **Drivers** card lets you drive any robot yourself while
+bots play the rest.
+
+How it works: the host runs the only simulation (fixed 1/120 s steps) and streams
+compact snapshots about 8 times a second: positions in millimeters, quantized
+quaternions, only the objects that moved, and a keyframe every 2 s. Guests render
+150 ms behind and interpolate. They send their controls when those change, plus a
+heartbeat. A four-player room stays inside Supabase's free-plan Realtime budget
+(100 messages/s). Keep the host's tab open; if it is hidden, the match keeps
+running on timer ticks.
+
+## Controls
+
+| Action | Keyboard | Gamepad |
+|---|---|---|
+| Drive / turn (arcade) | W/S, A/D or arrows | left stick Y / right stick X |
+| Raise / drop the lift (DR4B) | R / F | RT / LT |
+| Lift presets: floor, Alliance Goal, short Goal, tall Goal | 1 2 3 4 | D-pad ↓ ← → ↑ |
+| Close the claw (grab, hold) | Shift or C | A |
+| Drop (open the claw) | E or V | B |
+| Toggle arm (hold) | T | X |
+| Swap pockets | Q | LB |
+| Flip the held object | X | Y |
+| Request a Match Load | L | RB |
+| Play / pause (host or offline) | Space | Start |
+
+## The robot
+
+The default robot is the given 16 × 16 in four-wheel drive with a **double reverse
+four-bar (DR4B)** lift; rack and pinion is still selectable in the Robot tab.
+Unknowns are labeled as assumptions and editable:
+- 8.5 in bars over −25°…50° (20.2 in of travel)
+- 2 × 200 rpm lift motors at 1:7
+- 3.25 in wheels on 450 rpm
+- 15 lb
+
+The DR4B end effector rises straight up, h = h(θmin) + 2L(sin θ − sin θmin). The
+motor sees an effective radius of 2L·cos θ, so the lift is fastest with the bars
+level and strongest near the top. The planner's lift times, the physics lift motor
+and the animated linkage all use the same transmission (`src/robot/lift.ts`).
+
+Execution overheads (alignment, settling, backing off) are calibrated from physics
+runs; **Calibrate model from physics** in the Robot tab re-runs this for your robot.
+
+## Optimizer
+
+- **Model:** macro-actions (pick, load, place, toggle, park, wait) timed by the
+  motor/traction model over planned paths. Values come from the rules engine on the
+  resulting field, including other robots' predicted actions and the Autonomous Bonus.
+- **Search methods:**
+  - beam search ranked with a value-of-time term
+  - MCTS
+  - evolutionary search
+  - branch-and-bound with an admissible bound
+  - exhaustive enumeration on small scenarios
+  - MPC replanning while executing
+- **Reporting:** "verified optimum" only when branch-and-bound exhausts the stated
+  space; otherwise best found, the bound and the gap.
+- **Robustness:** model Monte Carlo (motor, traction, battery, positioning, other
+  robots' timing) and full physics trials. Both theoretical-best and practical-best
+  plans are reported.
+
+`npm run report` reproduces `docs/sample-report.md` with every number from real runs.
+
+## Rules and sources
+
+`src/rules/ruleset.ts` lists each implemented rule with its source, manual version,
+verification level and last-checked date (also shown in the Rules tab). The official
+VEX sites could not be opened from the build environment, so the rules come from
+search-engine extracts of the manual and Q&A. Items marked as assumptions or
+conflicting are editable under Setup → Rule interpretation switches. Re-verify
+against the current manual before relying on them.
+
+## 3D models and official CAD
+
+Field elements and robots are detailed procedural models built from the published
+dimensions:
+- Pins 1.6 × 6.5 in, Cups 3.15 × 6.5 in
+- octagonal Goals on element plates
+- 25.8 in tri-color Toggle bars on 11.5 in walls
+
+The official STEP files can replace any of them: `docs/CAD.md` covers
+`npm run cad`, the converter self-test and `public/models/manifest.json`.
+
+## Project map
+
+| Path | What |
+|---|---|
+| `src/rules/` | Override rules, scoring with explanations, timing, inspection, sources |
+| `src/field/` | Field geometry and object layout |
+| `src/robot/` | Robot config, motors, kinematics, lift transmission |
+| `src/physics/` | Rapier world: robot, field, Toggles, objects and seating |
+| `src/sim/` | Match simulation, plan executor (MPC), driver control, scenarios, frames |
+| `src/planner/` | World model, path planning, search methods, bounds, robustness, explanations |
+| `src/net/` | Team mode: protocol, transports (Supabase Realtime, BroadcastChannel), session |
+| `src/workers/` | Optimizer / physics trials in a Web Worker |
+| `src/ui/` | React UI, Three.js scene and assets, input, charts |
+| `tests/` | Vitest suites |
+| `scripts/` | Sample report, CAD converter |
+
+## Known limitations
+
+- Rules and some field dimensions come from secondary sources (see the Rules tab).
+  Element shapes beyond the published dimensions are approximations until official
+  CAD is loaded.
+- Plans are optimal only within the macro-action model and its candidate limits. On
+  the full field the optimizer reports best found with a gap, not a proof.
+- Physical execution falls short of the model: objects get plowed, wedged or knocked
+  over, and other robots interfere. Physics trials quantify the gap.
+- Online play depends on Supabase Realtime reachability and quotas. The host's
+  device runs the physics for everyone.

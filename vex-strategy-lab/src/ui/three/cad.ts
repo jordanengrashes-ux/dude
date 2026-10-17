@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { buildGoals, buildLoaders, buildToggles } from '../../field/geometry';
 import { toWorld } from '../../physics/frames';
-import type { MatchSim } from '../../sim/match';
+import type { SceneFrame } from '../../sim/frame';
 import type { FieldScene } from './FieldScene';
 
 /**
@@ -42,7 +42,7 @@ interface Manifest {
 export interface CadOverrides {
   /** Elements that were replaced, for the UI. */
   replaced: string[];
-  syncObjects(sim: MatchSim, snap: ReturnType<MatchSim['snapshot']>): void;
+  syncObjects(frame: SceneFrame): void;
   pickables(): THREE.Object3D[];
   pickHit(h: THREE.Intersection): string | null;
 }
@@ -92,7 +92,7 @@ class InstancedSet {
 }
 
 export async function applyCadOverrides(fs: FieldScene): Promise<CadOverrides | null> {
-  const base = (import.meta as unknown as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? '/';
+  const base = import.meta.env?.BASE_URL ?? '/';
   let manifest: Manifest;
   try {
     const r = await fetch(`${base}models/manifest.json`);
@@ -220,19 +220,18 @@ export async function applyCadOverrides(fs: FieldScene): Promise<CadOverrides | 
   if (replaced.length) console.info(`[cad] official models in use: ${replaced.join(', ')}`);
   return {
     replaced,
-    syncObjects(sim, snap) {
+    syncObjects(frame) {
       if (!cupSet || !pinSets.size) return;
       for (const s of pinSets.values()) s.begin();
       cupSet.begin();
-      for (const o of snap.objects) {
+      for (const o of frame.objects) {
         if (!o.p || !o.q) continue;
         q.set(o.q.x, o.q.y, o.q.z, o.q.w);
         p.set(o.p.x, o.p.y, o.p.z);
         mtx.compose(p, q, one);
         if (o.kind === 'cup') cupSet.push(o.id, mtx);
         else {
-          const obj = sim.objects.objects.get(o.id)!;
-          const type = obj.colors!.map((c) => c[0].toUpperCase()).join('');
+          const type = o.colors!.map((c) => c[0].toUpperCase()).join('');
           (pinSets.get(type) ?? pinSets.get('*') ?? pinSets.get(type.split('').reverse().join('')))?.push(o.id, mtx);
         }
       }

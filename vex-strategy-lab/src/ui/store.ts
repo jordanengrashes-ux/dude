@@ -12,7 +12,7 @@ import type { PhysicsTrialStats, SlotSetup, Strategy } from '../sim/scenario';
  * refreshes.
  */
 
-export type Tab = 'field' | 'optimizer' | 'robot' | 'analysis' | 'timeline' | 'setup' | 'rules';
+export type Tab = 'field' | 'team' | 'optimizer' | 'robot' | 'analysis' | 'timeline' | 'setup' | 'rules';
 export type CameraMode = 'overhead' | 'iso' | 'side' | 'free';
 
 export interface PlanOptions {

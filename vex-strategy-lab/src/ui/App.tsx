@@ -7,9 +7,11 @@ import { TimelinePanel } from './components/TimelinePanel';
 import { SetupPanel } from './components/SetupPanel';
 import { RulesPanel } from './components/RulesPanel';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { TeamPanel } from './components/TeamPanel';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'field', label: 'Field' },
+  { id: 'team', label: 'Team' },
   { id: 'optimizer', label: 'Optimizer' },
   { id: 'timeline', label: 'Strategy timeline' },
   { id: 'analysis', label: 'Analysis' },
@@ -71,6 +73,7 @@ export function App() {
           </ErrorBoundary>
         </div>
         <ErrorBoundary key={tab} name={TABS.find((t) => t.id === tab)!.label}>
+          {tab === 'team' && <TeamPanel />}
           {tab === 'optimizer' && <OptimizerPanel />}
           {tab === 'timeline' && <TimelinePanel />}
           {tab === 'analysis' && <AnalysisPanel />}

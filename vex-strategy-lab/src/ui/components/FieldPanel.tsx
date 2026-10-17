@@ -1,23 +1,33 @@
 import { useEffect, useMemo, useState } from 'react';
-import { formatClock, isEndgame, periodAt, remaining } from '../../rules/timing';
 import { IN } from '../../core/units';
 import { upOf } from '../../physics/frames';
 import { runner } from '../simRunner';
 import { store, useApp, type CameraMode } from '../store';
 import { Field3D } from './Field3D';
 import { TopDown } from './TopDown';
+import { DriversCard } from './DriversCard';
+import { localInput } from '../input';
+import { team, useTeam } from '../../net/session';
+import { hudData } from '../../sim/frame';
 
+/** Re-render on simulation progress: local physics steps, or team-mode snapshots for a guest. */
 function useRunnerTick() {
   const [, set] = useState(0);
   useEffect(() => {
     let last = 0;
-    return runner.subscribe(() => {
+    const tick = () => {
       const now = performance.now();
       if (now - last > 90) {
         last = now;
         set((x) => x + 1);
       }
-    });
+    };
+    const a = runner.subscribe(tick);
+    const b = team.session?.onSnap(tick);
+    return () => {
+      a();
+      b?.();
+    };
   }, []);
 }
 
@@ -33,46 +43,42 @@ export function usePlanSteps() {
 
 function Hud() {
   useRunnerTick();
+  const t = useTeam();
+  const guest = t.role === 'guest';
   const sim = runner.sim;
-  if (!sim) return <div className="hud muted">{runner.building ? 'Building simulation…' : runner.error ?? 'No simulation'}</div>;
-  const per = periodAt(sim.clock, sim.t);
-  const totals = sim.displayTotals();
-  const rep = sim.liveScore();
-  const rem = remaining(sim.clock, sim.t);
-  const autoLeft = sim.clock.autonomousEnd !== null ? Math.max(0, sim.clock.autonomousEnd - sim.t) : 0;
+  const h = guest ? (team.session?.hud ?? null) : sim ? hudData(sim) : null;
+  if (!h) return <div className="hud muted">{guest ? 'Waiting for the host…' : runner.building ? 'Building simulation…' : (runner.error ?? 'No simulation')}</div>;
   return (
     <div className="hud" aria-live="polite">
       <div className="clock">
-        <span className="period">{per === 'ended' ? 'Match over' : per === 'autonomous' ? 'Autonomous' : per === 'driver' ? (isEndgame(sim.clock, sim.t) ? 'Endgame' : 'Driver Control') : 'Robot Skills'}</span>
-        <span className="time">{formatClock(per === 'autonomous' ? autoLeft : rem)}</span>
-        <span className="muted small">t = {sim.t.toFixed(2)} s</span>
+        <span className="period">{h.period}</span>
+        <span className="time">{h.clock}</span>
+        <span className="muted small">t = {h.t.toFixed(2)} s</span>
       </div>
       <div className="score red">
         <span className="label">Red</span>
-        <span className="value">{totals.red}</span>
-        {totals.bonus && <span className="small muted">incl. Auto Bonus {totals.bonus.red}</span>}
+        <span className="value">{h.totals.red}</span>
+        {h.bonus && <span className="small muted">incl. Auto Bonus {h.bonus.red}</span>}
       </div>
-      {sim.clock.matchType === 'headToHead' && (
+      {h.headToHead && (
         <div className="score blue">
           <span className="label">Blue</span>
-          <span className="value">{totals.blue}</span>
-          {totals.bonus && <span className="small muted">incl. Auto Bonus {totals.bonus.blue}</span>}
+          <span className="value">{h.totals.blue}</span>
+          {h.bonus && <span className="small muted">incl. Auto Bonus {h.bonus.blue}</span>}
         </div>
       )}
       <div className="own">
         <span className="small muted">Ownership</span>
         {(['R1', 'R2', 'B1', 'B2', 'midfield'] as const).map((q) => (
-          <span key={q} className={`chip ${rep.ownership[q] ?? 'none'}`}>
-            {q === 'midfield' ? 'Mid' : q}: {rep.ownership[q] ?? '—'}
+          <span key={q} className={`chip ${h.ownership[q] ?? 'none'}`}>
+            {q === 'midfield' ? 'Mid' : q}: {h.ownership[q] ?? '—'}
           </span>
         ))}
       </div>
-      {sim.result && (
-        <div className="small">
-          AWP: red {sim.result.awp.red.earned ? '✓' : '✗'} · blue {sim.result.awp.blue.earned ? '✓' : '✗'} · {sim.result.bonus.explanation}
-        </div>
-      )}
-      <div className="small muted">{sim.violations.length} violations · {sim.events.filter((e) => e.type === 'collision').length} collisions</div>
+      {h.result && <div className="small">{h.result}</div>}
+      <div className="small muted">
+        {h.violations} violations · {h.collisions} collisions{t.role !== 'none' ? ` · team room ${t.room}` : ''}
+      </div>
     </div>
   );
 }
@@ -81,7 +87,8 @@ function SimControls() {
   useRunnerTick();
   const camera = useApp((s) => s.camera);
   const show = useApp((s) => s.show);
-  const sim = runner.sim;
+  const guest = useTeam().role === 'guest';
+  const sim = guest ? null : runner.sim;
   const speeds = [0.1, 0.25, 0.5, 1, 2, 4, 8];
   return (
     <div className="controls">
@@ -94,7 +101,8 @@ function SimControls() {
         </button>
         <button disabled={!sim} onClick={() => runner.stepOnce(12)}>+0.1 s</button>
         <button disabled={!sim} onClick={() => runner.runToEnd()}>Run to end</button>
-        <button onClick={() => runner.rebuild()}>Reset match</button>
+        <button disabled={guest} onClick={() => runner.rebuild()}>Reset match</button>
+        {guest && <span className="small muted">The host runs the match clock.</span>}
       </div>
       <div className="row">
         <label>
@@ -138,7 +146,9 @@ function SimControls() {
 function Inspector() {
   useRunnerTick();
   const sel = useApp((s) => s.selection);
+  const guest = useTeam().role === 'guest';
   const sim = runner.sim;
+  if (guest) return <div className="inspector muted small">In a team room the host runs the physics; detailed inspection is available on the host.</div>;
   if (!sel || !sim) return <div className="inspector muted small">Click an object, robot, Goal or Toggle to inspect it.</div>;
   if (sel.kind === 'object') {
     const o = sim.objects.objects.get(sel.id);
@@ -168,7 +178,12 @@ function Inspector() {
     return (
       <div className="inspector">
         <h4>{r.id}</h4>
-        <div className="small">Controller: {r.controller.kind}</div>
+        <div className="small">
+          Driver: {(() => {
+            const d = runner.driverOf(r.id);
+            return d.kind === 'bot' ? `bot (${runner.built?.slots.get(r.id)?.bot.kind ?? '—'})` : d.kind === 'local' ? 'you' : d.name;
+          })()}
+        </div>
         <div className="small">
           ({p.pos.x.toFixed(1)}", {p.pos.y.toFixed(1)}") · heading {((p.heading * 180) / Math.PI).toFixed(0)}° · {tl.speed.toFixed(1)} in/s
         </div>
@@ -216,42 +231,18 @@ function Inspector() {
   );
 }
 
-function useKeyboard() {
+/** Keyboard + gamepad feed the local driver input; Space / Start toggles play (not for guests). */
+function useDriverInput() {
   useEffect(() => {
-    const keys = new Set<string>();
-    const update = () => {
-      const l = runner.live;
-      l.forward = (keys.has('w') || keys.has('arrowup') ? 1 : 0) - (keys.has('s') || keys.has('arrowdown') ? 1 : 0);
-      l.turn = (keys.has('a') || keys.has('arrowleft') ? 1 : 0) - (keys.has('d') || keys.has('arrowright') ? 1 : 0);
-      l.lift = (keys.has('r') ? 1 : 0) - (keys.has('f') ? 1 : 0);
-      l.intake = keys.has('shift') || keys.has('i');
-      l.toggle = keys.has('t');
-      l.load = keys.has('l');
+    runner.live = localInput.state;
+    localInput.onPlayPause = () => {
+      if (team.role !== 'guest') runner.setPlaying(!runner.playing);
     };
-    const down = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
-      const k = e.key.toLowerCase();
-      if (k === ' ') {
-        e.preventDefault();
-        runner.setPlaying(!runner.playing);
-        return;
-      }
-      if (k === 'e') runner.live.release = true;
-      if (k === 'q') runner.live.index = true;
-      if (k === 'x') runner.live.reorient = true;
-      keys.add(k);
-      update();
-    };
-    const up = (e: KeyboardEvent) => {
-      keys.delete(e.key.toLowerCase());
-      update();
-    };
-    window.addEventListener('keydown', down);
-    window.addEventListener('keyup', up);
+    const detach = localInput.attachKeyboard();
+    const unsub = localInput.subscribe((inp) => team.session?.onLocalInput(inp));
     return () => {
-      window.removeEventListener('keydown', down);
-      window.removeEventListener('keyup', up);
+      detach();
+      unsub();
     };
   }, []);
 }
@@ -259,12 +250,10 @@ function useKeyboard() {
 export function FieldPanel() {
   const steps = usePlanSteps();
   const simVersion = useApp((s) => s.simVersion);
-  const slots = useApp((s) => s.slots);
-  useKeyboard();
+  useDriverInput();
   useEffect(() => {
     runner.rebuild(store.get());
   }, [simVersion]);
-  const manual = slots.some((s) => s.strategy === 'manual' && s.enabled);
   return (
     <div className="field-layout">
       <div className="field-main">
@@ -275,13 +264,7 @@ export function FieldPanel() {
         <SimControls />
         <TopDown steps={steps} height={330} />
         <Inspector />
-        <div className="small muted help">
-          {manual ? (
-            <>Manual robot: W/S drive · A/D turn · R/F lift · Shift intake · E release · Q index pockets · X flip · T toggle · L request Match Load · Space play/pause</>
-          ) : (
-            <>Set a robot to “manual” in Setup to drive it with the keyboard. Space = play/pause. Drag to orbit, scroll to zoom, right-drag to pan.</>
-          )}
-        </div>
+        <DriversCard />
       </aside>
     </div>
   );

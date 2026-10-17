@@ -3,9 +3,10 @@ import { buildGoals, buildLoaders, buildToggles, CUP, HALF, LOAD_ZONE_SIZE, PIN,
 import { PIN_COLORS, type FieldLayout } from '../../field/layout';
 import { obbCorners, type Vec2 } from '../../core/vec';
 import type { StepInfo } from '../../planner/model';
-import { upOf } from '../../physics/frames';
+import { headingOf, upOf } from '../../physics/frames';
 import { IN } from '../../core/units';
 import { runner } from '../simRunner';
+import { team } from '../../net/session';
 import { setLayout, store, useApp } from '../store';
 
 /**
@@ -128,8 +129,9 @@ export function TopDown({ steps, editable, height = 420 }: { steps?: StepInfo[] 
     g.fillStyle = C.blue;
     g.fillRect(a.x + 2 * HALF * k + 3, P({ x: 0, y: 30 }).y, 4, 60 * k);
 
-    const sim = runner.sim;
-    const fs = sim?.extractFieldState();
+    // live state: the local physics, or the host's snapshots when this tab is a team-mode guest
+    const frame = team.role === 'guest' ? (team.session?.frameAt() ?? null) : (runner.sim?.sceneFrame() ?? null);
+    const fs = team.role === 'guest' ? null : runner.sim?.extractFieldState();
     // goals with stack count
     for (const gg of buildGoals()) {
       const c = P(gg.pos);
@@ -196,12 +198,11 @@ export function TopDown({ steps, editable, height = 420 }: { steps?: StepInfo[] 
       g.lineWidth = 2;
       g.stroke();
     };
-    if (sim && !editable) {
-      for (const o of sim.objects.objects.values()) {
-        if (!o.body || o.mode === 'stacked' || o.mode === 'seating') continue;
-        const t = o.body.translation();
-        const p = { x: t.x / IN, y: -t.z / IN };
-        const up = upOf(o.body.rotation());
+    if (frame && !editable) {
+      for (const o of frame.objects) {
+        if (!o.p || !o.q || o.stacked) continue;
+        const p = { x: o.p.x / IN, y: -o.p.z / IN };
+        const up = upOf(o.q);
         if (o.kind === 'pin') drawPin(p, o.colors!, up.y >= 0, Math.abs(up.y) < 0.7);
         else drawCup(p, up.y >= 0);
       }
@@ -241,7 +242,7 @@ export function TopDown({ steps, editable, height = 420 }: { steps?: StepInfo[] 
       });
     }
     // robots + trails
-    const robots = sim && !editable ? sim.robots.map((r) => ({ id: r.id, alliance: r.alliance, ...r.body.pose(), L: r.cfg.chassis.lengthIn, W: r.cfg.chassis.widthIn, trail: r.trail })) : layout.robots.map((r) => ({ id: r.slot, alliance: r.alliance, pos: r.pos, heading: r.heading, L: 16, W: 16, trail: [] as { x: number; y: number }[] }));
+    const robots = frame && !editable ? frame.robots.map((r) => ({ id: r.id, alliance: r.alliance, pos: { x: r.chassis.p.x / IN, y: -r.chassis.p.z / IN }, heading: headingOf(r.chassis.q), L: r.cfg.chassis.lengthIn, W: r.cfg.chassis.widthIn, trail: r.trail })) : layout.robots.map((r) => ({ id: r.slot, alliance: r.alliance, pos: r.pos, heading: r.heading, L: 16, W: 16, trail: [] as { x: number; y: number }[] }));
     for (const r of robots) {
       if (show.trails && r.trail.length > 1) {
         g.strokeStyle = r.alliance === 'red' ? 'rgba(217,83,79,0.5)' : 'rgba(59,130,246,0.5)';

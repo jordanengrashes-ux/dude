@@ -1,58 +1,21 @@
 import { buildMatch, planScenario, type BuiltScenario, type ScenarioConfig } from '../sim/scenario';
-import { DT, type Controller, type MatchSim, type Sensing, type SimRobot } from '../sim/match';
+import { DT, type MatchSim } from '../sim/match';
+import { zeroInput, type DriverInput } from '../sim/driver';
 import type { Action } from '../planner/model';
-import { buildToggles, buildLoaders } from '../field/geometry';
 import { store, type AppState } from './store';
+import { bindTeam } from '../net/session';
 
 /**
  * Drives the live simulation for the UI. Physics advances in fixed DT steps from
  * an accumulator (wall time × speed), so the frame rate never changes results.
- * Manual inputs are logged per step; a checkpoint restore rebuilds the scenario
- * and replays deterministically to the checkpoint time.
+ *
+ * Every robot is a slot whose bot can be taken over by a driver: the local
+ * keyboard/gamepad (`local`, driving `localSlot`) or a remote team-mode player
+ * (`remote`). Driver inputs are logged per slot and step, so a checkpoint
+ * restore rebuilds the scenario and replays deterministically.
  */
 
-export interface ManualInput {
-  forward: number;
-  turn: number;
-  lift: number;
-  intake: boolean;
-  release: boolean;
-  index: boolean;
-  reorient: boolean;
-  toggle: boolean;
-  load: boolean;
-}
-
-const zeroInput = (): ManualInput => ({ forward: 0, turn: 0, lift: 0, intake: false, release: false, index: false, reorient: false, toggle: false, load: false });
-
-class ManualController implements Controller {
-  readonly kind = 'manual';
-  constructor(private runner: SimRunner) {}
-  update(sim: MatchSim, r: SimRobot, sense: Sensing) {
-    const inp = this.runner.inputForStep(sim.steps);
-    const f = inp.forward;
-    const t = inp.turn * 0.7;
-    r.body.cmd = { left: Math.max(-1, Math.min(1, f - t)), right: Math.max(-1, Math.min(1, f + t)) };
-    r.body.liftManual = inp.lift !== 0 ? inp.lift : null;
-    if (inp.lift === 0 && r.body.liftManual === null) r.body.liftTarget = sense.holderHeight;
-    r.req.intake = inp.intake;
-    r.req.release = inp.release;
-    r.req.index = inp.index;
-    r.req.reorient = inp.reorient;
-    if (inp.toggle) {
-      // actuate the nearest Toggle toward this robot's color
-      const tg = buildToggles().reduce((a, b) => (Math.hypot(b.pos.x - sense.pos.x, b.pos.y - sense.pos.y) < Math.hypot(a.pos.x - sense.pos.x, a.pos.y - sense.pos.y) ? b : a));
-      r.req.toggle = { toggleId: tg.id, target: sim.clock.matchType === 'headToHead' ? r.alliance : sim.opts.params.skills.ownedToggleColor };
-    }
-    if (inp.load) {
-      const l = buildLoaders()
-        .filter((x) => sim.clock.matchType !== 'headToHead' || x.alliance === r.alliance)
-        .reduce((a, b) => (Math.hypot(b.dispense.x - sense.pos.x, b.dispense.y - sense.pos.y) < Math.hypot(a.dispense.x - sense.pos.x, a.dispense.y - sense.pos.y) ? b : a));
-      const next = [...sim.objects.objects.values()].find((o) => o.mode === 'offfield' && (sim.clock.matchType !== 'headToHead' || o.matchloadAlliance === r.alliance) && !(r.primary?.kind === o.kind || r.secondary?.kind === o.kind));
-      if (next) r.req.matchLoad = { loaderId: l.id, objectId: next.id };
-    }
-  }
-}
+export type SlotDriver = { kind: 'bot' } | { kind: 'local'; name: string } | { kind: 'remote'; name: string; peerId: string };
 
 export class SimRunner {
   built: BuiltScenario | null = null;
@@ -61,9 +24,15 @@ export class SimRunner {
   speed = 1;
   tick = 0;
   building = false;
-  /** Live keyboard state (sampled once per physics step while recording). */
-  live: ManualInput = zeroInput();
-  private inputLog: ManualInput[] = [];
+  /** Local driver input (keyboard / gamepad), sampled once per physics step. */
+  live: DriverInput = zeroInput();
+  /** Slot the local driver controls (null = spectating). */
+  localSlot: string | null = null;
+  /** Latest inputs from remote team-mode drivers, by slot. */
+  remote = new Map<string, DriverInput>();
+  /** Who drives each slot. */
+  drivers = new Map<string, SlotDriver>();
+  private inputLog = new Map<string, DriverInput[]>();
   private replaying = false;
   private acc = 0;
   private listeners = new Set<() => void>();
@@ -82,15 +51,57 @@ export class SimRunner {
     for (const l of this.listeners) l();
   }
 
-  inputForStep(step: number): ManualInput {
-    if (this.replaying) return this.inputLog[step] ?? zeroInput();
-    const inp = { ...this.live };
-    this.inputLog[step] = inp;
-    // one-shot buttons
-    this.live.release = false;
-    this.live.index = false;
-    this.live.reorient = false;
+  /** Match type, rules and layout of the running scenario (team-mode setup). */
+  scenarioInfo() {
+    const sc = this.scenario;
+    return sc ? { matchType: sc.matchType, params: sc.params, layout: sc.layout } : null;
+  }
+
+  /** Driver input for a slot at the current physics step (logged for deterministic replay). */
+  inputFor(slot: string): DriverInput | null {
+    const step = this.sim?.steps ?? 0;
+    const d = this.drivers.get(slot);
+    if (!d || d.kind === 'bot') return null;
+    let log = this.inputLog.get(slot);
+    if (!log) this.inputLog.set(slot, (log = []));
+    if (this.replaying) return log[step] ?? zeroInput();
+    const inp = d.kind === 'local' ? { ...this.live } : { ...(this.remote.get(slot) ?? zeroInput()) };
+    log[step] = inp;
     return inp;
+  }
+
+  /** Hand a slot to a driver (or back to its bot). */
+  setDriver(slot: string, d: SlotDriver) {
+    if (d.kind === 'local') {
+      if (this.localSlot && this.localSlot !== slot) this.setDriver(this.localSlot, { kind: 'bot' });
+      this.localSlot = slot;
+    } else if (this.localSlot === slot) this.localSlot = null;
+    if (d.kind === 'bot') this.remote.delete(slot);
+    this.drivers.set(slot, d);
+    const sc = this.built?.slots.get(slot);
+    if (sc) {
+      if (d.kind === 'bot') sc.setBot();
+      else sc.setHuman(d.name);
+    }
+    this.emit();
+  }
+
+  /** Drivers per slot, for the UI. */
+  driverOf(slot: string): SlotDriver {
+    return this.drivers.get(slot) ?? { kind: 'bot' };
+  }
+
+  private applyDrivers() {
+    if (!this.built) return;
+    for (const [slot, sc] of this.built.slots) {
+      const d = this.drivers.get(slot);
+      if (d && d.kind !== 'bot') sc.setHuman(d.name);
+      else if (sc.isHuman) {
+        // 'manual' strategy slots start with the local driver
+        this.drivers.set(slot, { kind: 'local', name: 'You' });
+        if (!this.localSlot) this.localSlot = slot;
+      }
+    }
   }
 
   scenarioFrom(s: AppState): ScenarioConfig {
@@ -121,9 +132,10 @@ export class SimRunner {
       this.sim = null;
       this.scenario = this.scenarioFrom(s);
       const plans = planScenario(this.scenario, s.userSlot);
-      this.built = await buildMatch(this.scenario, new ManualController(this), undefined, plans);
+      this.built = await buildMatch(this.scenario, (slot) => this.inputFor(slot), undefined, plans);
       this.sim = this.built.sim;
-      this.inputLog = [];
+      this.applyDrivers();
+      this.inputLog = new Map();
       this.checkpoints = [];
       this.acc = 0;
       this.playing = false;
@@ -135,10 +147,13 @@ export class SimRunner {
     }
   }
 
-  /** Advance by wall-clock seconds × speed using fixed physics steps. */
-  frame(dtReal: number) {
+  /**
+   * Advance by wall-clock seconds × speed using fixed physics steps. `maxDt` caps a
+   * long gap (e.g. 1 s when a team-mode host's hidden tab only gets timer ticks).
+   */
+  frame(dtReal: number, maxDt = 0.1) {
     if (!this.sim || !this.playing) return;
-    this.acc += Math.min(0.1, dtReal) * this.speed;
+    this.acc += Math.min(maxDt, dtReal) * this.speed;
     let n = 0;
     const maxSteps = 240; // keep the UI responsive at high speed
     while (this.acc >= DT && n < maxSteps) {
@@ -178,12 +193,13 @@ export class SimRunner {
   /** Deterministic restore: rebuild and replay logged inputs to the checkpoint. */
   async restore(steps: number) {
     if (!this.scenario) return;
-    const log = this.inputLog.slice(0, steps);
+    const log = new Map([...this.inputLog].map(([k, v]) => [k, v.slice(0, steps)]));
     const cps = this.checkpoints.slice();
     this.sim?.dispose();
     const plans = planScenario(this.scenario, store.get().userSlot);
-    this.built = await buildMatch(this.scenario, new ManualController(this), undefined, plans);
+    this.built = await buildMatch(this.scenario, (slot) => this.inputFor(slot), undefined, plans);
     this.sim = this.built.sim;
+    this.applyDrivers();
     this.inputLog = log;
     this.replaying = true;
     while (this.sim.steps < steps) this.sim.step();
@@ -203,3 +219,4 @@ export class SimRunner {
 }
 
 export const runner = new SimRunner();
+bindTeam(runner);
