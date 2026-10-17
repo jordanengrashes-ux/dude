@@ -861,7 +861,7 @@ ctd::Console.println("stall %s  asked %.1f  got %.1f in/s",
      fix: true for "something is wrong" answers; rel: related fact ids offered as follow-ups. */
   var FACTS=[
   /* Lesson 1 */
-  {id:"libraries",q:["What libraries are in this project?","What does CT Nav do?","What is CT Dash?","What is CT Guard?","What does the word before :: mean?","Is there LemLib?"],k:"library libraries ctnav ctd ctguard pros lemlib chassis prefix colon namespace nav dash guard",
+  {id:"libraries",q:["What libraries are in this project?","What does CT Nav do?","What is CT Dash?","What is CT Guard?","What does the word before :: mean?","Is there LemLib?"],k:"library libraries ctnav ctd ctguard pros lemlib chassis prefix colon namespace nav dash guard double colon :: random word start of every line word before",
    a:"Every line names its library before the `::`.\n- `ctnav::` **CT Nav** moves the robot and keeps track of where it is.\n- `ctd::` **CT Dash** runs the brain-screen buttons, printing and the log.\n- `ctguard::` **CT Guard** watches the hardware and says what is wrong.\n- `pros::` **PROS 4.2.2** is the system underneath. It builds and uploads your code.\nThere is no LemLib in this project, so there is no chassis object to build. CT Nav does that job.",s:["Spot the library by its prefix"],rel:["read-line","which-file"]},
   {id:"read-line",q:["How do I read a line of code?","What are the parts of a line?"],k:"read line library action value parts understand",
    a:"Almost every line has three parts: the **library**, the **action** and the **value**. Read `ctnav::turnToHeading(90);` out loud as \"CT Nav, turn to heading, ninety.\" The value is the part you usually change.",s:["Library, action, value"],rel:["libraries"]},
@@ -869,47 +869,47 @@ ctd::Console.println("stall %s  asked %.1f  got %.1f in/s",
    a:"Six files are yours. Everything else is a library you leave alone.\n- Change a port, or reverse a motor: `src/robot_config.cpp`\n- Change a measurement or tuning number: `include/robot_config.hpp`\n- Change how the sticks or buttons feel: `src/driver_control.cpp`\n- Write or edit an autonomous routine: `src/autons/<name>.cpp`\n- Add a routine to the brain-screen menu: `src/auton_selector.cpp`\n- Change what happens at start-up: `src/main.cpp`\nA new routine also needs one line in `include/autons.hpp`.",s:[],rel:["config-split","add-routine"]},
   {id:"config-split",q:["What is the difference between robot_config.cpp and robot_config.hpp?","Why are there two config files?"],k:"cpp hpp config difference two hardware numbers header",
    a:"The split is on purpose.\n- `src/robot_config.cpp` holds the **hardware**: which port, which direction. Swap a motor and you edit this file.\n- `include/robot_config.hpp` holds the **numbers**: wheel size, curves, speeds. Change how it drives and you edit this file.",s:["Two-motor drive","Physical drive constants"],rel:["which-file"]},
-  {id:"modes",q:["What are the competition modes?","When does initialize run?","When does autonomous run?","What goes in opcontrol?","What does disabled do?"],k:"modes mode initialize competition_initialize disabled autonomous opcontrol main functions period match",
+  {id:"modes",q:["What are the competition modes?","When does initialize run?","When does autonomous run?","What goes in opcontrol?","What does disabled do?"],k:"modes mode initialize competition_initialize disabled autonomous opcontrol main functions period match skip auton straight to driving practice bench powers on order of modes",
    a:"`src/main.cpp` has five functions. The brain calls them; you never call them yourself.\n- `initialize()` runs once at power on. Register routines, calibrate, check hardware.\n- `competition_initialize()` runs only with a field controller plugged in. Put almost nothing here.\n- `disabled()` runs while the field switches you off. Nothing that moves.\n- `autonomous()` is the 15-second period. One line: `auton::run();`\n- `opcontrol()` is the driving period and loops forever, reading sticks and buttons.\nOn the bench the brain goes straight from `initialize()` to `opcontrol()`.",s:["The opcontrol loop","Run the armed routine"],rel:["init-short","comp-init","delay"]},
-  {id:"comp-init",q:["Can I put the menu in competition_initialize?","My routine buttons don't show up at practice"],k:"competition_initialize menu buttons practice bench never runs appear selector",fix:true,
+  {id:"comp-init",q:["Can I put the menu in competition_initialize?","My routine buttons don't show up at practice"],k:"competition_initialize menu buttons practice bench never runs appear selector menu buttons not showing up dont show disappear missing",fix:true,
    a:"Don't move the menu into `competition_initialize()`. On the bench, with no field controller plugged in, that function never runs, so your routine buttons never appear during practice. Build the menu in `initialize()` with `auton::start();` before `ctd::Dash.start();`.",s:["initialize() in order"],rel:["init-order"]},
   {id:"init-short",q:["Why must initialize stay short?","Why is my start-up slow?"],k:"initialize short slow startup wait blocked calibrate two seconds long delay",
    a:"Every other mode waits until `initialize()` returns. Calibrating the inertial sensor alone takes about two seconds, and the robot must be still for it. A long wait of your own eats the start of your autonomous.",s:["initialize() in order"],rel:["init-order","keep-still"]},
-  {id:"delay",q:["Why do I need pros::delay(20)?","My robot looks frozen","The screen stopped updating","What happens if I remove the delay?"],k:"delay pros::delay 20 frozen freeze screen stuck loop task turn let go hang unresponsive",fix:true,
+  {id:"delay",q:["Why do I need pros::delay(20)?","My robot looks frozen","The screen stopped updating","What happens if I remove the delay?"],k:"delay pros::delay 20 frozen freeze screen stuck loop task turn let go hang unresponsive while loop screen doesnt change dead unresponsive seems dead my own loop",fix:true,
    a:"Never remove `pros::delay(20)` from a loop. A loop with no delay never lets go, so the tasks that draw the screen and watch the hardware stop getting a turn. The robot looks frozen even though your code is running flat out. Every loop you write needs a delay.",s:["The opcontrol loop","A loop that shares the brain"],rel:["tasks"]},
   {id:"ports",q:["How do I change a motor port?","Where do I set the drive ports?","Where are the ports?"],k:"port ports socket change set drive motor motorgroup left_motors right_motors number plug brain",
    a:"Open `src/robot_config.cpp`. The drivetrain is two lists of port numbers, one per side. A port is the numbered socket on the brain the motor plugs into. A negative port means \"spin this one the other way\". For four motors, put two ports in each list.",s:["Two-motor drive","Four-motor drive"],rel:["reverse-motor","units-arg"]},
-  {id:"reverse-motor",q:["How do I reverse a motor?","A motor spins the wrong way","What does a negative port mean?","How do I flip a motor?"],k:"reverse flip sign negative minus wrong way backwards spins opposite direction invert",fix:true,
+  {id:"reverse-motor",q:["How do I reverse a motor?","A motor spins the wrong way","What does a negative port mean?","How do I flip a motor?"],k:"reverse flip sign negative minus wrong way backwards spins opposite direction invert spins in a circle sideways drives forward fighting sides against the others one wheel goes backwards drives backwards when i push forward",fix:true,
    a:"Put a minus sign in front of that port number in `src/robot_config.cpp`. `{-3}` means port 3, running reversed. Then check with the wheels off the ground and the left stick pushed forward:\n- One wheel spins the wrong way: flip the sign on that one port.\n- Up/down turns the robot and left/right drives it: the sides are fighting, so flip both signs on one side.\n- Every wheel agrees but the robot drives backwards: flip all the signs.",s:["Two-motor drive","Four-motor drive"],rel:["ports","curves-one-way"]},
   {id:"four-motor",q:["How do I set up a four-motor drive?","Two motors per side"],k:"four 4 motor motors per side two each side group",
    a:"Put two ports in each side's list. One of each pair is usually negative because the motors face opposite ways. Nothing else in the project changes.",s:["Four-motor drive"],rel:["reverse-motor"]},
-  {id:"units-arg",q:["What is pros::MotorUnits::degrees for?","Can I delete the third argument?","Why are encoder units written out?"],k:"units degrees motorunits third argument encoder counts tidy delete remove",
+  {id:"units-arg",q:["What is pros::MotorUnits::degrees for?","Can I delete the third argument?","Why are encoder units written out?"],k:"units degrees motorunits third argument encoder counts tidy delete remove deleted long thing end of every motorgroup line cleaner tidy removed shortened",
    a:"`pros::MotorUnits::degrees` is not decoration. Without it, PROS leaves the units as whatever the last program set. A green cartridge then reports 900 counts per turn instead of 360 degrees, so every distance reads **2.5 times too large**. Nothing complains: the odometry and the speed are wrong by the same amount, so they agree with each other and disagree only with the floor. Every `MotorGroup` line must end with it.",s:["Wrong: missing the units argument","Two-motor drive"],rel:["push-2115","push-test"]},
-  {id:"push-test",q:["How do I do the push test?","What should the push test read?","How do I check my drivetrain without odometry?"],k:"push test encoders zero tile 24 846 tape measure check prove drivetrain reading",
+  {id:"push-test",q:["How do I do the push test?","What should the push test read?","How do I check my drivetrain without odometry?"],k:"push test encoders zero tile 24 846 tape measure check prove drivetrain reading shove shoving push by hand floor across check wheel setup prove right correct",
    a:"Open **Others → Encoders** on the brain screen and tap **Zero**. Push the robot one field tile (24 inches) forward by hand, in a straight line, and read the number. With 3.25 in wheels it should read about **846 degrees**. That means the wheel size and the encoder units are both right.",s:["Expected reading for 3.25 in wheels"],rel:["push-2115","push-off","push-down"]},
-  {id:"push-2115",q:["My push test reads 2115","The distance is 2.5 times too big","Why is my reading too large?"],k:"2115 2.5 times big large too much counts units reading wrong",fix:true,
+  {id:"push-2115",q:["My push test reads 2115","The distance is 2.5 times too big","Why is my reading too large?"],k:"2115 2.5 times big large too much counts units reading wrong two and a half 2.5x way higher bigger than tape measure everything measures",fix:true,
    a:"A reading near **2115** instead of 846 is exactly 2.5 times too big, which is an encoder units problem. A `MotorGroup` line is missing `pros::MotorUnits::degrees`, so it reports counts (900 per turn) instead of degrees (360). Add the third argument back to every `MotorGroup` line in `src/robot_config.cpp`, zero the encoders and push again. When a number is off by a suspiciously round factor, look for units before mechanics.",s:["Wrong: missing the units argument","Two-motor drive"],rel:["push-test"]},
-  {id:"push-off",q:["My push test is about 15% off","The reading is steady but wrong"],k:"15 percent off steady slightly wrong wheel diameter size measure",fix:true,
+  {id:"push-off",q:["My push test is about 15% off","The reading is steady but wrong"],k:"15 percent off steady slightly wrong wheel diameter size measure consistent same every time just not right number slightly off a bit off",fix:true,
    a:"A steady reading that is about 15% off means `WHEEL_DIAMETER` in `include/robot_config.hpp` doesn't match your real wheel. Measure the wheel and fix the number.",s:["Physical drive constants"],rel:["push-test"]},
   {id:"push-down",q:["The encoders count down when I push forward","Encoder goes negative"],k:"count down negative backwards decreasing encoder reading minus",fix:true,
    a:"If the reading counts down while you push forward, that side's sign is inverted. Flip the port signs for that side in `src/robot_config.cpp`.",s:["Two-motor drive"],rel:["reverse-motor"]},
-  {id:"push-zero",q:["The encoder reads zero","The encoder number is wild"],k:"zero 0 wild random jumping nothing reading cable",fix:true,
+  {id:"push-zero",q:["The encoder reads zero","The encoder number is wild"],k:"zero 0 wild random jumping nothing reading cable stays at 0 stays zero no matter jumping around random crazy numbers not changing",fix:true,
    a:"Zero, or a wild number, usually means a loose cable or the wrong port number in `src/robot_config.cpp`. Check the cable and the port.",s:["Two-motor drive"],rel:["ports"]},
-  {id:"constants",q:["Where do I set the wheel size?","What is TRACK_WIDTH?","What is DRIVE_RPM?","Where do I set the gearset?"],k:"wheel diameter size track width rpm gearset cartridge constants measurements green blue red 3.25",
+  {id:"constants",q:["Where do I set the wheel size?","What is TRACK_WIDTH?","What is DRIVE_RPM?","Where do I set the gearset?"],k:"wheel diameter size track width rpm gearset cartridge constants measurements green blue red 3.25 how big wheels inch inches switched 4 inch bigger wheels new wheels",
    a:"Four numbers in `include/robot_config.hpp` describe the drive: `DRIVE_GEARSET` (the cartridge colour), `WHEEL_DIAMETER` in inches, `DRIVE_RPM` at the **wheel**, and `TRACK_WIDTH` in inches. Get these right and everything downstream is right.",s:["Physical drive constants"],rel:["drive-rpm"]},
   {id:"drive-rpm",q:["How do I work out DRIVE_RPM?","My wheels are geared"],k:"geared gear ratio 2:1 teeth driving driven cartridge wheel rpm 400 200",
    a:"`DRIVE_RPM` is the wheel's rpm, not the cartridge's: wheel rpm = cartridge rpm × driving teeth ÷ driven teeth. Direct drive off a green cartridge is 200. Geared up 2:1 it is 400. The code has no other way to find out.",s:["Physical drive constants"],rel:["constants"]},
-  {id:"curves-one-way",q:["My robot drives in a curve","The robot pulls to one side"],k:"curve curves pulls one side drift straight veer",fix:true,
+  {id:"curves-one-way",q:["My robot drives in a curve","The robot pulls to one side"],k:"curve curves pulls one side drift straight veer veers veer veering not driving straight cant drive straight crooked",fix:true,
    a:"Curving the same way every time is usually a motor sign, or one side's motors not all being in its group in `src/robot_config.cpp`. With the wheels down the robot should drive straight. Check each side's port list.",s:["Four-motor drive"],rel:["reverse-motor"]},
   {id:"split-stick",q:["How does the driver control work?","What is split-stick?","How do the sticks drive the robot?"],k:"split stick arcade driver control drive throttle turn sticks left right curvature",
    a:"Left stick up/down is **throttle**. Right stick left/right sets **how tightly the robot curves**, so one stick position holds one arc at any speed. The sticks go through four stages in order: deadband, curves, the low-speed steering cap, then desaturation. Each stage has one constant in `include/robot_config.hpp`.",s:["Stage 1 · Deadband","Stage 2 · Curves","Stage 3 · Low-speed steering cap"],rel:["deadband","curves","steer-floor"]},
-  {id:"deadband",q:["What is the deadband?","My robot creeps with the sticks centred"],k:"deadband creep creeps drift centred centered worn controller small movement",
+  {id:"deadband",q:["What is the deadband?","My robot creeps with the sticks centred"],k:"deadband creep creeps drift centred centered worn controller small movement nobody touching moves by itself on its own inches forward slowly moves old controller sticks centered drifting",
    a:"The deadband treats a nearly-centred stick as centred, so a worn controller can't walk the robot across the field. `DRIVE_DEADBAND = 0.04F` is about 5 counts of 127. If the robot creeps with the sticks centred, raise it a little.",s:["Stage 1 · Deadband"],rel:["curves","tuning"]},
-  {id:"curves",q:["What does the throttle curve do?","The robot is too sensitive","The robot feels sluggish","Small corrections are hard"],k:"curve throttle turn sensitive sluggish slow small corrections power half stick exponent",
+  {id:"curves",q:["What does the throttle curve do?","The robot is too sensitive","The robot feels sluggish","Small corrections are hard"],k:"curve throttle turn sensitive sluggish slow small corrections power half stick exponent jumpy too fast at the bottom cant go slow fine control",
    a:"Output is stick^curve, so half stick gives less than half power. Curve 1.0 gives 50% at half stick, 2.0 gives 25%, 3.0 (the default) gives 12.5%, 4.0 gives 6.25%.\n- Hard to make small, slow corrections: raise `DRIVE_THROTTLE_CURVE` toward 4.\n- Feels sluggish: lower it toward 2.\n- Turn stick feels dead when creeping: lower `DRIVE_TURN_CURVE` toward 1.5.\nThe turn curve is gentler on purpose because turning is already scaled by throttle.",s:["Stage 2 · Curves"],rel:["steer-floor","tuning"]},
-  {id:"steer-floor",q:["What does the steer floor do?","The robot over-rotates when I line up","It spins too slowly at a standstill"],k:"steer floor cap steering low speed over rotates over-rotates overshoot lining up pivot spin standstill 0.30 106 355 arcade",
+  {id:"steer-floor",q:["What does the steer floor do?","The robot over-rotates when I line up","It spins too slowly at a standstill"],k:"steer floor cap steering low speed over rotates over-rotates overshoot lining up pivot spin standstill 0.30 106 355 arcade over turns overturn turns past where i want lining up slow goal spinning in place takes forever slow to turn around stopped turning in place",
    a:"Below 30% throttle, steering authority stays flat at `DRIVE_STEER_FLOOR` (0.30). At a standstill that is about 106°/s instead of the 355°/s plain arcade gives, which is about as fast as a human can aim.\n- Over-rotates when lining up slowly: lower it.\n- Takes forever to spin round at a standstill: raise it, and accept a twitchier crawl.\nSetting it to 1.00 turns the drive back into plain arcade.",s:["Stage 3 · Low-speed steering cap"],rel:["curves","tuning"]},
-  {id:"desaturate",q:["What is desaturation?","Why does the robot straighten out at full throttle?"],k:"desaturation desaturate clip clipping full throttle straighten ratio",
+  {id:"desaturate",q:["What is desaturation?","Why does the robot straighten out at full throttle?"],k:"desaturation desaturate clip clipping full throttle straighten ratio slow down full speed crank turn stick hard turn same time loses speed",
    a:"Full throttle plus steering asks for more than a motor can give. Clipping each side at 100% would change the ratio between the sides, so the robot would straighten out right when you asked for the hardest turn. Instead both sides are divided by the larger of the two. That gives up top speed and keeps the arc you asked for.",s:[],rel:["split-stick"]},
   {id:"tuning",q:["How do I tune the drive?","What should I change if the drive feels wrong?"],k:"tune tuning feel driver symptoms change number",
    a:"Change one number, rebuild, drive, decide. Then change the next.\n- Creeps with sticks centred: raise `DRIVE_DEADBAND` a little.\n- Hard to make small corrections: raise `DRIVE_THROTTLE_CURVE` toward 4.\n- Sluggish: lower `DRIVE_THROTTLE_CURVE` toward 2.\n- Over-rotates when lining up: lower `DRIVE_STEER_FLOOR`.\n- Slow to spin at a standstill: raise `DRIVE_STEER_FLOOR`.\n- Turn stick dead when creeping: lower `DRIVE_TURN_CURVE` toward 1.5.\nPredict what a change will do before you drive it.",s:["Stage 2 · Curves","Stage 3 · Low-speed steering cap"],rel:["deadband","curves","steer-floor"]},
@@ -923,41 +923,41 @@ ctd::Console.println("stall %s  asked %.1f  got %.1f in/s",
    a:"In **driver control** a human moves the robot from `opcontrol()` and watches the field. In **autonomous** the program does everything by itself from `autonomous()` for about 15 seconds, and it drives by the numbers, so it has to know where it is.",s:["Run the armed routine","The opcontrol loop"],rel:["grid"]},
   {id:"grid",q:["How do field coordinates work?","What are x and y on the field?","What units does the code use?"],k:"field grid coordinates x y units inches degrees place step origin",
    a:"Every position is two numbers and a direction.\n- Distances are **inches**. Angles are **degrees**.\n- **0° is +y**, straight ahead, not +x.\n- **Clockwise is positive**, like a compass.\n- A coordinate is a **place, not a step**: `(48, 72)` is one fixed spot on the field.",s:["Set the starting pose"],rel:["heading","setpose"]},
-  {id:"heading",q:["Which way is 0 degrees?","Is 90 degrees right or left?","Why doesn't my maths angle work?"],k:"heading 0 zero 90 right left clockwise anticlockwise counterclockwise compass maths math angle direction north",
+  {id:"heading",q:["Which way is 0 degrees?","Is 90 degrees right or left?","Why doesn't my maths angle work?"],k:"heading 0 zero 90 right left clockwise anticlockwise counterclockwise compass maths math angle direction north 0 is forward 270 left negative turn which way math class graph paper",
    a:"0° is straight ahead (+y) and clockwise is positive, exactly like a compass: 90° is right, 180° is behind, 270° is left. Maths class puts 0° along +x and counts anticlockwise. If you plan with maths angles every turn is wrong, and it still looks right on paper.",s:["Turn to a heading"],rel:["grid","turns-wrong-way"]},
   {id:"imu",q:["Do I need the inertial sensor?","Where do I set IMU_PORT?"],k:"imu inertial sensor gyro heading port imu_port calibrate",
    a:"Turning accurately needs a heading, and the heading comes from the inertial sensor, so Lesson 2 onward needs it plugged in. Check that `IMU_PORT` in `include/robot_config.hpp` matches where it is plugged in. Keep the robot still for about two seconds while it calibrates at boot.",s:["initialize() in order"],rel:["keep-still","encoder-diff"]},
-  {id:"setpose",q:["What does setPose do?","How do I set the starting position?","Where is (0, 0)?"],k:"setpose set pose start starting position origin 0 0 placed standing",
+  {id:"setpose",q:["What does setPose do?","How do I set the starting position?","Where is (0, 0)?"],k:"setpose set pose start starting position origin 0 0 placed standing know where standing start of auton where it is at the start",
    a:"`ctnav::setPose(0, 0, 0);` says \"I am standing here, facing zero.\" Everything after it is measured from there. If `setPose` is wrong, everything after it is wrong: the robot is confidently in the wrong place. Mark your start spot with tape so it is the same every run.",s:["Set the starting pose"],rel:["pose-readback","grid"]},
-  {id:"pose-readback",q:["How do I print where the robot is?","How do I read the robot's position?"],k:"pose print position read where robot x y theta console println current",
+  {id:"pose-readback",q:["How do I print where the robot is?","How do I read the robot's position?"],k:"pose print position read where robot x y theta console println current thinks it ended up end up after a move see where",
    a:"`ctnav::pose()` gives where the robot thinks it is right now. Print it after a move and compare what you asked for against what you got. That comparison is most of autonomous debugging.",s:["Read the position back"],rel:["leg-by-leg"]},
-  {id:"drive-distance",q:["How do I drive forward?","How do I drive backwards?","How do I drive 24 inches?"],k:"drive forward backward backwards distance inches straight drivedistance reverse back up",
+  {id:"drive-distance",q:["How do I drive forward?","How do I drive backwards?","How do I drive 24 inches?"],k:"drive forward backward backwards distance inches straight drivedistance reverse back up go backwards drive backwards minus type go forward a tile move forward",
    a:"`ctnav::driveDistance(24);` drives straight forward 24 inches; a negative number goes backwards. You don't pass a timeout: CT Nav plans the move and works out its own deadline. The line doesn't finish until the robot has.",s:["Drive a distance"],rel:["turn-angle","move-to-point"]},
-  {id:"turn-angle",q:["How do I turn 90 degrees?","How do I turn right?","How do I turn left?"],k:"turn turnangle right left degrees relative spin rotate",
+  {id:"turn-angle",q:["How do I turn 90 degrees?","How do I turn right?","How do I turn left?"],k:"turn turnangle right left degrees relative spin rotate negative turn which way type turn right",
    a:"`ctnav::turnAngle(90);` turns 90° to the **right** from wherever the robot points now; a negative angle turns left. Keep it under 180°: 270 looks the same as -90 and never reports done. To face a fixed direction instead, use `turnToHeading`.",s:["Turn by an angle"],rel:["turn-heading","turn-270"]},
   {id:"turn-270",q:["My turnAngle(270) never finishes","A big turn never stops"],k:"270 never finishes stops done big turn 180 hangs",fix:true,
    a:"Keep `turnAngle` under 180. Progress is measured as the shortest angle from where the turn started, so 270 is indistinguishable from -90 and never reports done. Turn -90 instead, or use `turnToHeading` with the final heading.",s:["Turn by an angle","Turn to a heading"],rel:["turn-heading"]},
-  {id:"turn-heading",q:["How do I turn to face a heading?","What is turnToHeading?","How do I face 90 degrees?"],k:"turntoheading heading face absolute compass shorter way 350 10",
+  {id:"turn-heading",q:["How do I turn to face a heading?","What is turnToHeading?","How do I face 90 degrees?"],k:"turntoheading heading face absolute compass shorter way 350 10 certain direction no matter which way pointing face a direction",
    a:"`ctnav::turnToHeading(90);` turns until the robot faces compass heading 90, whichever way is shorter. Sitting at 350 and asked for 10, it turns 20° right, not 340° left.",s:["Turn to a heading"],rel:["heading","turn-angle"]},
   {id:"turn-point",q:["How do I turn to face a point?","How do I point the back at a spot?"],k:"turntopoint face point toward towards aim atan2 turnawayfrompoint reverse back",
    a:"`ctnav::turnToPoint(48, 24);` works out the heading to that spot and turns to it. `turnAwayFromPoint` points the back at it, ready to reverse in. Let these do the trigonometry: a compass bearing is `atan2(dx, dy)`, not the textbook `atan2(dy, dx)`.",s:["Turn to face a point"],rel:["move-to-point"]},
   {id:"move-to-point",q:["How do I drive to a spot?","What does moveToPoint do?","How do I go to (24, 24)?"],k:"movetopoint move point spot place go drive to coordinate",
    a:"`ctnav::moveToPoint(24, 24);` drives to that spot on the field, steering to hold the line. Use it whenever you care where the robot ends up and not which way it faces, which is most of the time. It needs no measured track width and can reverse if it must.",s:["Go to a place"],rel:["move-to-pose","point-vs-pose"]},
-  {id:"move-to-pose",q:["How do I arrive at a spot facing a direction?","What does moveToPose do?"],k:"movetopose pose face facing arrive heading curve square",
+  {id:"move-to-pose",q:["How do I arrive at a spot facing a direction?","What does moveToPose do?"],k:"movetopose pose face facing arrive heading curve square end up at a spot also facing certain way be facing get there",
    a:"`ctnav::moveToPose(24, 24, 90);` drives a curve that ends at the spot **and** facing 90°. It needs a measured track width and drives forward only. Use it when the heading really matters: reversing into a zone, squaring up to a wall, lining up an intake.",s:["Go to a place and face a direction"],rel:["point-vs-pose","pose-refused"]},
-  {id:"point-vs-pose",q:["Should I use moveToPoint or moveToPose?","What is the difference between moveToPoint and moveToPose?"],k:"difference compare versus vs which movetopoint movetopose",
+  {id:"point-vs-pose",q:["Should I use moveToPoint or moveToPose?","What is the difference between moveToPoint and moveToPose?"],k:"difference compare versus vs which movetopoint movetopose go to a spot one or face a way one which one should i use",
    a:"- `moveToPoint(x, y)` gives you a **place**. Straight path, shorter, needs no track width, can go backwards. Use it for collecting or rough lining up.\n- `moveToPose(x, y, θ)` gives a **place and a heading**. Curved path, longer, needs a measured track width, forward only. Use it when you must arrive square on.\n`moveToPose` is not the better one; it is the one for when the heading matters.",s:["Go to a place","Go to a place and face a direction"],rel:["move-to-point","move-to-pose"]},
-  {id:"pose-refused",q:["moveToPose refused to run","Why won't moveToPose drive backwards?"],k:"refused refuse movetopose behind backwards track width unmeasured measured",fix:true,
+  {id:"pose-refused",q:["moveToPose refused to run","Why won't moveToPose drive backwards?"],k:"refused refuse movetopose behind backwards track width unmeasured measured wont even start won't start new robot curvy brand new doesnt start",fix:true,
    a:"`moveToPose` refuses in two cases, and the console says which:\n- The track width has never been measured. Measure it with the Others → Odometry wizard (Lesson 3).\n- The pose is behind the robot. It drives forward only, so write the turn-around out with `turnToHeading` and `driveDistance` where a reader can see it.",s:["Go to a place and face a direction","Plan a move without driving it"],rel:["wizards","plan-move"]},
   {id:"plan-move",q:["Will my move fit in 15 seconds?","How do I check a move before driving it?"],k:"plan planmovetopose feasible length duration check before fit refusal",
    a:"`ctnav::planMoveToPose(24, 24, 90)` plans the move without moving an inch. It tells you whether it is possible, how long the path is, how many seconds it takes, and why not if it can't.",s:["Plan a move without driving it"],rel:["estimate"]},
-  {id:"move-result",q:["How do I know if a move finished?","What do DONE, TIMEOUT, REFUSED and STALLED mean?"],k:"result done timeout refused stalled finished movereseult check leg",
+  {id:"move-result",q:["How do I know if a move finished?","What do DONE, TIMEOUT, REFUSED and STALLED mean?"],k:"result done timeout refused stalled finished movereseult check leg got there gave up partway actually finished made it",
    a:"Every move hands back a result:\n- `DONE`: reached the target.\n- `TIMEOUT`: ran out of time; motors stopped.\n- `REFUSED`: never started, either impossible or another move was already running.\n- `STALLED`: stopped making progress and said so.\nA routine that prints one line per leg turns \"the autonomous didn't work\" into \"leg 3 timed out\".",s:["Check a leg finished"],rel:["stall","debug"]},
-  {id:"debug",q:["My autonomous doesn't work","A move goes to the wrong place","How do I debug autonomous?"],k:"debug autonomous doesn't work wrong place broken fix move goes",fix:true,
+  {id:"debug",q:["My autonomous doesn't work","A move goes to the wrong place","How do I debug autonomous?"],k:"debug autonomous doesn't work wrong place broken fix move goes messed up random wrong spots goes somewhere doesnt work dosnt dont know where to start ten times as far slammed wall typo",fix:true,
    a:"Don't change things at random. Ask three questions in order:\n1. **Value**: is a number wrong? A typo like 240 for 24? Is `setPose` right?\n2. **Direction**: is it going the wrong way? A sign, a maths angle instead of a compass heading, or a reversed motor.\n3. **Tune**: right idea but drifting or stopping short? That's tuning (Lesson 3).\nChange one thing, test, and look again. Print the pose after each leg.",s:["Read the position back","Check a leg finished"],rel:["turns-wrong-way","stall"]},
-  {id:"turns-wrong-way",q:["My robot turns the wrong way","turnToHeading(90) turns left","The robot turns the opposite direction"],k:"turns wrong way opposite left instead right anticlockwise heading direction",fix:true,
+  {id:"turns-wrong-way",q:["My robot turns the wrong way","turnToHeading(90) turns left","The robot turns the opposite direction"],k:"turns wrong way opposite left instead right anticlockwise heading direction goes left everytime instead of right tell it face 90 swung left",fix:true,
    a:"Check these in order:\n- `turnToHeading(90)` means \"end up facing 90\", not \"turn 90\". It takes the shorter way, so from a heading between 90 and 270 it turns left. Use `turnAngle(90)` to turn right from where you are.\n- Did you use a maths angle? On this robot 0° is straight ahead and clockwise is positive.\n- Is `setPose` right at the start?\n- Do the motors pass the wheels-up direction check?",s:["Turn to a heading","Turn by an angle","Set the starting pose"],rel:["heading","reverse-motor"]},
-  {id:"place-not-step",q:["Does moveToPoint(24, 24) move 24 inches from where I am?","Are coordinates relative?"],k:"relative from where i am step place absolute",
+  {id:"place-not-step",q:["Does moveToPoint(24, 24) move 24 inches from where I am?","Are coordinates relative?"],k:"relative from where i am step place absolute twice second time didnt move another 24 again count from where robot is right now",
    a:"No. A coordinate is a fixed **place** on the field, measured from where `setPose` put the origin, not a step from where the robot is now. `moveToPoint(0, 0)` always drives back to the start.",s:["Go to a place","Set the starting pose"],rel:["grid"]},
   {id:"example-routine",q:["Show me an example routine","What does a simple autonomous look like?"],k:"example sample simple routine auton out across home",
    a:"Here is the lesson's example. It drives out to (0, 48), turns to face 90, drives across to (24, 48), then drives straight home to (0, 0). The last line doesn't need \"back up, turn around\" because coordinates are places.",s:["Out, across and home"],rel:["add-routine","write"]},
@@ -965,87 +965,87 @@ ctd::Console.println("stall %s  asked %.1f  got %.1f in/s",
   /* Lesson 3 */
   {id:"plan-route",q:["How do I plan an autonomous route?","What is a leg?"],k:"plan route legs paper numbered order expected pose",
    a:"Plan on paper first. Break the route into numbered **legs**: one drive, one turn or one action each. Beside each leg write the pose you expect afterwards (x, y and heading). Then coding is translation: one leg, one line. Order matters, because each leg starts where the last one ended.",s:["Build up leg by leg"],rel:["estimate","leg-by-leg"]},
-  {id:"estimate",q:["How long will my routine take?","How do I fit a route in 15 seconds?"],k:"estimate estimateduration time long seconds budget 15 13 fit deadline",
+  {id:"estimate",q:["How long will my routine take?","How do I fit a route in 15 seconds?"],k:"estimate estimateduration time long seconds budget 15 13 fit deadline too long over 15 seconds out of time buzzer",
    a:"`ctnav::estimateDuration(...)` works out the deadline a move would get, without moving. Add up every leg. If the total is over about 13 seconds, cut a leg now rather than let the buzzer cut the last one.",s:["Estimate a leg's time"],rel:["plan-move","plan-route"]},
   {id:"add-routine",q:["How do I add a new autonomous routine?","How do I add a routine to the menu?","How do I make a new auton?"],k:"add new routine auton autonomous menu create three steps file declaration selector",
    a:"Three steps, and the build picks up the new file automatically:\n1. Create `src/autons/my_routine.cpp` with the routine. Say where you are, drive, then say it finished.\n2. Add `void my_routine();` inside `namespace auton` in `include/autons.hpp`.\n3. Add `{\"Mine\", auton::my_routine},` to the right list in `src/auton_selector.cpp`.\nRemember to arm it on the brain screen after every upload.",s:["1 · The routine file","2 and 3 · Declare it and add it to the menu"],rel:["write","not-armed","selector"]},
-  {id:"one-file",q:["Why does each routine get its own file?"],k:"own file each routine separate why conflicts",
+  {id:"one-file",q:["Why does each routine get its own file?"],k:"own file each routine separate why conflicts two people ppl edit same auton same time",
    a:"Routines are what two people are most likely to edit at once the week before a competition. With one file each, two students editing two routines never have to untangle each other's changes.",s:["1 · The routine file"],rel:["add-routine"]},
   {id:"leg-by-leg",q:["How do I test my routine as I go?","Should I print after each leg?"],k:"test as you go print each leg pose build up incremental",
    a:"Write leg 1, run it, check the pose. Then add leg 2. Print the pose after each leg and leave the prints in: a five-leg routine that prints after each leg tells you exactly which leg to look at.",s:["Build up leg by leg"],rel:["pose-readback"]},
-  {id:"selector",q:["How do I put routines on the brain screen?","How do the Red, Blue and Skills tabs work?"],k:"selector menu brain screen tab red blue skills others dash buttons eight",
+  {id:"selector",q:["How do I put routines on the brain screen?","How do the Red, Blue and Skills tabs work?"],k:"selector menu brain screen tab red blue skills others dash buttons eight how many fit one tab eight 8 routines per tab",
    a:"`ctd::Dash.red({...})` puts buttons on the Red tab in the order you list them; each tab holds up to eight. The library only shows the Red tab's call. Other tabs go in the matching list inside `auton::start()` in `src/auton_selector.cpp`.",s:["Put routines on the Red tab"],rel:["not-armed","add-routine"]},
-  {id:"not-armed",q:["My robot sat still in autonomous","Autonomous didn't run after I uploaded","Nothing happens when autonomous starts"],k:"sat still nothing happens didn't run armed arm upload reboot selection cleared zero",fix:true,
+  {id:"not-armed",q:["My robot sat still in autonomous","Autonomous didn't run after I uploaded","Nothing happens when autonomous starts"],k:"sat still nothing happens didn't run armed arm upload reboot selection cleared zero just sat there stood there sits there did nothing didnt move at all first 15 seconds whole auton uploaded comp competition arm every time",fix:true,
    a:"Nothing is armed at boot, and every upload reboots the brain, which clears the selection. Arm the routine on the brain screen after **every** upload. The status strip at the bottom names the armed routine, so you can check from the pit. This is the most common way to score zero in autonomous.",s:["Put routines on the Red tab","Run the armed routine"],rel:["b-button"]},
-  {id:"b-button",q:["How do I test autonomous without a field controller?","What does the B button do?"],k:"test b button auton_test_button without field controller competition switch practice",
+  {id:"b-button",q:["How do I test autonomous without a field controller?","What does the B button do?"],k:"test b button auton_test_button without field controller competition switch practice at home field control thing without competition switch try my auton",
    a:"Set `AUTON_TEST_BUTTON = true` in `include/robot_config.hpp` and B runs the armed routine. It is safe to leave on: it refuses while a field controller or competition switch is connected, so it can't fire during a match.",s:["Test with the B button"],rel:["not-armed"]},
-  {id:"init-order",q:["What goes in initialize?","Why is initialize in that order?"],k:"initialize order startup start up steps menu dash brake calibrate preflight",
+  {id:"init-order",q:["What goes in initialize?","Why is initialize in that order?"],k:"initialize order startup start up steps menu dash brake calibrate preflight order lines powers on function runs power on matter",
    a:"The order matters; each step depends on the ones above it.\n- Build the menu before `ctd::Dash.start()`, so buttons show while the inertial calibrates.\n- Set brake modes before driving.\n- `ctnav::start()` before anything moves: it calibrates the inertial and zeroes the encoders.\n- `ctguard::preflight()` after registering hardware: it only checks what it has been told about.\n- `ctguard::start()` last, to keep watching in the background.",s:["initialize() in order"],rel:["keep-still","brake"]},
   {id:"brake",q:["Should I use brake or hold?","My robot rolls after I let go of the stick"],k:"brake hold coast stop roll rolls brake mode set_brake_mode",
    a:"Use `brake`. It stops the robot rolling on after the stick is centred. `hold` actively drives back to where it was released, so a robot shoved by an opponent fights to return and burns current doing it.",s:["initialize() in order"],rel:["init-order"]},
-  {id:"keep-still",q:["My turns are off every run","The robot was bumped while booting"],k:"still bumped carried moved boot booting calibrate heading off every turn",fix:true,
+  {id:"keep-still",q:["My turns are off every run","The robot was bumped while booting"],k:"still bumped carried moved boot booting calibrate heading off every turn moves while calibrating calibration picked up carried right after turning on",fix:true,
    a:"The robot must be completely still while `ctnav::start()` runs, about two seconds after power on. Carrying or bumping it then corrupts the heading reference, and every turn for the whole run is off. Power on, then let it sit.",s:["initialize() in order"],rel:["imu"]},
   {id:"measure",q:["What calibrates itself and what do I measure?"],k:"calibrate measure self automatic placeholder constants commit",
    a:"The inertial sensor's zero and the encoders' zero calibrate themselves every boot. `TRACK_WIDTH`, `WHEEL_DIAMETER`, `DRIVE_RPM` and the tuning gains you measure once and commit. Until someone measures them, the robot drives on placeholder guesses.",s:["Physical drive constants","Boot report"],rel:["wizards"]},
-  {id:"wizards",q:["How do I measure the track width?","How do the odometry wizards work?"],k:"wizard wizards track width measure odometry others tab spin 10 turns imu check offsets",
+  {id:"wizards",q:["How do I measure the track width?","How do the odometry wizards work?"],k:"wizard wizards track width measure odometry others tab spin 10 turns imu check offsets how far apart left right wheels how wide width menus measure wide",
    a:"Open **Others → Odometry**. The wizards are manual: spin the robot 10 turns by hand and read the number. The track width wizard gives `TRACK_WIDTH`, the wheel offsets wizard gives tracking-wheel offsets, and the IMU check says how far the inertial is off. Nothing is written for you: copy the number into `include/robot_config.hpp` and commit it.",s:["Boot report"],rel:["measure","boot-report"]},
-  {id:"boot-report",q:["How do I read the boot report?","What does track_width UNSET mean?","What does rung CLOSED mean?"],k:"boot report console track_width unset suspect measured rung heading from three lines",
+  {id:"boot-report",q:["How do I read the boot report?","What does track_width UNSET mean?","What does rung CLOSED mean?"],k:"boot report console track_width unset suspect measured rung heading from three lines 3 lines three lines spits out every time turns on printout starts up",
    a:"Three lines print at every boot:\n- `track_width`: `UNSET` means never supplied, `SUSPECT` means still the example value, `MEASURED` is what you want.\n- `rung`: which controller is driving (VELOCITY, CLOSED or PROFILED).\n- `heading from`: should say `IMU`.",s:["Boot report"],rel:["encoder-diff","rungs"]},
-  {id:"encoder-diff",q:["The boot report says heading from ENCODER_DIFFERENTIAL","My turns always stop short"],k:"encoder_differential encoder differential heading stop short turns short imu not",fix:true,
+  {id:"encoder-diff",q:["The boot report says heading from ENCODER_DIFFERENTIAL","My turns always stop short"],k:"encoder_differential encoder differential heading stop short turns short imu not drive sides not gyro coming from ends early",fix:true,
    a:"`heading from ENCODER_DIFFERENTIAL` means the inertial didn't calibrate, so heading comes from the difference between the drive sides. A tank drive scrubs while turning, so every turn stops short, and no gain fixes it. Check the inertial's cable and `IMU_PORT`.",s:["Boot report"],rel:["imu"]},
   {id:"rungs",q:["What are the rungs?","What is VELOCITY, CLOSED and PROFILED?"],k:"rung rungs velocity closed profiled strategy requirestrategy demote kv ks",
    a:"The rung is worked out from your constants:\n- `VELOCITY`: constant planned speed, no correction. Needs a wheel size and rpm.\n- `CLOSED`: kP × error, easing into the target. Needs `NAV_KP`.\n- `PROFILED`: a planned schedule turned into volts by a measured model. Needs kV and kS.\nA missing constant silently drops you a rung, so use `ctnav::requireStrategy` to demand the one you tuned for.",s:["Demand the rung you tuned for","Boot report"],rel:["kp"]},
-  {id:"kp",q:["How do I tune kP?","The robot weaves across the line","The robot drifts wide"],k:"kp kd tune gain weave weaves drifts wide oscillate correction nav_kp",fix:true,
+  {id:"kp",q:["How do I tune kP?","The robot weaves across the line","The robot drifts wide"],k:"kp kd tune gain weave weaves drifts wide oscillate correction nav_kp wobble wobbles wiggle wiggles snake zigzag zigzags zig zag weave weaving back and forth back n forth oscillate drifts out side takes forever get back on the line",fix:true,
    a:"At the CLOSED rung, kP is how hard the robot pushes back when it is off the line.\n- Drifts wide and is slow to come back: raise kP.\n- Weaves back and forth across the line: lower kP, or add a little kD.\nTurns have their own gains.",s:["Turn gains"],rel:["turn-gains","rungs"]},
-  {id:"turn-gains",fix:true,q:["Why do turns have their own gains?","My turns overshoot"],k:"turn gains nav_kp_turn nav_kd_turn overshoot peak lurch rotational",
+  {id:"turn-gains",q:["Why do turns have their own gains?","My turns overshoot"],k:"turn gains nav_kp_turn nav_kd_turn overshoot peak lurch rotational go past angle swing back sloppy past where they should come back overshoot",
    a:"A straight fights the robot's mass along its heading. A turn fights rotational inertia plus the sideways scrub of four omni wheels, so this robot wants about three times the gain on turns (`NAV_KP_TURN = 6.0` against `NAV_KP` 2.0). Tune a turn against its **peak**, not its finish: an overshoot that settles back is invisible if you only look where it stopped.",s:["Turn gains"],rel:["kp"]},
   {id:"rumble",q:["How do I rumble the controller?","How do I tell the driver something without the screen?"],k:"rumble buzz vibrate controller driver pattern dots dashes",
    a:"`controller.rumble(\"..\");` buzzes the controller: dots are short, dashes long, spaces are pauses. Agree on a team vocabulary: `.` routine armed, `..` autonomous finished cleanly, `-` something failed, `. . .` battery low. Never rumble inside the main loop; rumble on an event. CT Guard already rumbles on faults.",s:["Rumble patterns"],rel:["fault-warning"]},
 
   /* Lesson 4 */
-  {id:"tasks",q:["What is a task?","How does the brain do two things at once?"],k:"task tasks two things once multitasking switch jobs",
+  {id:"tasks",q:["What is a task?","How does the brain do two things at once?"],k:"task tasks two things once multitasking switch jobs draw screen same time one cpu at once",
    a:"The brain runs one instruction at a time but switches between jobs so fast it looks simultaneous. Each job is a **task**: your opcontrol loop, CT Dash drawing the screen, CT Guard watching the hardware. Every task must hand control back, which is what the `pros::delay` at the bottom of each loop is for.",s:["A loop that shares the brain"],rel:["delay","launch"]},
-  {id:"launch",q:["How do I run the intake while driving?","How do I do two things at once in autonomous?","What does launch do?"],k:"launch async intake while driving overlap same time waituntildone mechanism",
+  {id:"launch",q:["How do I run the intake while driving?","How do I do two things at once in autonomous?","What does launch do?"],k:"launch async intake while driving overlap same time waituntildone mechanism same time does stuff at once drives and does",
    a:"`ctnav::launch(...)` starts a move and returns immediately, so the next lines run while the robot drives. Run the mechanism, then call `ctnav::waitUntilDone()` and **check the result** it hands back. The starter has no intake motor, so swap in your own mechanism. There is no `async: true` flag on purpose: `launch` is a different word, visible in the source.",s:["Overlap a mechanism with a drive"],rel:["second-move","own-task"]},
-  {id:"second-move",q:["Can I launch two moves at once?","Why did my second launch return REFUSED?"],k:"two moves once second launch refused overlap turn drive",fix:true,
+  {id:"second-move",q:["Can I launch two moves at once?","Why did my second launch return REFUSED?"],k:"two moves once second launch refused overlap turn drive background turn never happens start a turn while still driving",fix:true,
    a:"Only one move runs at a time. Starting a second move while one is running returns `REFUSED` rather than letting two controllers fight over the same motors. Call `ctnav::waitUntilDone()` before starting the next move.",s:["Overlap a mechanism with a drive"],rel:["launch"]},
-  {id:"own-task",q:["How do I make a background task?","How do I keep a lift at a height?"],k:"background task pros::task own lift hold height continuous loop",
+  {id:"own-task",q:["How do I make a background task?","How do I keep a lift at a height?"],k:"background task pros::task own lift hold height continuous loop stay at one height whole match",
    a:"For something that must run continuously, like a lift holding a height, start a `pros::Task` with its own loop. It runs alongside everything else, forever. Like every loop, it needs a `pros::delay`.",s:["Your own background task"],rel:["one-owner"]},
-  {id:"one-owner",q:["Can two pieces of code control the same motor?","What is the owner string for?"],k:"owner same motor two code fight one motor one owner watch claim",
+  {id:"one-owner",q:["Can two pieces of code control the same motor?","What is the owner string for?"],k:"owner same motor two code fight one motor one owner watch claim twitching twitch two parts of code fighting both code same motor intake drive",
    a:"One motor, one owner. Two pieces of code commanding the same motor is a bug that looks like a tuning problem for a week. Register each motor group with `ctguard::watch(..., owner, ...)`. A second owner claiming the same motors is refused at start-up, with a message naming who holds them. The owner string is not a comment.",s:["One motor, one owner"],rel:["register"]},
-  {id:"register",q:["How do I register hardware with CT Guard?","Why does CT Guard need the motors registered?"],k:"register ctguard watch watchdevice hardware name names fault message",
+  {id:"register",q:["How do I register hardware with CT Guard?","Why does CT Guard need the motors registered?"],k:"register ctguard watch watchdevice hardware name names fault message let know keep an eye keeps eye about my motors and sensors",
    a:"CT Guard can only check what it has been told about. Register each motor group with `ctguard::watch` and each sensor with `ctguard::watchDevice`, in `initialize()`. The name you give is what shows in a fault: \"drive left\", not \"port 10\".",s:["Register hardware with CT Guard"],rel:["preflight","one-owner"]},
-  {id:"preflight",q:["What does preflight check?"],k:"preflight check checks four questions there plugged geared battery",
+  {id:"preflight",q:["What does preflight check?"],k:"preflight check checks four questions there plugged geared battery hardware check end of startup look for checks at start",
    a:"`ctguard::preflight()` runs once at the end of `initialize()` and asks four questions:\n- Is it there? (a registered device that isn't plugged in)\n- Is it what you said? (the wrong kind of device on that port)\n- Is it geared as declared? (green where the code says blue)\n- Can the battery do this?\nIt also warns about hardware that is plugged in but never registered.",s:["Register hardware with CT Guard"],rel:["fault-warning","thresholds"]},
   {id:"fault-warning",q:["What is the difference between a FAULT and a WARNING?","Why is there no INFO level?"],k:"fault warning info level levels difference rumble",
    a:"Only two levels:\n- `FAULT`: the robot won't work correctly right now. Rumbles the controller.\n- `WARNING`: it works, but something is degrading. No rumble.\nThere is no INFO level on purpose: a level nobody has to act on is a level people learn to skim.",s:["Health thresholds"],rel:["thresholds"]},
-  {id:"thresholds",q:["What are the health thresholds?","When does CT Guard warn about temperature?"],k:"thresholds battery 25 60 percent temperature 55 current 2200 motor warn fault",
+  {id:"thresholds",q:["What are the health thresholds?","When does CT Guard warn about temperature?"],k:"thresholds battery 25 60 percent temperature 55 current 2200 motor warn fault yelling at me percent battery start warning",
    a:"- Battery below **25%**: FAULT. The brain starts cutting motor power under load.\n- Battery below **60%**: WARNING. A constant measured now won't hold on a full pack.\n- Motor above **55 °C**: WARNING. V5 motors start folding back power.\n- Motor above **2200 mA**: WARNING. That's near stall current.",s:["Health thresholds"],rel:["flat-battery"]},
-  {id:"flat-battery",q:["My moves keep stalling","Could a low battery cause STALLED?"],k:"battery low flat stalled stall blocked 25 power cut",fix:true,
+  {id:"flat-battery",q:["My moves keep stalling","Could a low battery cause STALLED?"],k:"battery low flat stalled stall blocked 25 power cut dead battery stops halfway invisible wall kinda dead low battery",fix:true,
    a:"Check the battery first. Below 25% the brain cuts motor power, the move commands motion, the encoders never turn, and CT Nav correctly reports `STALLED`, which looks exactly like a robot wedged against a wall. That once cost three runs and a made-up mechanical diagnosis.",s:["Health thresholds","Why did the move stall?"],rel:["stall","thresholds"]},
   {id:"watch",q:["What does ctguard::start do?","Will CT Guard notice a cable coming loose mid-match?"],k:"ctguard start background watch cable loose mid match change",
    a:"`ctguard::start()` starts one background task that keeps checking through autonomous and driving. It catches a cable working loose mid-match. It reports a **change** once, not a condition every tick, so the console stays readable.",s:["Keep watching in the background"],rel:["require-healthy"]},
-  {id:"require-healthy",q:["How do I stop autonomous running on a broken robot?","What does requireHealthy do?"],k:"requirehealthy broken refuse skip fault autonomous healthy",
+  {id:"require-healthy",q:["How do I stop autonomous running on a broken robot?","What does requireHealthy do?"],k:"requirehealthy broken refuse skip fault autonomous healthy not run busted broken skip if something",
    a:"Wrap `auton::run()` in `if (!ctguard::requireHealthy()) return;`. It skips the routine if any fault is outstanding and has already said what is wrong. It is opt-in on purpose: a team that never calls it is advised, never blocked.",s:["Refuse to drive a broken robot"],rel:["never-fixes"]},
   {id:"never-fixes",q:["Does CT Guard fix problems?","Will CT Guard restart a motor?"],k:"fix repair restart retry recover automatically",
    a:"No. CT Guard only reads. It never restarts a device, retries or works around a problem. A robot that silently repaired itself is a robot whose fault report you can't trust.",s:["Keep watching in the background"],rel:["watch"]},
-  {id:"toast-log",q:["How do I print a message?","What is the difference between toast and println?"],k:"print message toast println console log screen show text",
+  {id:"toast-log",q:["How do I print a message?","What is the difference between toast and println?"],k:"print message toast println console log screen show text show stuff display",
    a:"- `Brain.Screen.toast(\"...\")` is for \"did that work?\". It flashes on screen and clears itself.\n- `ctd::Console.println(\"...\")` is for \"what happened during the run?\". It goes to a scrolling log of the last 100 lines.",s:["Toast and log"],rel:["pros-terminal","what-to-log"]},
-  {id:"pros-terminal",q:["How do I read the log on my laptop?","What is pros terminal?"],k:"laptop log terminal pros terminal read copy search cable",
+  {id:"pros-terminal",q:["How do I read the log on my laptop?","What is pros terminal?"],k:"laptop log terminal pros terminal read copy search cable printouts computer see console on my computer laptop",
    a:"Every console line is also sent down the cable. Run `pros terminal` on your laptop and you can scroll, search and copy the log. Nothing needs switching on, and nothing breaks when no terminal is attached. Leave one open while you test.",s:["Read the log on your laptop"],rel:["heartbeat"]},
-  {id:"heartbeat",q:["What is a heartbeat?","Why is last_beat static?"],k:"heartbeat static last_beat every 30 seconds alive battery millis",
+  {id:"heartbeat",q:["What is a heartbeat?","Why is last_beat static?"],k:"heartbeat static last_beat every 30 seconds alive battery millis battery every so often spamming every loop instead of every 30 seconds battery line",
    a:"A heartbeat prints a line every `HEARTBEAT_MS` (thirty seconds) with uptime and battery, so nobody has to stand by the robot. `static` keeps `last_beat` from resetting to 0 every time round the loop; without it the line would print every tick.",s:["Heartbeat"],rel:["what-to-log"]},
   {id:"what-to-log",q:["What should I log?","Is printing every loop bad?"],k:"log what should too much every loop spam print 20ms",
    a:"Log one line per leg with the pose, the result when a move isn't `DONE`, and the battery once in a while. Don't log anything inside the 20 ms loop, values that haven't changed, or every sensor every tick. A line printing 50 times a second hides the one line that mattered.",s:["Toast and log"],rel:["heartbeat"]},
-  {id:"stall",q:["My move stalled","What do BLOCKED, SLIPPING and PLAN_EXHAUSTED mean?","Why did the move stall?"],k:"stall stalled blocked slipping plan_exhausted telemetry stall_cause wall wheels spinning",fix:true,
+  {id:"stall",q:["My move stalled","What do BLOCKED, SLIPPING and PLAN_EXHAUSTED mean?","Why did the move stall?"],k:"stall stalled blocked slipping plan_exhausted telemetry stall_cause wall wheels spinning stalls halfway stops halfway",fix:true,
    a:"Print the stall cause with `ctnav::telemetry()`:\n- `BLOCKED`: motors not turning, robot not moving. Something is in the way. **Check the battery first.**\n- `SLIPPING`: motors turning, robot not moving. The wheels are spinning, so lower the acceleration.\n- `PLAN_EXHAUSTED`: motors turning and robot moving, but the plan ran out early. Re-measure rather than re-tune.\nThe robot can tell these apart because it compares what the motors report with how fast it actually crosses the ground.",s:["Why did the move stall?"],rel:["flat-battery","telemetry-fields"]},
   {id:"telemetry-fields",q:["What do ticks, nonfinite_ticks and stall_count mean?"],k:"ticks nonfinite_ticks stall_count telemetry fields tracking alive wiring",
    a:"- `t.ticks`: confirms the tracking task is alive.\n- `t.nonfinite_ticks`: should be zero; anything else is a wiring fault, not noise.\n- `t.stall_count`: a robot that stalls every few moves has a mechanical problem, not bad luck.",s:["Why did the move stall?"],rel:["stall"]},
-  {id:"quiet-failures",q:["Why do robots fail quietly?"],k:"fail quietly silent unplugged sag setting leftover",
+  {id:"quiet-failures",q:["Why do robots fail quietly?"],k:"fail quietly silent unplugged sag setting leftover fail without telling me silently quietly no error",
    a:"V5 robots rarely fail loudly. A motor comes unplugged and the code keeps commanding it. The battery sags and the drive just stops. A setting left over from the last program changes what every reading means. None of these are hard to detect, only hard to notice, which is why CT Guard and good logging exist.",s:["Register hardware with CT Guard"],rel:["preflight","stall"]},
 
   /* Things the library does not show */
-  {id:"no-driver-code",q:["Write opcontrol code for a tank drive","How do I make arcade drive code?","Where is the driver control code?"],k:"tank arcade drive code opcontrol driver::drive driver_control write my own sticks joystick get_analog",
+  {id:"no-driver-code",q:["Write opcontrol code for a tank drive","How do I make arcade drive code?","Where is the driver control code?"],k:"tank arcade drive code opcontrol driver::drive driver_control write my own sticks joystick get_analog ",
    a:"The library doesn't show the code inside `driver::drive()`. It lives in `src/driver_control.cpp` and the lessons only have you tune its numbers. The robot uses split-stick, not tank. What you can change: the loop in `opcontrol()` (keep `pros::delay(20)`), and the deadband, curves and steering floor in `include/robot_config.hpp`. Setting `DRIVE_STEER_FLOOR` to 1.00 gives plain arcade.",s:["The opcontrol loop","Stage 3 · Low-speed steering cap"],rel:["split-stick","tuning"]},
   {id:"no-buttons",q:["How do I make a button do something?","How do I read a controller button?","How do I make a toggle?"],k:"button buttons press hold toggle controller input::update digital a b x y r1 r2 l1 l2",
    a:"The library doesn't show button code. In `opcontrol()`, `input::update()` runs an action only for buttons that just changed, and button feel lives in `src/driver_control.cpp`. The lessons point to the Code Patterns page for press vs hold, toggles and state machines. The only button setting shown here is `AUTON_TEST_BUTTON`, which makes B run the armed routine.",s:["The opcontrol loop","Test with the B button"],rel:["b-button"]},
@@ -1137,49 +1137,92 @@ ctd::Console.println("stall %s  asked %.1f  got %.1f in/s",
   }
 
   /* number and phrase triggers the scorer can't see */
-  var TRIGGERS=[
-    [/\b2\s*,?\s*1\s*1\s*5\b|2\.5 ?(x|times)/,"push-2115"],[/\b846\b/,"push-test"],[/\b15 ?(%|percent)\b/,"push-off"],
-    [/\b(count|counts|counting|goes) down\b/,"push-down"],[/turnangle\(\s*270|turn(angle)? 270|\b270\b.*never/,"turn-270"],
-    [/encoder_?differential/,"encoder-diff"],[/\bsat still\b|didn'?t (move|run|do anything) in auto|nothing (happen|happened|happens).*auto/,"not-armed"],
-    [/\bbrake\b.*\bhold\b|\bhold\b.*\bbrake\b/,"brake"],[/\bfault\b.*\bwarning\b|\bwarning\b.*\bfault\b/,"fault-warning"],
-    [/movetopoint.*movetopose|movetopose.*movetopoint|point (or|vs\.?|versus) pose/,"point-vs-pose"],
-    [/\b(tank|arcade) drive\b|opcontrol code|driver code|driver control code/,"no-driver-code"],
-    [/\b(flywheel|pneumatic|piston|solenoid|catapult|claw|shooter|wings?)\b/,"no-mechanism"],
-    [/\b(toggle|button press|press a button|controller button|read a button)\b/,"no-buttons"],
-    [/\bwrong way\b|opposite (way|direction)|turns? left when|turns? right when/,"turns-wrong-way"],
-    [/\blemlib\b|chassis object/,"libraries"],[/heading from/,"encoder-diff"],
-    [/\bprint\w*\b.*\b(where|position|pose|location)\b|\bwhere (is )?(the )?robot (is|thinks)\b|\bread (the )?(robot'?s? )?(pose|position)\b/,"pose-readback"],
-    [/\bpoint (the robot |it |the front )?(at|toward|towards)\b|\bface (a|the|that) (spot|point|goal)\b|\baim (at|toward)\b/,"turn-point"],
-    [/\bturns? (overshoot|lurch|go too far)|overshoots? (the |a |my )?turn/,"turn-gains"],
-    [/\bwhat should i (log|print)\b|too much (logging|printing)|(log|print)\w* (every|each) (loop|tick)|console (is )?(spam|flood)/,"what-to-log"]
+  var TRIGGERS=[ /* [pattern, fact id, bonus] */
+    [/\b2[01]\d\d\b|2\.5 ?(x|times)|two and a half times/,"push-2115",40],
+    [/\b846\b/,"push-test",12],
+    [/\b15 ?(%|percent)\b|\b(6\d\d|7\d\d|9\d\d|1\d\d\d)\b.*\b(push|tile|encoder)|\b(push|tile|encoder)\b.*\b(6\d\d|7\d\d|9\d\d|1\d\d\d)\b(?! ?ms)/,"push-off",30],
+    [/\b(count|counts|counting|goes|going) (down|negative)|into (the )?negatives?/,"push-down",30],
+    [/\b(stays?|stuck|reads?|says?|is) (at )?(0|zero)\b|\bjump(s|ing)? around\b/,"push-zero",28],
+    [/turnangle\(\s*270|turn(angle)? 270|\b270\b.*(never|keeps|forever)/,"turn-270",30],
+    [/encoder_?differential|heading (is )?(coming )?from (the )?(drive|wheels|sides)/,"encoder-diff",30],
+    [/\b(sat|sits|sitting|stood|stands|standing) (still|there)\b|did nothing|didn'?t (move|run|do anything)( at all)?|first 15|doesn'?t move in auto|nothing (happen|happened|happens)|arm it every|(dead|frozen) (in|during) auto/,"not-armed",36],
+    [/\bbrake\b.*\bhold\b|\bhold\b.*\bbrake\b/,"brake",30],[/\bfault\b.*\bwarning\b|\bwarning\b.*\bfault\b/,"fault-warning",30],
+    [/movetopoint.*movetopose|movetopose.*movetopoint|point (or|vs\.?|versus) pose|spot one|(spot|place)\b.*\band\b.*\bfac(e|ing)\b.*\bone\b/,"point-vs-pose",30],
+    [/\b(tank|arcade) drive\b|opcontrol code|driver code|driver control code/,"no-driver-code",30],
+    [/\b(flywheel|pneumatics?|pnuematics?|piston|solenoid|catapult|claw|shooter|wings?)\b/,"no-mechanism",30],
+    [/\b(toggle|button press|press a button|controller button|read a button)\b/,"no-buttons",30],
+    [/\bwrong way\b|opposite (way|direction)|(turns?|goes|swings?|swung|went) (left|right) (when|instead|every ?time)/,"turns-wrong-way",28],
+    [/\blemlib\b|chassis object|::/,"libraries",22],[/heading from/,"encoder-diff",20],
+    [/\bprint\w*\b.*\b(where|position|pose|location)\b|\bwhere (is )?(the )?(robot|bot) (is|thinks)\b|\bthinks it (is|ended)|\bread (the )?(robot'?s? )?(pose|position)\b/,"pose-readback",28],
+    [/\bpoint (the robot |it |the front )?(at|toward|towards)\b|\bface (a|the|that) (spot|point|goal|coordinate)\b|\baim (at|toward)\b|\bface towards? a\b/,"turn-point",28],
+    [/\bturns? (overshoots?|lurch\w*|go(es)? too far|go(es)? past)|overshoots? (the |a |my )?turn|swing(s)? back/,"turn-gains",30],
+    [/\bwhat should i (log|print)\b|too much (logging|printing)|console (is )?(spam|flood)/,"what-to-log",28],
+    [/\bheartbeat\b|every (so often|30 seconds|thirty seconds)|spamm\w*/,"heartbeat",20],
+    [/\bdrive ?distance\b/,"drive-distance",14],[/\bturn ?angle\b/,"turn-angle",14],[/\bturn ?to ?heading\b/,"turn-heading",14],[/\bturn ?to ?point\b|turn ?away ?from ?point/,"turn-point",14],
+    [/\bmove ?to ?point\b/,"move-to-point",12],[/\bmove ?to ?pose\b/,"move-to-pose",12],[/\bset ?pose\b/,"setpose",14],[/\bestimate ?duration\b|how long will|too long\b/,"estimate",22],
+    [/^how (do|can|would) i (go|drive|move|back) back(wards?)?\b|^how do i back up/,"drive-distance",26],
+    [/\b(drives?|goes|moves?) backwards? when\b|push(ing)? (the )?(left )?(stick|joystick) (forward|up)/,"reverse-motor",24],
+    [/negative (turn|angle)|turn (a )?negative/,"turn-angle",24],
+    [/\b(is )?(0|90|180|270)( degrees?)? (is )?(left|right|forward|backwards?|straight|behind)\b|\b(0|zero) is (forward|straight|right|up)/,"heading",26],
+    [/(end up|get|be|arrive)\b.*\b(spot|place|point)\b.*\bfacing\b|facing a certain way/,"move-to-pose",22],
+    [/\bsame motor\b|two (parts|pieces) of (the )?code|twitch/,"one-owner",26],
+    [/start a turn while|turn (just )?never happens|second (move|launch|turn)/,"second-move",26],
+    [/\binvisible wall|battery\b.*\b(dead|low|flat)|(dead|low|flat) battery/,"flat-battery",22],
+    [/\b(weav|wobbl|wiggl|zigzag|zig zag|snake|back and forth|back n forth)/,"kp",24],
+    [/\bmenu\b.*\b(not|don'?t|doesn'?t|never) (show|appear)|buttons? (never|don'?t|doesn'?t) (show|appear)/,"comp-init",26],
+    [/\bhow (wide|far apart)|track ?width\b.*\bmeasure|measure\b.*\b(wide|width)/,"wizards",24],
+    [/\bhow many\b.*\b(tab|routines|buttons)\b/,"selector",24],
+    [/\b(moves?|moving|bumped|picked up|carried)\b.*\bcalibrat|calibrat\w*\b.*\b(move|moving|bump)/,"keep-still",24],
+    [/(pick(s|ed)? (it )?up|carr(y|ies|ied|ying)|bump(s|ed)?( into)?)\b.*\b(turn(ed|ing|s)? (it )?on|boot\w*|power(ed|s)? on)/,"keep-still",30],
+    [/\b(auton|autonomous|routine)\b.*\b(doesn'?t|dosn'?t|doesnt|dont|don'?t|not|isn'?t) work|\bmessed up\b|goes somewhere random|wrong spots?\b/,"debug",36],
+    [/from where (it'?s|its|it is|it already is|i am|im)\b|from where it('?s)? at|relative to where|another 24|second time (it )?didn'?t move/,"place-not-step",32],
+    [/\bbehind (it|the robot|the bot)\b|console says no|won'?t (even )?start.*(pose|facing|curv)/,"pose-refused",28],
+    [/\bstall(ed|s|ing)?\b|end(s|ing)? early/,"stall",18],
+    [/takes forever (before|to get|to be) (it'?s |its )?ready|eats into|slow to start up|long time to (start|boot)/,"init-short",30],
+    [/\b(tell|told|say|said|ask|asked)\b.*\b(face|heading|turntoheading|turn to heading)\b.*\b(go|goes|went|turns?|turned|swings?|swung) (left|right)|\b(go|goes|went|turned|swung) (left|right)\b.*\b(face|heading|told|say)/,"turns-wrong-way",32],
+    [/turn ?to ?heading\(?\s*-?\d*\s*\)?\s*(turns?|goes|went|turned|swings?|swung) (left|right)|\b(goes|went|turned|swung) (left|right)\b.*turn ?to ?heading/,"turns-wrong-way",34],
+    [/\b(3|three) lines\b|spits out|print ?out (when|every time) it (turns on|boots|starts)|printout/,"boot-report",26],
+    [/\bctguard::start\b|ctguard start/,"watch",32],[/\bctguard::preflight\b|\bpreflight\(/,"preflight",30],[/\bctguard::watch\b|watchdevice/,"register",30],
+    [/\brequirehealthy\b/,"require-healthy",30],[/\bctnav::pose\b|\bpose\(\)/,"pose-readback",26],[/\bwaituntildone\b|ctnav::launch\b/,"launch",28],
+    [/\bplanmovetopose\b/,"plan-move",30],[/\brequirestrategy\b/,"rungs",30],[/\btelemetry\b/,"stall",22],[/\bdash\.red\b|auton::start\b/,"selector",28],
+    [/\bconsole\.println\b|\btoast\b/,"toast-log",20],[/\bauton::run\b/,"modes",20]
   ];
   var factById={}; FACTS.forEach(function(f){factById[f.id]=f});
 
   /* ---------- question type ---------- */
-  var FIX_RE=/\b(wrong|broken|doesn'?t|does not|won'?t|isn'?t|not (working|moving|turning|running)|stuck|keeps?|problem|error|fail(s|ed)?|stall(s|ed)?|frozen|freez\w*|weird|issue|bug|too (fast|slow|much|big|small|sensitive)|drifts?|curves?|creeps?|over-?rotat\w*|overshoot\w*|sat still|never|off by)\b/;
+  var FIX_RE=/\b(wrong|broken|doesn'?t|dosn'?t|doesnt|does not|won'?t|wont|isn'?t|not (working|moving|turning|running|driving|showing)|stuck|keeps?|problem|error|fail(s|ed)?|stall(s|ed)?|frozen|freez\w*|weird|issue|bug|too (fast|slow|much|far|big|small|sensitive)|drifts?|veers?|curves?|creeps?|over-?rotat\w*|overshoot\w*|over ?turns?|sat still|sat there|never|off by|messed up|wobbl\w*|wiggl\w*|zigzag\w*|weav\w*|twitch\w*|spam\w*|slammed|instead|but it|halfway|dead)\b/;
+  var GREET_RE=/^(hi+|hey+|hello+|helo|yo+|sup|hiya|howdy|heya|wass?up|whats? up|good (morning|afternoon|evening))\b/;
+  var THANKS_RE=/\b(thanks|thank (you|u)|thx|tysm|tyy*|cheers|appreciate it|that (fixed|worked|helped)|it worked)\b/;
+  var ABOUT_RE=/\b(what|wat|wut) (can|could) (you|u) (even )?(do|help( with)?)\b|\bwho are (you|u)\b|\bwhat are (you|u)\b|\bhow do (you|u) work\b|\bare (you|u) (an? )?(ai|bot|robot|human|real|chatgpt|claude)\b|\bwhat do (you|u) know\b|\bwhat (kind|kinda|sort|type)( of)? (stuff|things|questions)\b|^help\b\??$|^what can i ask\b/;
   function intentOf(q){
     var s=q.toLowerCase().trim(), n=s.split(/\s+/).length;
-    if(/^(hi|hello|hey|yo|sup|hiya|howdy|good (morning|afternoon|evening))\b/.test(s)&&n<=5)return "greet";
-    if(/\b(thanks|thank you|thx|ty|cheers|awesome|cool|nice|great)\b/.test(s)&&n<=6&&!/\?$/.test(s))return "thanks";
-    if(/\b(what can you do|who are you|what are you|how do you work|are you (an? )?ai|what do you know)\b|^help\b\??$/.test(s))return "about";
-    if(/^(where|which file|what file|in which)\b|\bwhere (is|are|do|does|can|should|would)\b|\bwhich file\b|\bwhat file\b/.test(s))return "where";
+    if(GREET_RE.test(s)&&n<=5)return "greet";
+    if(THANKS_RE.test(s)&&n<=8&&!/\?$/.test(s))return "thanks";
+    if(ABOUT_RE.test(s))return "about";
+    if(/^(where|which file|what file|in which)\b|\bwhere (is|are|do|does|can|should|would)\b|\bwhich file\b|\bwhat file\b/.test(s)&&!FIX_RE.test(s))return "where";
     if(/^why\b|\bwhy (is|does|do|did|are|won'?t|doesn'?t|can'?t)\b/.test(s))return FIX_RE.test(s)?"fix":"why";
     if(FIX_RE.test(s)&&!/^(how do i|how can i|how to|what is|what does)\b/.test(s))return "fix";
     return "how";
   }
+  /* words that show a question is about this robot code at all */
+  var DOMAIN_RE=/\b(motors?|moters?|ports?|drive\w*|turn\w*|auton\w*|auto|routines?|encoders?|wheels?|sticks?|joysticks?|controllers?|battery|brain|screen|field|tiles?|inch\w*|heading|pose|ctnav|ct ?nav|ct ?guard|ct ?dash|pros|imu|inertial|gyro|delay|loop|task|intake|lift|log|print\w*|console|menu|tab|button|sensors?|upload\w*|files?|functions?|initialize|opcontrol|competition|deadband|curve|steer\w*|push test|robot|bot|vex|code|cpp|hpp|lemlib|setpose|move\w*|forward|backwards?|rumble|selector|calibrat\w*|odometry|track|gain|kp|kd|stall\w*|telemetry|preflight|fault|warning|toast|terminal|heartbeat|spin\w*|rotat\w*|degrees?|coordinates?|spot|arm\w*|mechanism|flywheel|pneumatic\w*|piston|claw|chassis|cartridge|gearset|rpm)\b|::/;
+  var OFFTOPIC_RE=/\b(pizza|movies?|music|songs?|fortnite|minecraft|roblox|homework|essay|football|soccer|basketball|baseball|weather|girlfriend|boyfriend|recipe|anime|tiktok|youtube|world cup|super bowl|president|civil war|history class|who won|last night|joke|poem|dinner|lunch|restaurant)\b/;
 
   /* ---------- routine writer ---------- */
   var NUMW={zero:0,a:1,an:1,one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10,eleven:11,twelve:12,fifteen:15,eighteen:18,
     twenty:20,thirty:30,forty:40,fifty:50,sixty:60,seventy:70,eighty:80,ninety:90,hundred:100};
   function wordsToNumbers(s){
-    s=s.replace(/\bhalf an? (tile|foot)\b/g,function(m,u){return (u==="tile"?"12":"6")+" inches"})
+    s=s.replace(/\bhalf (a|an) (second|sec)\b/g,"0.5 seconds").replace(/\b(a|one) and a half (seconds?|secs?)\b/g,"1.5 seconds")
+       .replace(/\b(\d+(?:\.\d+)?|a|one|two|three) (tiles?|squares?|feet|foot) and a half\b/g,function(m,n,u){var v=({a:1,one:1,two:2,three:3}[n]||parseFloat(n))+0.5;return v+" "+(/sq/.test(u)?"tiles":u)})
+       .replace(/\bsquares\b/g,"tiles").replace(/\b(\d+|a|one) square\b/g,"$1 tile")
+       .replace(/\bhalf an? (tile|foot)\b/g,function(m,u){return (u==="tile"?"12":"6")+" inches"})
        .replace(/\ba (tile|foot)\b/g,function(m,u){return u==="tile"?"24 inches":"12 inches"});
     s=s.replace(/\b(twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)[\s-](one|two|three|four|five|six|seven|eight|nine)\b/g,function(m,a,b){return String(NUMW[a]+NUMW[b])});
-    s=s.replace(/\bone hundred (and )?eighty\b/g,"180").replace(/\b(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|eighteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)\b(?=\s*(inch|inches|in\b|tiles?|feet|foot|ft|degrees?|deg|seconds?|secs?|ms|milliseconds?))/g,function(m){return String(NUMW[m])});
+    s=s.replace(/\bone hundred (and )?eighty\b/g,"180").replace(/\b(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|eighteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)\b/g,function(m){return String(NUMW[m])});
     return s;
   }
   function distanceIn(c){
-    var m=c.match(/(-?\d+(?:\.\d+)?)\s*(inches|inch|in\b|"|tiles?|feet|foot|ft\b|cm\b|centimet\w*)?/);
+    var m=c.replace(/@\d+@/g," ").match(/(-?\d*\.?\d+)\s*(inches|inch|in\b|"|tiles?|feet|foot|ft\b|cm\b|centimet\w*)?/);
     if(!m)return null;
     var n=parseFloat(m[1]), u=m[2]||"";
     if(/tile/.test(u))n*=24; else if(/feet|foot|ft/.test(u))n*=12; else if(/cm|centimet/.test(u))n=n/2.54;
@@ -1187,8 +1230,8 @@ ctd::Console.println("stall %s  asked %.1f  got %.1f in/s",
   }
   function fmt(n){return String(Math.round(n*10)/10).replace(/\.0$/,"")}
   function headingWord(c){
-    var m=c.match(/\b(north|east|south|west|forward|forwards)\b/); if(!m)return null;
-    return {north:0,forward:0,forwards:0,east:90,south:180,west:270}[m[1]];
+    var m=c.match(/\b(north|east|south|west)\b/); if(!m)return null;
+    return {north:0,east:90,south:180,west:270}[m[1]];
   }
   function parseRoutine(q){
     var s=wordsToNumbers(q.toLowerCase().replace(/[’']/g,""));
@@ -1196,8 +1239,21 @@ ctd::Console.println("stall %s  asked %.1f  got %.1f in/s",
     if(nm){name=nm[1].trim().replace(/\s+/g,"_").replace(/[^a-z0-9_]/g,"");s=s.replace(nm[0]," ")}
     var coords=[];
     s=s.replace(/\(\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\)/g,function(m,a,b){coords.push([+a,+b]);return " @"+(coords.length-1)+"@ "})
-       .replace(/\b(to|at|toward|towards|from)\s+(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/g,function(m,w,a,b){coords.push([+a,+b]);return w+" @"+(coords.length-1)+"@ "})
+       .replace(/\b(to|at|toward|towards|from|face|faces|facing)\s+(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/g,function(m,w,a,b){coords.push([+a,+b]);return w+" @"+(coords.length-1)+"@ "})
        .replace(/\bx\s*=?\s*(-?\d+(?:\.\d+)?)\s*,?\s*(?:and\s*)?y\s*=?\s*(-?\d+(?:\.\d+)?)/g,function(m,a,b){coords.push([+a,+b]);return " @"+(coords.length-1)+"@ "});
+    s=s.replace(/^(.+?)\s+after (it|the robot|the bot|that it)\s+(.+)$/,function(m,first,w,second){return second+" , "+first})
+       .replace(/\bfwd\b/g,"forward").replace(/\bhang a (left|right)\b/g,"turn $1").replace(/\bdo a 180\b/g,"turn around").replace(/\bccw\b/g,"counterclockwise").replace(/\bcw\b/g,"clockwise")
+       .replace(/\b(counter|anti)[- ]?clockwise\b/g,"counterclockwise");
+    var square=/\bsquare\b/.test(q.toLowerCase());
+    s=s.replace(/\s+(?=(?:turn|turns|turning|rotate|rotates|spin|spins|pivot|pivots|drive|drives|go|goes|move|moves|back up|backs up|reverse|reverses|wait|waits|pause|pauses|return|returns|come back|comes back|head back|heads back|get to|gets to|face|faces|forward|rumble|print|score)\b)/g,function(m,off,str){
+      var before=str.slice(0,off), prev=(before.match(/(\S+)\s*$/)||[])[1]||"";
+      var next=str.slice(off).trim();
+      if(/^(to|and|then|,|;|it|robot|bot|should|will|i|we|can|please|pls|me|you|u|that|which|who|auton|routine)$/.test(prev))return m;
+      if(/^face/.test(next)&&/^(to|turn|turns|turning|till|until|its|is|and)$/.test(prev))return m;
+      if(/^forward/.test(next)&&/^(drive|drives|go|goes|move|moves|head|heads|straight|driving|going|moving)$/.test(prev))return m;
+      if(/^(back up|reverse|return|come back)/.test(next)&&/^(drive|drives|go|goes)$/.test(prev))return m;
+      return " , ";
+    });
     var clauses=s.split(/\s*(?:,|;|\.(?!\d)|\bthen\b|\band then\b|\bafter that\b|\bafterwards\b|\bnext\b|\bfinally\b|\bafter\b|\band\b(?=\s+(?:drive|drives|go|goes|move|moves|turn|turns|back|backs|reverse|wait|waits|pause|spin|run|runs|face|faces|rumble|print|return|returns|come|comes|score|scores|head|heads|stop|rotate|intake))|\s+and\s+(?=(?:drive|go|move|turn|back|reverse|wait|pause|face|rumble|return|come|score)\b))\s*/);
     var steps=[], start=null, unknown=[];
     clauses.forEach(function(raw){
@@ -1206,36 +1262,43 @@ ctd::Console.println("stall %s  asked %.1f  got %.1f in/s",
       var cm=c.match(/@(\d+)@/), coord=cm?coords[+cm[1]]:null;
       var hm=c.match(/\b(?:facing|face|heading|pointing|point)\s*(?:to\s*|at\s*)?(-?\d+(?:\.\d+)?)/), hNum=hm?parseFloat(hm[1]):null, hW=headingWord(c);
       var hasDrive=/\b(drive|drives|driving|go|goes|move|moves|forward|forwards|ahead|straight|travel|roll|head)\b/.test(c);
-      var isMech=/\b(intake|roller|conveyor|mechanism|spin up|outtake|flywheel)\b/.test(c);
-      if(/\b(start|starts|starting|begin|begins|placed|place it|setpose)\b/.test(c)&&coord){start={x:coord[0],y:coord[1],h:hNum!=null?hNum:(hW!=null?hW:0)};return}
+      var isMech=/\b(intake|intaking|roller|conveyor|mechanism|spin up|outtake|outtaking|flywheel)\b/.test(c);
+      if((/\b(start|starts|starting|begin|begins|placed|place it|setpose)\b\s*(at|from|on|in)?\s*@/.test(c)||/^from @/.test(c))&&coord){start={x:coord[0],y:coord[1],h:hNum!=null?hNum:(hW!=null?hW:0)};var rest=c.replace(/^.*?@\d+@\s*(facing\s*-?\d+|facing \w+)?/,"").trim();if(!rest)return;c=rest;cm=c.match(/@(\d+)@/);coord=cm?coords[+cm[1]]:null;hm=c.match(/\b(?:facing|face|heading|pointing|point)\s*(?:to\s*|at\s*)?(-?\d+(?:\.\d+)?)/);hNum=hm?parseFloat(hm[1]):null;hW=headingWord(c)}
+      else if(/\b(start|starts|starting|begin|begins)\b.*\b(facing|pointing|heading)\b/.test(c)&&(hNum!=null||hW!=null)&&!coord){start={x:0,y:0,h:hNum!=null?hNum:hW};return}
+      c=c.replace(/^(begin|start) (by|with) /,"");
       if(/\b(rumble|buzz|vibrate)\b/.test(c)){steps.push({t:"rumble"});return}
       if(/\b(print|log)\b/.test(c)&&/\b(pose|position|where)\b/.test(c)){steps.push({t:"print"});return}
-      if(isMech&&hasDrive&&/\b(while|during|as it|same time|at once)\b/.test(c)){var dd=distanceIn(c.replace(/\b\d+\s*(ms|milliseconds?|seconds?|secs?|s)\b/g,""));steps.push({t:"launch",d:dd!=null?dd:24});return}
+      if(isMech&&hasDrive&&/\b(while|during|as it|same time|at once|with the|with intake|intaking)\b/.test(c)){var dd=distanceIn(c.replace(/\b\d+\s*(ms|milliseconds?|seconds?|secs?|s)\b/g,""));steps.push({t:"launch",d:dd!=null?dd:24});return}
       if(isMech){var ms=c.match(/(\d+(?:\.\d+)?)\s*(ms|milliseconds?|seconds?|secs?|s)\b/);steps.push({t:"mech",ms:ms?(/^m/.test(ms[2])?+ms[1]:Math.round(+ms[1]*1000)):500});return}
       if(/\b(score|scores|scoring|drop|place the)\b/.test(c)&&!coord&&!distanceIn(c)){steps.push({t:"score"});return}
-      if(/\b(wait|waits|pause|pauses|delay|sit|stop for|hold for)\b/.test(c)){var w=c.match(/(\d+(?:\.\d+)?)\s*(ms|milliseconds?|seconds?|secs?|s\b)?/);var v=w?+w[1]:1;var unit=w&&w[2]||"";steps.push({t:"wait",ms:/^m/.test(unit)?v:(unit||v<=10?Math.round(v*1000):v)});return}
-      if(coord&&/\b(face|faces|facing|point|points|aim|aims|look|looks|turn|turns|rotate)\b/.test(c)&&/\b(toward|towards|at|to)\b/.test(c)&&!hasDrive){steps.push({t:/\b(back|away|rear)\b/.test(c)?"turnAway":"turnPoint",x:coord[0],y:coord[1]});return}
+      if(/\b(piston|pneumatic\w*|solenoid|claw|catapult|wings?|fire|shoot|shooter|lift)\b/.test(c)&&!coord&&!distanceIn(c)){unknown.push(raw.trim());return}
+      if(/\b(wait|waits|pause|pauses|delay|sit|stop for|hold for)\b/.test(c)){var w=c.match(/(\d*\.?\d+)\s*(ms|milliseconds?|seconds?|secs?|sec|s\b)?/);var v=w?+w[1]:1;var unit=w&&w[2]||"";steps.push({t:"wait",ms:/^m/.test(unit)?v:(unit||v<=10?Math.round(v*1000):v)});return}
+      if(coord&&/\b(face|faces|facing|point|points|aim|aims|look|looks|turn|turns|rotate|turning)\s+(the (front|back) )?((toward|towards|at|to)\s+)?(face\s+)?@\d+@/.test(c)&&!hasDrive){steps.push({t:/\b(back|away|rear)\b/.test(c)?"turnAway":"turnPoint",x:coord[0],y:coord[1]});return}
       if(coord){steps.push(hNum!=null||hW!=null?{t:"pose",x:coord[0],y:coord[1],h:hNum!=null?hNum:hW}:{t:"point",x:coord[0],y:coord[1]});return}
       if(/\b(return|returns|come back|comes back|go back|goes back|head back|heads back|back to (the )?start|go home|back home|to the start|where it started|starting (spot|point|position))\b/.test(c)||(/\b(drive|drives|go|goes)\s+back\b/.test(c)&&distanceIn(c)==null)){steps.push({t:"home",assumed:/\b(drive|drives|go|goes)\s+back\b/.test(c)});return}
       if(/\b(back up|backs up|backup|reverse|reverses|backwards?|back)\b/.test(c)){var bd=distanceIn(c);if(bd!=null){steps.push({t:"drive",d:-Math.abs(bd)});return}}
-      if(/\bturn(s)? around\b|\bspin(s)? around\b|\babout[- ]face\b|\b180\b/.test(c)&&/\b(turn|turns|spin|spins|rotate|about)\b/.test(c)){steps.push({t:"around"});return}
-      if(/\b(turn|turns|rotate|rotates|spin|spins|pivot|pivots|face|faces)\b/.test(c)&&(hNum!=null||hW!=null||/\bto (heading )?-?\d/.test(c))&&!/\b(right|left|clockwise|counter|anti)\b/.test(c)){var th=hNum!=null?hNum:(hW!=null?hW:parseFloat(c.match(/\bto (?:heading )?(-?\d+(?:\.\d+)?)/)[1]));steps.push({t:"heading",h:((th%360)+360)%360});return}
+      if(/\bturn(s)? around\b|\bspin(s)? around\b|\babout[- ]face\b|\b(turn|turns|spin|spins|rotate|rotates) 180\b/.test(c)){steps.push({t:"around"});return}
+      if(/\b(turn|turns|rotate|rotates|spin|spins|pivot|pivots|face|faces)\b/.test(c)&&(hNum!=null||hW!=null||/\bto (heading )?-?\d/.test(c))&&(!/\b(right|left|clockwise|counterclockwise)\b/.test(c)||/\b(till|until|so it|to)\b.*\b(facing|face|heading)\b/.test(c))){var th=hNum!=null?hNum:(hW!=null?hW:parseFloat(c.match(/\bto (?:heading )?(-?\d+(?:\.\d+)?)/)[1]));steps.push({t:"heading",h:((th%360)+360)%360});return}
+      if(/^(right|left|clockwise|counterclockwise)(\s+-?\d*\.?\d+)?(\s*(deg\w*|°))?$/.test(c))c="turn "+c;
       if(/\b(turn|turns|rotate|rotates|spin|spins|pivot|pivots)\b/.test(c)){
-        var am=c.match(/(-?\d+(?:\.\d+)?)/), a=am?Math.abs(parseFloat(am[1])):90;
-        var left=/\b(left|counter-?clockwise|anti-?clockwise)\b/.test(c), right=/\b(right|clockwise)\b/.test(c)&&!/counter|anti/.test(c);
+        var am=c.match(/(-?\d*\.?\d+)/), a=am?Math.abs(parseFloat(am[1])):90, neg=am&&parseFloat(am[1])<0;
+        var left=/\b(left|counterclockwise)\b/.test(c)||(neg&&!/\bright\b/.test(c)), right=/\b(right|clockwise)\b/.test(c)&&!/counterclockwise/.test(c);
         steps.push({t:"turn",a:left?-a:a,assumed:!left&&!right});return}
       if(hasDrive){var d=distanceIn(c);if(d!=null){steps.push({t:"drive",d:d});return}}
       if(c.length>2&&/[a-z]/.test(c))unknown.push(raw.trim());
     });
+    if(square&&steps.length<=1){var side=steps.length&&steps[0].t==="drive"?steps[0].d:distanceIn(s.replace(/@\d+@/g,""));side=side!=null?side:24;steps=[];for(var k=0;k<4;k++){steps.push({t:"drive",d:side});steps.push({t:"turn",a:90})}}
     return {steps:steps,start:start,name:name,unknown:unknown};
   }
+  var IMPERATIVE_RE=/^(?:(?:please|pls|ok|okay|so|now|first|then|alright|yo)[, ]+)*(drive|go|move|turn|rotate|spin|pivot|back up|back|reverse|forward|fwd|head|get|face|wait|pause|start|begin|from|return|come|run|(?:left|right) \d|make|have|write|create|build|code|generate|program|give|can you|could you|can u|could u|would you|i want|i need|i'?d like|id like|the robot should|robot should|it should|let'?s|lets|auton|autonomous|routine|a routine|an auton|new auton|new routine)\b/;
   function looksLikeRoutine(q,p){
-    var s=q.toLowerCase();
-    var asks=/\b(write|make|create|build|code|program|generate|give me|help me|can you|could you|i need|i want)\b/.test(s)&&/\b(routine|auton|autonomous|auto|program|code|function|path|robot (that|to|which))\b/.test(s);
-    var moves=p.steps.filter(function(x){return x.t!=="print"&&x.t!=="rumble"}).length;
-    if(/\b(tank|arcade|opcontrol|driver control|button|toggle|flywheel|pneumatic|piston|catapult|claw)\b/.test(s))return false;
-    if(/^(how|what|why|where|which|is|does|do|can i|should)\b/.test(s)&&moves<2&&!asks)return false;
-    return moves>=2||(asks&&moves>=1);
+    var s=q.toLowerCase().trim();
+    var moves=p.steps.filter(function(x){return x.t!=="print"&&x.t!=="rumble"&&x.t!=="wait"&&x.t!=="score"}).length;
+    if(!moves)return false;
+    var explicit=/\b(write|make|create|build|generate|code up|program|give me|need)\b.*\b(routine|auton|autonomous|auto|path|program|code)\b|\b(make|have) (it|the robot|my robot|the bot)\b|\bi (want|need) (it|my robot|the robot|the bot|my bot) to\b|\b(my robot|the robot|it) (should|needs to)\b/.test(s);
+    var problem=/\b(but|instead|wrong|keeps?|off by|are off|is off|crooked|different every|stall\w*|sits? there|sat there|doesn'?t|dosn'?t|does not|won'?t|isn'?t|never|too (far|much|fast|slow)|past|overshoot\w*|twitch\w*|supposed to|happens|happened|why|how long|how many|still go|does it|do i|can i|should i|both|music)\b/.test(s);
+    if(problem&&!/^(write|make|create|build|code|generate)\b/.test(s))return false;
+    return explicit||IMPERATIVE_RE.test(s);
   }
   function writeRoutine(p){
     var name=p.name||"my_routine", label=name.split("_").map(function(w){return w.charAt(0).toUpperCase()+w.slice(1)}).join(" ");
@@ -1334,15 +1397,17 @@ ctd::Console.println("stall %s  asked %.1f  got %.1f in/s",
       if(rn){CTX.routine.name=rn[1].trim().replace(/\s+/g,"_").replace(/[^a-z0-9_]/g,"");return {md:writeRoutine(CTX.routine),rel:[],keepRoutine:true}}
     }
 
+    if(OFFTOPIC_RE.test(s)&&!/\b(motor|port|drive|auton|routine|encoder|robot code|ctnav|pros)\b/.test(s))
+      return {md:"I only know the code in this VEX library, so I can't help with that one. Try asking where some code is, how something works, or ask me to write a routine.",rel:["What can you do?","Which file do I edit?","Write a routine that drives 24 inches and turns right"]};
     /* write a routine */
     var parsed=parseRoutine(q);
     if(looksLikeRoutine(q,parsed)){CTX.routine=parsed;CTX.fact=null;CTX.snips=[];return {md:writeRoutine(parsed),rel:["How do I add a new autonomous routine?","My robot sat still in autonomous","How long will my routine take?"],keepRoutine:true}}
-    if(/\b(write|make|create|build|code|generate)\b/.test(s)&&/\b(routine|auton|autonomous)\b/.test(s)&&!/\b(tank|arcade|opcontrol|driver)\b/.test(s)&&!/^how\b/.test(s)){
+    if((/^(?:(?:please|pls|ok|okay|so|now|hey|yo)[, ]+)*(?:can you |could you |can u |could u |would you |will you )?(write|make|create|build|generate|code)\b/.test(s)||/\b(write|make|create|build|generate) (me |us )?(a |an |my )?(new |simple |basic )?(routine|auton|autonomous|auto)\b/.test(s))&&/\b(routine|auton|autonomous|auto)\b/.test(s)&&!/\b(tank|arcade|opcontrol|driver)\b/.test(s)&&!/^how\b/.test(s)){
       return {md:"Sure. Tell me the steps in order and I'll write it, for example:\n- \"write a routine that drives 24 inches, turns right, then drives 12\"\n- \"go to (24, 48) facing 90, wait 1 second, then come back\"\n- \"drive 48 while running the intake, then turn left 45\"\n\n"+factAnswer(factById["add-routine"],"how"),rel:["Show me an example routine","How do I plan an autonomous route?"]};
     }
 
     var ranked=scoreAll(q,intent), top=ranked[0];
-    TRIGGERS.forEach(function(t){ if(t[0].test(s)){ var f=factById[t[1]]; ranked.forEach(function(r){ if(r.d.kind==="fact"&&r.d.fact===f)r.s+=25 }) } });
+    TRIGGERS.forEach(function(t){ if(t[0].test(s)){ var f=factById[t[1]]; ranked.forEach(function(r){ if(r.d.kind==="fact"&&r.d.fact===f)r.s+=(t[2]||25) }) } });
     ranked.sort(function(a,b){return b.s-a.s}); top=ranked[0];
 
     if(short&&CTX.snips.length&&(!top||top.s<6)){
@@ -1352,6 +1417,8 @@ ctd::Console.println("stall %s  asked %.1f  got %.1f in/s",
     }
 
     var content=toks(q), known=content.filter(function(w){return VOCAB[w]}).length;
+    if((OFFTOPIC_RE.test(s)&&!/\b(motor|port|drive|auton|routine|encoder|robot code|ctnav|pros)\b/.test(s))||(!DOMAIN_RE.test(s)&&(!top||top.s<14)))
+      return {md:"I only know the code in this VEX library, so I can't help with that one. Try asking where some code is, how something works, or ask me to write a routine.",rel:["What can you do?","Which file do I edit?","Write a routine that drives 24 inches and turns right"]};
     if(!top||top.s<2.5||(content.length&&known/content.length<0.34&&top.s<9)){
       if(!content.length||known===0)return {md:"I only know the code in this VEX library, so I can't help with that one. Try asking where some code is, how something works, or ask me to write a routine.",rel:["What can you do?","Which file do I edit?","Write a routine that drives 24 inches and turns right"]};
       var close=ranked.slice(0,3).filter(function(r){return r.s>0}).map(function(r){return r.d.kind==="fact"?r.d.fact.q[0]:r.d.kind==="snip"?"Where is "+r.d.snip.title+"?":null}).filter(Boolean);
