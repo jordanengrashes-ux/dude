@@ -108,20 +108,20 @@ describe('Bot ↔ human hand-over', () => {
     // Autonomous: the robot's program runs although a human owns the slot
     const p6 = r.body.pose().pos;
     expect(Math.hypot(p6.x - p0.x, p6.y - p0.y)).toBeGreaterThan(5);
-    expect(ex.history.length).toBeGreaterThan(0);
     // Driver Control with zero input: the robot stands still under the human
     sim.runUntil(16);
+    expect(ex.history.length).toBeGreaterThan(0); // its program worked through Autonomous
     const a = r.body.pose().pos;
     sim.runUntil(17.5);
     const b = r.body.pose().pos;
     expect(Math.hypot(b.x - a.x, b.y - a.y)).toBeLessThan(1);
-    // hand back: the bot replans from the current field and moves again
+    // hand back: the bot replans from the current field and gets back to work
     const replans = ex.replans;
+    const handedBack = sim.t;
     slot.setBot();
-    sim.runUntil(21);
+    sim.runUntil(22);
     expect(ex.replans).toBeGreaterThan(replans);
-    const c = r.body.pose().pos;
-    expect(Math.hypot(c.x - b.x, c.y - b.y)).toBeGreaterThan(3);
+    expect(ex.history.some((h) => h.ok && h.tStart >= handedBack && h.label !== 'Wait')).toBe(true);
     sim.dispose();
   });
 });

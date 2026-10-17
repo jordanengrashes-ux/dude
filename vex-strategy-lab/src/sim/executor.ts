@@ -62,6 +62,9 @@ interface Active {
   blockedSince?: number;
   /** Waiting for another robot to clear the target spot (start phase). */
   waitUntil?: number;
+  /** Toggle: spot along the bar being used, and spots that turned out out of reach. */
+  toggleSpot?: number;
+  badSpots?: number[];
 }
 
 export interface ActionRecord {
@@ -431,11 +434,16 @@ export class PlanExecutor implements Controller {
           a.toggleId = tg.id;
           const h = Math.atan2(-tg.normal.y, -tg.normal.x);
           let ch: ReturnType<typeof this.chooseApproach> = null;
-          for (const target of this.world.toggleTargets(act.toggle)) {
-            const c = this.chooseApproach(sim, r, sense, target, `T-${tg.id}`, { toggle: tg.id }, h);
-            if (c && (!ch || c.cost < ch.cost)) ch = c;
+          const spots = this.world.toggleTargets(act.toggle);
+          for (let i = 0; i < spots.length; i++) {
+            if (a.badSpots?.includes(i)) continue;
+            const c = this.chooseApproach(sim, r, sense, spots[i], `T-${tg.id}`, { toggle: tg.id }, h);
+            if (c && (!ch || c.cost < ch.cost)) {
+              ch = c;
+              a.toggleSpot = i;
+            }
           }
-          if (!ch) return this.noApproach(r, a, t, 'no approach to toggle');
+          if (!ch) return this.noApproach(r, a, t, a.badSpots?.length ? 'pieces block the Toggle' : 'no approach to toggle');
           a.ap = ch.ap;
           a.ps = { path: ch.path, seg: 0 };
           a.esc = ch.esc ? { ...ch.esc } : undefined;
@@ -575,6 +583,8 @@ export class PlanExecutor implements Controller {
           r.req.matchLoad = { loaderId: a.loaderId!, objectId: a.objId! };
           const obj = sim.objects.objects.get(a.objId!);
           if (out.done && obj && obj.mode === 'free') this.setPhase(a, 'approach', t);
+          // a piece sitting in the Loader's mouth keeps the Drive Team from loading
+          else if (out.done && t - a.phaseT0 > 3 + sim.opts.params.matchLoads.humanLoadSec) return 'Loader mouth blocked';
           return undefined;
         }
         if (out.done) this.setPhase(a, 'approach', t);
@@ -688,7 +698,22 @@ export class PlanExecutor implements Controller {
           a.backHeading = sense.heading;
           a.retries = 99;
           this.setPhase(a, 'backoff', t);
-        } else if (t - a.phaseT0 > 2.5) return 'toggle did not move';
+          return undefined;
+        }
+        // stalled out of the arm's reach (pieces piled against the wall): back off and
+        // work the bar from another spot along it
+        const g = tb.geom;
+        const front = add(sense.pos, fromAngle(sense.heading, cfg.chassis.lengthIn / 2));
+        const gap = (front.x - g.pos.x) * g.normal.x + (front.y - g.pos.y) * g.normal.y;
+        if (t - a.phaseT0 > 0.6 && gap > cfg.toggleArm.reachIn + 2.5 && Math.abs(sense.speed) < 1) {
+          a.badSpots = [...(a.badSpots ?? []), a.toggleSpot ?? 0];
+          if (act.type !== 'toggle' || a.badSpots.length >= this.world.toggleTargets(act.toggle).length) return 'pieces block the Toggle';
+          a.backFrom = sense.pos;
+          a.backHeading = sense.heading;
+          this.setPhase(a, 'backoff', t);
+          return undefined;
+        }
+        if (t - a.phaseT0 > 2.5) return 'toggle did not move';
         return undefined;
       }
       case 'backoff': {
