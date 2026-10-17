@@ -226,10 +226,10 @@ describe('Mechanisms, seating and scoring', () => {
               r.body.cmd = { left: 0, right: 0 };
             } else if (s.t < 1.45) r.body.cmd = { left: -0.3, right: -0.3 }; // back away
             else if (s.t < 1.9) r.body.cmd = { left: 0, right: 0 };
-            else r.body.cmd = { left: 0.3, right: 0.3 }; // push into the Toggle
+            else r.body.cmd = { left: 0.3, right: 0.3 }; // drive to the wall: the arm paddle presses on the bar
           }),
-          // 4" off-center so a side rail (not the open U-slot) meets the Toggle
-          start: { pos: { x: -HALF + 12, y: 4 }, heading: Math.PI },
+          // bumper 2.5" off the wall: within arm reach, arm tip still clear of the bar
+          start: { pos: { x: -HALF + 10.5, y: 4 }, heading: Math.PI },
         },
       ],
       seed: 1,
@@ -347,6 +347,51 @@ describe('Match clock in the simulator', () => {
     // preplaced yellow/yellow Pins with neutral Toggles → no points; tie → 6 each
     expect(sim.result!.bonus).toMatchObject({ red: 6, blue: 6 });
     expect(sim.result!.totals).toEqual({ red: 6, blue: 6 });
+    sim.dispose();
+  });
+});
+
+describe('Full Head-to-Head match with four autonomous robots', () => {
+  it('keeps every robot on the field and below its physical speed; every executor keeps working', async () => {
+    // Regression: a free object trapped between a robot's carried object and its own
+    // chassis used to close a push loop that launched the robot out of the field, and
+    // a robot pinned against a wall used to idle for the rest of the match.
+    const { buildMatch, planScenario } = await import('../src/sim/scenario');
+    const sc = {
+      params: OVERRIDE_DEFAULTS,
+      layout: buildLayout('headToHead'),
+      matchType: 'headToHead' as const,
+      seed: 1,
+      aiBeamWidth: 6,
+      slots: [
+        { slot: 'red-1', alliance: 'red' as const, enabled: true, strategy: 'optimized' as const, robot: cloneRobot(DEFAULT_ROBOT) },
+        { slot: 'red-2', alliance: 'red' as const, enabled: true, strategy: 'midfield' as const, robot: cloneRobot(DEFAULT_ROBOT) },
+        { slot: 'blue-1', alliance: 'blue' as const, enabled: true, strategy: 'optimized' as const, robot: cloneRobot(DEFAULT_ROBOT) },
+        { slot: 'blue-2', alliance: 'blue' as const, enabled: true, strategy: 'toggles' as const, robot: cloneRobot(DEFAULT_ROBOT) },
+      ],
+    };
+    const built = await buildMatch(sc, undefined, undefined, planScenario(sc, 'red-1'));
+    const sim = built.sim;
+    const vMax = derivePerf(DEFAULT_ROBOT).vFree;
+    let maxSpeed = 0;
+    let maxAbs = 0;
+    while (sim.t < sim.clock.total) {
+      sim.step();
+      for (const r of sim.robots) {
+        const v = r.body.chassis.linvel();
+        maxSpeed = Math.max(maxSpeed, Math.hypot(v.x, v.y, v.z) / IN);
+        const p = r.body.chassis.translation();
+        maxAbs = Math.max(maxAbs, Math.abs(p.x) / IN, Math.abs(p.z) / IN);
+      }
+    }
+    expect(sim.result).not.toBeNull();
+    expect(maxAbs).toBeLessThan(HALF);
+    expect(maxSpeed).toBeLessThan(vMax * 1.25);
+    for (const id of ['red-1', 'blue-1']) {
+      const ex = built.executors.get(id)!;
+      // still completing actions in the last third of the match
+      expect(ex.history.some((h) => h.ok && h.tEnd > 80)).toBe(true);
+    }
     sim.dispose();
   });
 });

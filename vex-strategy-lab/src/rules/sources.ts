@@ -130,6 +130,15 @@ export const SOURCES: Record<string, Source> = {
     accessed: LAST_CHECKED,
     accessMethod: 'web-search extract',
   },
+  perimeterQA: {
+    id: 'perimeterQA',
+    title: 'V5RC Q&A — field perimeter wall height (11.5" min to 12.5" max)',
+    url: 'https://events.vex.com/V5RC/2024-2025/QA/2360',
+    publisher: 'VEX Robotics',
+    official: true,
+    accessed: LAST_CHECKED,
+    accessMethod: 'web-search extract',
+  },
   manualsPlus: {
     id: 'manualsPlus',
     title: 'Manuals+ copy of the Override game manual (aggregator)',

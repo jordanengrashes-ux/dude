@@ -442,14 +442,18 @@ export class MatchSim {
     if (req.toggle) {
       const tb = this.field.toggles.find((x) => x.geom.id === req.toggle!.toggleId);
       if (tb) {
-        const front = r.body.frontPoint(4);
-        const piv = tb.body.translation();
-        const d = Math.hypot(front.x - piv.x, front.z - piv.z) / IN;
-        const facing = Math.abs(wrapAngle(r.body.pose().heading - Math.atan2(-tb.geom.normal.y, -tb.geom.normal.x)));
-        if (d < r.cfg.toggleArm.reachIn + 4.5 && facing < (40 * Math.PI) / 180) {
+        // The arm reaches `reachIn` past the bumper; the bar can be worked anywhere along its length.
+        const g = tb.geom;
+        const pose = r.body.pose();
+        const front = { x: pose.pos.x + Math.cos(pose.heading) * (r.cfg.chassis.lengthIn / 2), y: pose.pos.y + Math.sin(pose.heading) * (r.cfg.chassis.lengthIn / 2) };
+        const rel = { x: front.x - g.pos.x, y: front.y - g.pos.y };
+        const along = rel.x * g.tangent.x + rel.y * g.tangent.y;
+        const gap = rel.x * g.normal.x + rel.y * g.normal.y; // bumper to the inner wall face
+        const facing = Math.abs(wrapAngle(pose.heading - Math.atan2(-g.normal.y, -g.normal.x)));
+        if (Math.abs(along) < g.length / 2 && gap < r.cfg.toggleArm.reachIn + 1.5 && facing < (40 * Math.PI) / 180) {
           const target = toggleTargetAngle(req.toggle.target);
           const delta = wrapAngle(target - toggleAngle(tb));
-          if (Math.abs(delta) > (40 * Math.PI) / 180) tb.actuate = Math.sign(delta) * 0.3;
+          if (Math.abs(delta) > (40 * Math.PI) / 180) tb.actuate = Math.sign(delta) * 600; // rad/s²: past the ridge, the detent seats it
         }
       }
     }

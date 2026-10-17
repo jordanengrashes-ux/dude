@@ -127,6 +127,11 @@ export class RobotBody {
     // lift tower just behind the slot
     const towerX = L / 2 - slotD - 0.75 * IN;
     box(towerX, frameH + (H - frameH) / 2, 0, 0.75 * IN, (H - frameH) / 2, (c.slotWidthIn * IN) / 2 + 0.5 * IN);
+    // toggle arm: a paddle on a side standoff, high enough to reach over the wall top
+    const ta = cfg.toggleArm;
+    const armBack = towerX;
+    const armFront = L / 2 + ta.reachIn * IN;
+    box((armBack + armFront) / 2, ta.heightIn * IN, -ta.lateralIn * IN, (armFront - armBack) / 2, 0.25 * IN, 1.25 * IN);
 
     // wheel spheres
     this.wheelPos = [

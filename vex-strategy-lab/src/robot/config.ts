@@ -90,7 +90,12 @@ export interface RobotConfig {
   };
   toggleArm: {
     actuateTimeSec: number;
+    /** How far the arm reaches past the front bumper (in). */
     reachIn: number;
+    /** Height of the arm paddle (in); must clear the 11.5" wall to reach a Toggle. */
+    heightIn: number;
+    /** Lateral position of the paddle from the robot centerline, + = left (in). Off the slot so it never meets a stack. */
+    lateralIn: number;
   };
   /**
    * Execution overheads (s) the physical controller adds beyond the planner's
@@ -157,7 +162,7 @@ export const DEFAULT_ROBOT: RobotConfig = {
     reorientTimeSec: 0.4,
     placeToleranceIn: 0.6,
   },
-  toggleArm: { actuateTimeSec: 0.6, reachIn: 1.5 },
+  toggleArm: { actuateTimeSec: 0.6, reachIn: 1.5, heightIn: 12.5, lateralIn: 5.5 },
   execution: {
     pickOverheadSec: 0.15,
     placeOverheadSec: 1.3,

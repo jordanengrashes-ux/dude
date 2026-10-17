@@ -12,8 +12,9 @@ import type { Alliance } from '../rules/ruleset';
 export const TILE = 600 / 25.4; // 23.622"
 /** Half the inside dimension of the perimeter (3 tiles). */
 export const HALF = 3 * TILE; // 70.866"
-export const PERIMETER_HEIGHT = 2.75; // assumption
-export const PERIMETER_THICKNESS = 1.5; // assumption
+/** Field wall height: 11.5" nominal (GDC Q&A allows 11.5"–12.5"; older VEX field drawings list 11.50"). */
+export const PERIMETER_HEIGHT = 11.5;
+export const PERIMETER_THICKNESS = 1.5; // assumption (extrusion + panel depth)
 export const TAPE_WIDTH = 2.5; // Autonomous Line tape width (official extract: 2.50 in)
 
 /** Midfield: square of tape centered on the tile seams at ±1 tile; volume = inner edges. */
@@ -48,6 +49,13 @@ export interface GoalGeom {
   postRadius: number;
 }
 
+/**
+ * Toggle: a long triangular bar mounted on top of the middle of a field wall,
+ * rotating about its long axis (parallel to the wall). Each of its three long faces
+ * is red, yellow or blue; it is set to a color when it rests on a face in that
+ * detent and no Robot touches it (SC4). Length 25.8" and ~2.05" faces are from a
+ * community transcription of Appendix A; the mount position is an assumption.
+ */
 export interface ToggleGeom {
   id: string;
   quadrant: QuadrantId;
@@ -55,10 +63,20 @@ export interface ToggleGeom {
   pos: Vec2;
   /** Unit normal pointing into the field. */
   normal: Vec2;
-  /** Height of the pivot above the tiles. */
+  /** Unit vector along the wall (the rotation axis direction). */
+  tangent: Vec2;
+  /** Height of the rotation axis above the tiles (a face resting on the wall top). */
   pivotHeight: number;
-  size: number;
+  /** Horizontal offset of the axis from the inner wall face, into the field (in; negative = over the wall). */
+  axisOffset: number;
+  /** Bar length along the wall (in). */
+  length: number;
+  /** Width of each long face = side of the triangular cross-section (in). */
+  faceWidth: number;
 }
+
+export const TOGGLE_LENGTH = 25.8;
+export const TOGGLE_FACE = 2.05;
 
 export interface LoaderGeom {
   id: string;
@@ -140,7 +158,18 @@ export function buildGoals(): GoalGeom[] {
 }
 
 export function buildToggles(): ToggleGeom[] {
-  const mk = (id: string, quadrant: QuadrantId, pos: Vec2, normal: Vec2): ToggleGeom => ({ id, quadrant, pos, normal, pivotHeight: 5, size: 5 });
+  // Axis centered over the wall top, a face resting on it (axis height = wall + inradius, side / 2√3).
+  const mk = (id: string, quadrant: QuadrantId, pos: Vec2, normal: Vec2): ToggleGeom => ({
+    id,
+    quadrant,
+    pos,
+    normal,
+    tangent: { x: -normal.y, y: normal.x },
+    pivotHeight: PERIMETER_HEIGHT + TOGGLE_FACE / (2 * Math.sqrt(3)),
+    axisOffset: -PERIMETER_THICKNESS / 2,
+    length: TOGGLE_LENGTH,
+    faceWidth: TOGGLE_FACE,
+  });
   return [
     mk('T-R1', 'R1', { x: -HALF, y: 0 }, { x: 1, y: 0 }),
     mk('T-R2', 'R2', { x: 0, y: -HALF }, { x: 0, y: 1 }),

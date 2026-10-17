@@ -1,6 +1,6 @@
 import { IN, wrapAngle } from '../core/units';
 import type { Vec2 } from '../core/vec';
-import { add, dist, fromAngle, scale } from '../core/vec';
+import { add, dist, fromAngle } from '../core/vec';
 import { MIDFIELD_INNER_HALF } from '../field/geometry';
 import { derivePerf, type DrivePerf } from '../robot/kinematics';
 import { toggleAngle, togglePosition, toggleTargetAngle } from '../physics/field';
@@ -288,10 +288,12 @@ export class PlanExecutor implements Controller {
         } else if (act.type === 'toggle') {
           const tg = this.world.toggles[act.toggle];
           a.toggleId = tg.id;
-          const L = cfg.chassis.lengthIn;
-          const target = add(tg.pos, scale(tg.normal, L / 2 + cfg.toggleArm.reachIn - cfg.intake.holderOffsetIn));
           const h = Math.atan2(-tg.normal.y, -tg.normal.x);
-          const ch = this.chooseApproach(sim, sense, target, `T-${tg.id}`, { toggle: tg.id }, h);
+          let ch: ReturnType<typeof this.chooseApproach> = null;
+          for (const target of this.world.toggleTargets(act.toggle)) {
+            const c = this.chooseApproach(sim, sense, target, `T-${tg.id}`, { toggle: tg.id }, h);
+            if (c && (!ch || c.cost < ch.cost)) ch = c;
+          }
           if (!ch) return 'no approach to toggle';
           a.ap = ch.ap;
           a.ps = { path: ch.path, seg: 0 };

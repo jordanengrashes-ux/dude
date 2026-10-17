@@ -1,6 +1,6 @@
 import type { Vec2 } from '../core/vec';
 import { dist } from '../core/vec';
-import { buildGoals, buildLoaders, buildToggles, HALF, loadZones, MIDFIELD_INNER_HALF } from '../field/geometry';
+import { buildGoals, buildLoaders, HALF, loadZones, MIDFIELD_INNER_HALF } from '../field/geometry';
 import type { Alliance } from '../rules/ruleset';
 
 /**
@@ -61,7 +61,7 @@ export class Grid {
     // The chassis clears the low Goal base disc; the post is the obstacle.
     for (const g of buildGoals()) this.circles.push({ x: g.pos.x, y: g.pos.y, r2: (g.postRadius + cc) ** 2 });
     for (const l of buildLoaders()) this.circles.push({ x: l.corner.x, y: l.corner.y, r2: (l.footprint * Math.SQRT2 + cc) ** 2 });
-    for (const t of buildToggles()) this.circles.push({ x: t.pos.x, y: t.pos.y, r2: (2.5 + cc) ** 2 });
+    // Toggles sit on top of the walls, above the chassis: not an obstacle.
     for (const o of opts.extraObstacles ?? []) this.circles.push({ x: o.pos.x, y: o.pos.y, r2: (o.r + c) ** 2 });
     if (opts.alliance && opts.forbidOpposingLoadZones) {
       for (const z of loadZones()) {

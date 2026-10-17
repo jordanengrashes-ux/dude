@@ -198,7 +198,7 @@ export class FieldScene {
     }
     // toggles: triangular prism, cap split into three colored sectors (yellow up = 0°, red +120°, blue −120°)
     for (const tg of buildToggles()) {
-      const r = (tg.size / Math.sqrt(3)) * IN;
+      const r = (tg.faceWidth / Math.sqrt(3)) * IN;
       const th = 0.5 * IN;
       const geo = new THREE.BufferGeometry();
       const pos: number[] = [];

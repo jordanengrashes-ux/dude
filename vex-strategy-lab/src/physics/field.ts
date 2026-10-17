@@ -8,12 +8,13 @@ import type { Rapier } from './rapier';
 /**
  * Static field elements and the four Toggles.
  *
- * Toggle model (assumption — the mechanism is not specified in the sources found):
- * a triangular prism on a revolute joint whose axis is the wall normal. Its three
- * faces can each rest flat on the perimeter mount, giving three stable positions
- * 120° apart (yellow = 0°, red = +120°, blue = −120°). A detent torque models the
- * face resting on the mount; robots rotate it by pushing (contact) or with the
- * toggle arm. SC4: a Toggle counts only when seated and not contacted by a Robot.
+ * Toggle model: a triangular bar (25.8" × 2.05" faces) lying on top of the middle
+ * of a wall, on a revolute joint about its long axis (parallel to the wall). Each
+ * long face can rest flat on the wall-top mounts, giving three stable positions
+ * 120° apart; the color named by a detent is the face turned toward the field
+ * (yellow = 0°, red = +120°, blue = −120°). A detent torque models the face resting
+ * on the mount; robots rotate it with the toggle arm. SC4: a Toggle counts only when
+ * seated and not contacted by a Robot.
  */
 
 export interface ToggleBody {
@@ -22,10 +23,12 @@ export interface ToggleBody {
   collider: Collider;
   joint: ImpulseJoint;
   q0: Quat;
-  /** Detent stiffness (N·m) and damping. */
-  k: number;
-  c: number;
-  /** External actuator torque requested this step (N·m about the axis). */
+  /** Moment of inertia about the long axis (kg·m²). */
+  inertia: number;
+  /** Detent natural frequency (rad/s) and damping ratio, scaled to the bar's inertia. */
+  wn: number;
+  zeta: number;
+  /** Angular acceleration (rad/s²) requested by a robot's toggle arm this step. */
   actuate: number;
 }
 
@@ -83,32 +86,38 @@ export function buildField(R: Rapier, world: World): FieldBodies {
 }
 
 function buildToggle(R: Rapier, world: World, fixed: RigidBody, tg: ToggleGeom): ToggleBody {
-  // axis = inward wall normal in world coordinates
+  // Local frame: +X = into the field (wall normal), +Y = up, +Z = along the wall (the axis).
   const n = toWorld(tg.normal.x, tg.normal.y, 0);
-  const axis = { x: n.x / IN, y: 0, z: n.z / IN };
-  const offset = 1.2; // pivot distance from the wall face (in)
-  const pivot = toWorld(tg.pos.x + tg.normal.x * offset, tg.pos.y + tg.normal.y * offset, tg.pivotHeight);
-  // Build the prism in a local frame where local +Z = axis, then rotate.
-  const r = (tg.size / Math.sqrt(3)) * IN; // circumradius of the equilateral triangle
-  const th = 0.5 * IN; // half thickness along the axis
-  const pts: number[] = [];
-  for (let k = 0; k < 3; k++) {
-    const a = Math.PI / 2 + (k * 2 * Math.PI) / 3; // vertex up at 0°
-    for (const z of [-th, th]) pts.push(r * Math.cos(a), r * Math.sin(a), z);
-  }
-  // rotation taking local +Z to the axis (about world Y)
-  const yaw = Math.atan2(axis.x, axis.z);
+  const nx = n.x / IN;
+  const nz = n.z / IN;
+  const yaw = Math.atan2(-nz, nx);
   const q0: Quat = { x: 0, y: Math.sin(yaw / 2), z: 0, w: Math.cos(yaw / 2) };
-  const body = world.createRigidBody(R.RigidBodyDesc.dynamic().setTranslation(pivot.x, pivot.y, pivot.z).setRotation(q0).setAngularDamping(1.5));
+  const pivot = toWorld(tg.pos.x + tg.normal.x * tg.axisOffset, tg.pos.y + tg.normal.y * tg.axisOffset, tg.pivotHeight);
+  const pts: number[] = [];
+  for (const [x, y] of toggleSection(tg)) for (const z of [-tg.length / 2, tg.length / 2]) pts.push(x * IN, y * IN, z * IN);
+  const body = world.createRigidBody(R.RigidBodyDesc.dynamic().setTranslation(pivot.x, pivot.y, pivot.z).setRotation(q0).setAngularDamping(2));
   const collider = world.createCollider(
-    R.ColliderDesc.convexHull(new Float32Array(pts))!.setMass(0.2).setFriction(0.5).setCollisionGroups(CG.toggle),
+    R.ColliderDesc.convexHull(new Float32Array(pts))!.setMass(0.35).setFriction(0.5).setCollisionGroups(CG.toggle),
     body,
   );
   // A mount with the same orientation keeps the revolute axis identical in both local frames.
   void fixed;
   const mount = world.createRigidBody(R.RigidBodyDesc.fixed().setTranslation(pivot.x, pivot.y, pivot.z).setRotation(q0));
   const joint = world.createImpulseJoint(R.JointData.revolute({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 }), mount, body, true);
-  return { geom: tg, body, collider, joint, q0, k: 0.35, c: 0.02, actuate: 0 };
+  // Equilateral triangular prism about its centroidal long axis: I = m·a²/12.
+  const a = tg.faceWidth * IN;
+  return { geom: tg, body, collider, joint, q0, inertia: (0.35 * a * a) / 12, wn: 30, zeta: 0.6, actuate: 0 };
+}
+
+/**
+ * Cross-section vertices (in, local XY, axis at the origin) at the yellow detent:
+ * one face resting flat on the wall top, the yellow face turned toward the field.
+ * Faces: [v0→v1] inward-up = yellow, [v1→v2] bottom = red, [v2→v0] outward-up = blue,
+ * so a +120° turn brings red to the field side and −120° brings blue.
+ */
+export function toggleSection(tg: ToggleGeom): [number, number][] {
+  const r = tg.faceWidth / Math.sqrt(3);
+  return [90, 330, 210].map((deg) => [r * Math.cos((deg * Math.PI) / 180), r * Math.sin((deg * Math.PI) / 180)] as [number, number]);
 }
 
 /** Rotation angle of a toggle about its axis relative to the yellow-up reference. */
@@ -138,14 +147,20 @@ export function togglePosition(t: ToggleBody): TogglePosition {
   return 'unseated';
 }
 
-/** Apply detent + actuator torque for one step. */
+/**
+ * Apply detent + actuator for one step. The bar's inertia about its long axis is
+ * tiny, so an explicit damping torque would overshoot and diverge; the update is
+ * written in angular-velocity space with exact (implicit) damping instead.
+ */
 export function stepToggle(t: ToggleBody, dt: number) {
   const a = toggleAngle(t);
   const w = t.body.angvel();
   const axisW = { x: 2 * (t.q0.x * t.q0.z + t.q0.w * t.q0.y), y: 2 * (t.q0.y * t.q0.z - t.q0.w * t.q0.x), z: 1 - 2 * (t.q0.x * t.q0.x + t.q0.y * t.q0.y) };
   const omega = w.x * axisW.x + w.y * axisW.y + w.z * axisW.z;
-  // detent: stable at 0, ±120°; unstable at ±60°, 180°
-  const tau = (-t.k * Math.sin(3 * a)) / 3 - t.c * omega + t.actuate;
-  t.body.applyTorqueImpulse({ x: axisW.x * tau * dt, y: axisW.y * tau * dt, z: axisW.z * tau * dt }, true);
+  // detent: stable at 0, ±120°; unstable at ±60°, 180° (small-angle stiffness = wn²)
+  const alpha = (-t.wn * t.wn * Math.sin(3 * a)) / 3 + t.actuate;
+  const target = (omega + alpha * dt) * Math.exp(-2 * t.zeta * t.wn * dt);
+  const dL = t.inertia * (target - omega);
+  t.body.applyTorqueImpulse({ x: axisW.x * dL, y: axisW.y * dL, z: axisW.z * dL }, true);
   t.actuate = 0;
 }

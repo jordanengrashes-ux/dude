@@ -452,11 +452,20 @@ export class PlanWorld {
       if (l.id === except.loader) continue;
       if (distPointToPolygon(l.corner, poly) < l.footprint * Math.SQRT2 + 0.5) return false;
     }
-    for (const t of this.allToggles) {
-      if (t.id === except.toggle) continue;
-      if (distPointToPolygon(t.pos, poly) < 2.5) return false;
-    }
+    // Toggles sit on top of the walls, above the chassis: not an obstacle.
     return true;
+  }
+
+  /**
+   * Holder-point targets for working Toggle ti: robot square to the wall with its
+   * bumper `reachIn` + 0.5" off it (the arm tip stays clear of the bar's swing), at
+   * the bar's center or 8" either side (the bar is 25.8" long).
+   */
+  toggleTargets(ti: number): Vec2[] {
+    const R = this.cfg.robot;
+    const tg = this.toggles[ti];
+    const out = R.chassis.lengthIn / 2 + R.toggleArm.reachIn + 0.5 - R.intake.holderOffsetIn;
+    return [0, -8, 8].map((d) => add(add(tg.pos, scale(tg.normal, out)), scale(tg.tangent, d)));
   }
 
   private _allGoals?: GoalGeom[];
@@ -897,17 +906,19 @@ export class PlanWorld {
     let risk = 0;
     let label = this.actionLabel(a);
 
-    const moveTo = (target: Vec2, key: string, except: PoseExcept, liftTarget: number, onlyHeading?: number) => {
-      const aps = this.approaches(target, key, except, onlyHeading);
+    const moveTo = (target: Vec2 | Vec2[], key: string, except: PoseExcept, liftTarget: number, onlyHeading?: number) => {
       let best: { ap: { pre: Vec2; center: Vec2; heading: number }; tr: { time: number; dist: number; turn: number; path: Vec2[] }; total: number } | null = null;
       // When detailed, only refine the best fast-mode candidate (consistent choice).
       // Consider the approach headings closest to the direct line first (cheap prefilter).
-      const direct = Math.atan2(target.y - s.pos.y, target.x - s.pos.x);
-      const near = aps
-        .map((ap) => ({ ap, dh: Math.abs(wrapAngle(ap.heading - direct)) }))
-        .sort((x, y) => x.dh - y.dh)
-        .slice(0, 5)
-        .map((x) => x.ap);
+      const near: { pre: Vec2; center: Vec2; heading: number }[] = [];
+      for (const tgt of Array.isArray(target) ? target : [target]) {
+        const direct = Math.atan2(tgt.y - s.pos.y, tgt.x - s.pos.x);
+        for (const ap of this.approaches(tgt, key, except, onlyHeading)
+          .map((ap) => ({ ap, dh: Math.abs(wrapAngle(ap.heading - direct)) }))
+          .sort((x, y) => x.dh - y.dh)
+          .slice(0, 5))
+          near.push(ap.ap);
+      }
       const scored = near
         .map((ap) => ({ ap, tr: this.travel(s, ap, false) }))
         .filter((x) => x.tr !== null) as { ap: { pre: Vec2; center: Vec2; heading: number }; tr: { time: number; dist: number; turn: number; path: Vec2[] } }[];
@@ -1005,10 +1016,9 @@ export class PlanWorld {
         const tg = this.toggles[a.toggle];
         const want = this.toggleTarget();
         if (!this.toggleUsable(s, a.toggle, s.t)) return null;
-        // face the wall at the toggle: robot front ~1" off the perimeter
-        const target = add(tg.pos, scale(tg.normal, R.chassis.lengthIn / 2 + R.toggleArm.reachIn - R.intake.holderOffsetIn));
+        // square to the wall anywhere along the bar, bumper reachIn off the perimeter
         const th = Math.atan2(-tg.normal.y, -tg.normal.x);
-        if (!moveTo(target, `t${a.toggle}`, { toggle: tg.id }, s.holderH, th)) return null;
+        if (!moveTo(this.toggleTargets(a.toggle), `t${a.toggle}`, { toggle: tg.id }, s.holderH, th)) return null;
         mechT = R.toggleArm.actuateTimeSec + R.execution.toggleOverheadSec + straightTime(p, 4); // actuate + back off (SC4 no contact)
         s.pos = sub(s.pos, fromAngle(s.heading, 4));
         s.toggles[a.toggle] = want;
