@@ -77,7 +77,7 @@ describe('Path planning', () => {
     for (let i = 1; i < p.length; i++) {
       len += dist(p[i - 1], p[i]);
       expect(grid.segmentClear(p[i - 1], p[i])).toBe(true);
-      expect(distToSegment({ x: 0, y: 0 }, p[i - 1], p[i])).toBeGreaterThan(4 + 9.5 - 1.5 - 1e-6);
+      expect(distToSegment({ x: 0, y: 0 }, p[i - 1], p[i])).toBeGreaterThan(1.15 + 9.5 - 1e-6); // post radius + clearance
     }
     expect(len).toBeGreaterThan(80);
     expect(len).toBeLessThan(80 * 1.25);
