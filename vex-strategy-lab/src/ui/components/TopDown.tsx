@@ -180,7 +180,7 @@ export function TopDown({ steps, editable, height = 420 }: { steps?: StepInfo[] 
     // objects
     const drawPin = (p: Vec2, colors: [string, string], up: boolean, lying: boolean) => {
       const c = P(p);
-      const r = Math.max(2.5, (PIN.diameter / 2) * k * (lying ? 1.2 : 1.6));
+      const r = Math.max(2.5, (PIN.diameter / 2) * k * (lying ? 0.8 : 0.9));
       g.beginPath();
       g.arc(c.x, c.y, r, 0, Math.PI * 2);
       g.fillStyle = hc(up ? colors[1] : colors[0]);

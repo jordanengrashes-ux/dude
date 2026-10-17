@@ -9,6 +9,16 @@ import type { MatchSim } from './match';
  * came from: the local physics (offline / team-mode host) or a host's network
  * snapshot (team-mode guest). World units (meters, Y up).
  */
+/**
+ * state 0: near the Goal, not lined up; 1: lined up but held too low (raise it);
+ * 2: lined up and high enough — open the claw and it drops in. `top`: stack top (in).
+ */
+export interface AlignHint {
+  goal: string;
+  state: 0 | 1 | 2;
+  top: number;
+}
+
 export interface SceneFrame {
   t: number;
   robots: {
@@ -20,6 +30,12 @@ export interface SceneFrame {
     /** Holder-bottom height (in). */
     holderH: number;
     trail: { x: number; y: number }[];
+    /** Claw closed (a driver's claw, or a bot holding something). */
+    claw: boolean;
+    /** Held kinds: 1 = Pin, 2 = Cup. */
+    holding: number;
+    /** Aligner: the Goal the held object would go on, and whether releasing now places it. */
+    align: AlignHint | null;
   }[];
   /** `stacked`: Placed on (or seating onto) a Goal. */
   objects: { id: string; kind: 'pin' | 'cup'; colors?: [HalfColor, HalfColor]; p: V3 | null; q: Quat | null; stacked?: boolean }[];
@@ -48,8 +64,8 @@ export function hudData(sim: MatchSim): HudData {
   const autoLeft = sim.clock.autonomousEnd !== null ? Math.max(0, sim.clock.autonomousEnd - sim.t) : 0;
   const r = sim.result;
   return {
-    period: per === 'ended' ? 'Match over' : per === 'autonomous' ? 'Autonomous' : per === 'driver' ? (isEndgame(sim.clock, sim.t) ? 'Endgame' : 'Driver Control') : 'Robot Skills',
-    clock: formatClock(per === 'autonomous' ? autoLeft : rem),
+    period: per === 'ended' ? (sim.opts.practice ? 'Practice over' : 'Match over') : sim.opts.practice ? 'Practice' : per === 'autonomous' ? 'Autonomous' : per === 'driver' ? (isEndgame(sim.clock, sim.t) ? 'Endgame' : 'Driver Control') : 'Robot Skills',
+    clock: formatClock(per === 'autonomous' && !sim.opts.practice ? autoLeft : rem),
     t: sim.t,
     headToHead: sim.clock.matchType === 'headToHead',
     totals: { red: totals.red, blue: totals.blue },

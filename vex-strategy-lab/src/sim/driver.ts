@@ -20,8 +20,10 @@ export interface DriverInput {
   lift: number;
   /** Holder height preset (in) to move the lift to; null when none. Analog lift input cancels it. */
   preset: number | null;
-  /** Claw state: closing grabs what is in front, opening releases the held object. */
+  /** Claw toggle: every change opens / closes the claw (closing grabs what is in front, opening lets go). */
   claw: boolean;
+  /** Easy mode: the claw grabs whatever the robot drives into (and Goals capture more loosely). */
+  easy: boolean;
   /** Toggle arm engaged while held (works the nearest Toggle toward this robot's color). */
   toggle: boolean;
   /** Press counters. */
@@ -31,7 +33,7 @@ export interface DriverInput {
   load: number;
 }
 
-export const zeroInput = (): DriverInput => ({ forward: 0, turn: 0, lift: 0, preset: null, claw: false, toggle: false, drop: 0, index: 0, flip: 0, load: 0 });
+export const zeroInput = (): DriverInput => ({ forward: 0, turn: 0, lift: 0, preset: null, claw: false, easy: false, toggle: false, drop: 0, index: 0, flip: 0, load: 0 });
 
 /** Lift presets (holder-bottom height, in): floor, Alliance Goal, short Goal, tall Goal. */
 export const LIFT_PRESETS = [
@@ -41,8 +43,22 @@ export const LIFT_PRESETS = [
   { key: 'tall', label: 'Tall Goal', h: 9.4 },
 ] as const;
 
+/**
+ * Arcade mix with a small deadband. When forward + turn would exceed full power,
+ * both sides are scaled down together (the turn is kept), so the robot still turns
+ * while driving: full forward + full turn drives one side and holds the other.
+ */
+export function arcade(forward: number, turn: number): { left: number; right: number } {
+  const dz = (v: number) => (Math.abs(v) < 0.06 ? 0 : v);
+  const f = dz(forward);
+  const t = dz(turn) * (0.6 + 0.4 * Math.abs(f)); // gentle in place for aiming, more at speed where the wheels scrub harder
+  const k = Math.max(1, Math.abs(f) + Math.abs(t));
+  return { left: (f - t) / k, right: (f + t) / k };
+}
+
 /** Whether a human may drive now: Driver Control, or the whole run in Driver Skills. */
 export function driverAllowed(sim: MatchSim): boolean {
+  if (sim.opts.practice) return sim.period() !== 'ended';
   const per = sim.period();
   if (per === 'driver') return true;
   return per === 'skills' && sim.clock.matchType === 'skillsDriver';
@@ -54,8 +70,14 @@ export class DriverController implements Controller {
   private last: DriverInput = zeroInput();
   private holdH: number | null = null;
   private presetH: number | null = null;
+  /** The claw: closed or open (flipped by every change of the input's claw toggle). */
+  private clawClosed = false;
+  /** Take the claw state from what the robot holds at the next update (after a hand-over). */
+  private syncClaw = true;
   /** The claw is closing on something until this time (s). */
   private grabUntil = -1;
+  /** Easy mode: no automatic grab until this time (just let go of something). */
+  private easyHoldOff = -1;
 
   constructor(private input: () => DriverInput | null) {}
 
@@ -66,15 +88,13 @@ export class DriverController implements Controller {
     this.holdH = null;
     this.presetH = null;
     this.grabUntil = -1;
+    this.easyHoldOff = -1;
+    this.syncClaw = true;
   }
 
   update(sim: MatchSim, r: SimRobot, sense: Sensing) {
     const inp = this.input() ?? zeroInput();
-    // arcade drive with a small deadband
-    const dz = (v: number) => (Math.abs(v) < 0.06 ? 0 : v);
-    const f = dz(inp.forward);
-    const t = dz(inp.turn) * 0.75;
-    r.body.cmd = { left: Math.max(-1, Math.min(1, f - t)), right: Math.max(-1, Math.min(1, f + t)) };
+    r.body.cmd = arcade(inp.forward, inp.turn);
     // lift: analog overrides, a preset runs to its height, otherwise hold where it stopped
     const minH = r.cfg.lift.holderMinHeightIn;
     if (inp.preset !== this.last.preset && inp.preset !== null) this.presetH = Math.max(minH, inp.preset);
@@ -90,11 +110,34 @@ export class DriverController implements Controller {
         r.body.liftTarget = this.holdH;
       }
     }
-    // claw: closing grabs what is in front (the intake runs briefly), opening lets go
-    if (inp.claw && !this.last.claw) this.grabUntil = sim.t + 0.7;
-    if (!inp.claw && this.last.claw) r.req.release = true;
-    r.req.intake = sim.t < this.grabUntil;
-    if (inp.drop > this.last.drop) r.req.release = true;
+    // claw: each toggle flips it — closing grabs what is in front (the intake runs
+    // briefly), opening lets go. A robot taken over while holding something has its
+    // claw closed; in easy mode the claw is closed exactly when it holds something.
+    const holding = !!(r.primary || r.secondary);
+    if (this.syncClaw || inp.easy) {
+      this.clawClosed = holding;
+      this.syncClaw = false;
+    }
+    let opened = false;
+    if (inp.claw !== this.last.claw) {
+      this.clawClosed = !this.clawClosed;
+      if (this.clawClosed) this.grabUntil = sim.t + 0.7;
+      else opened = true;
+    }
+    if (inp.drop > this.last.drop) {
+      this.clawClosed = false;
+      opened = true;
+    }
+    if (opened) {
+      r.req.release = true;
+      this.easyHoldOff = sim.t + 1.5; // don't grab back what was just dropped
+    }
+    // easy mode: the claw takes whatever the robot drives into (never off a Goal)
+    const auto = inp.easy && sim.t >= this.easyHoldOff;
+    r.req.intake = sim.t < this.grabUntil || auto;
+    if (auto && !(sim.t < this.grabUntil)) r.req.noDescore = true;
+    r.easy = inp.easy;
+    r.clawClosed = this.clawClosed;
     if (inp.index > this.last.index) r.req.index = true;
     if (inp.flip > this.last.flip) r.req.reorient = true;
     const own = sim.clock.matchType === 'headToHead' ? r.alliance : sim.opts.params.skills.ownedToggleColor;
@@ -174,6 +217,8 @@ export class SlotController implements Controller {
     if (this.driving) {
       this.driving = false;
       r.body.liftManual = null;
+      r.clawClosed = null;
+      r.easy = false;
     }
     if (this.botStale) {
       this.botStale = false;

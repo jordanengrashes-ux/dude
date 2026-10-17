@@ -49,6 +49,8 @@ export interface ScenarioConfig {
   mpc?: MpcOptions;
   /** Beam width for automatically planned robots (opponents / partner). */
   aiBeamWidth?: number;
+  /** Practice: drivers drive from the start, no rule-violation checks. */
+  practice?: boolean;
 }
 
 export function planConfigFor(sc: ScenarioConfig, slot: SlotSetup, events: ExternalEvent[] = [], overrides: Partial<PlanConfig> = {}): PlanConfig {
@@ -364,7 +366,7 @@ export async function buildMatch(sc: ScenarioConfig, inputs?: InputSource, pertu
       sensorSd: perturb?.sensorSd,
     });
   }
-  const sim = await MatchSim.create({ params: sc.params, layout: sc.layout, robots, seed: sc.seed, objectJitterSd: perturb?.objectJitterSd });
+  const sim = await MatchSim.create({ params: sc.params, layout: sc.layout, robots, seed: sc.seed, objectJitterSd: perturb?.objectJitterSd, practice: sc.practice });
   return { sim, plans, executors, slots: slotCtl };
 }
 

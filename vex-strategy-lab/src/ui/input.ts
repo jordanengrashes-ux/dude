@@ -6,8 +6,8 @@ import { LIFT_PRESETS, zeroInput, type DriverInput } from '../sim/driver';
  * Keyboard / mouse                   Gamepad (standard layout)
  *   W/S or ↑/↓   drive                 left stick Y    drive
  *   A/D or ←/→   turn                  right stick X   turn
- *   Shift        arm up                RT              arm up
- *   Space        arm down              LT              arm down
+ *   Space        arm up                RT              arm up
+ *   Shift        arm down              LT              arm down
  *   left click   claw open / close     A               claw open / close
  *   C            claw open / close     B               open the claw (drop)
  *   E            open the claw (drop)
@@ -17,13 +17,14 @@ import { LIFT_PRESETS, zeroInput, type DriverInput } from '../sim/driver';
  *   X            flip object           Y               flip object
  *   L            Match Load            RB              Match Load
  *   P            play / pause          Start           play / pause
+ *   G            easy claw on / off    Back            easy claw on / off
  * R / F also raise / lower the arm.
  */
 
 export const KEY_HELP: [string, string][] = [
   ['W A S D · arrows', 'drive and turn'],
-  ['Shift', 'arm up'],
-  ['Space', 'arm down'],
+  ['Space', 'arm up'],
+  ['Shift', 'arm down'],
   ['Left click · C', 'claw: close (grab) / open (drop)'],
   ['E', 'open the claw (drop)'],
   ['1 2 3 4', 'arm to floor / Alliance / short / tall Goal'],
@@ -32,6 +33,7 @@ export const KEY_HELP: [string, string][] = [
   ['X', 'flip the held object'],
   ['L', 'request a Match Load'],
   ['P', 'play / pause'],
+  ['G', 'easy claw on / off (grabs what you drive into)'],
   ['Mouse wheel', 'camera distance (3rd person)'],
 ];
 
@@ -47,6 +49,7 @@ export const PAD_HELP: [string, string][] = [
   ['Y', 'flip'],
   ['RB', 'Match Load'],
   ['Start', 'play / pause'],
+  ['Back', 'easy claw on / off'],
 ];
 
 type Listener = (inp: DriverInput) => void;
@@ -81,7 +84,7 @@ class LocalInput {
     const k = (...names: string[]) => names.some((n) => this.keys.has(n));
     const kbF = (k('w', 'arrowup') ? 1 : 0) - (k('s', 'arrowdown') ? 1 : 0);
     const kbT = (k('a', 'arrowleft') ? 1 : 0) - (k('d', 'arrowright') ? 1 : 0);
-    const kbL = (k('shift', 'r') ? 1 : 0) - (k(' ', 'f') ? 1 : 0);
+    const kbL = (k(' ', 'r') ? 1 : 0) - (k('shift', 'f') ? 1 : 0);
     const clamp = (v: number) => Math.max(-1, Math.min(1, v));
     const s = this.state;
     const next = {
@@ -103,6 +106,17 @@ class LocalInput {
 
   private preset(i: number) {
     this.state.preset = LIFT_PRESETS[i].h;
+    this.changed();
+  }
+
+  /** Easy claw: grabs whatever the robot drives into (remembered in this browser). */
+  setEasy(on: boolean) {
+    this.state.easy = on;
+    try {
+      localStorage.setItem('vsl-easy', on ? '1' : '0');
+    } catch {
+      /* storage unavailable */
+    }
     this.changed();
   }
 
@@ -131,6 +145,7 @@ class LocalInput {
       }
       if (DRIVE_KEYS.has(k)) this.onDriveKey?.();
       if (k === 'c') this.toggleClaw();
+      else if (k === 'g') this.setEasy(!this.state.easy);
       else if (k === 'e' || k === 'v') {
         this.setClaw(false);
         this.press('drop');
@@ -194,6 +209,7 @@ class LocalInput {
     if (edge(15)) this.preset(2);
     if (edge(12)) this.preset(3);
     if (edge(9)) this.onPlayPause?.();
+    if (edge(8)) this.setEasy(!this.state.easy);
     if (this.pad.forward || this.pad.turn) this.onDriveKey?.();
     this.padPrev = gp.buttons.map((b) => b.pressed);
     if (this.merge()) this.changed();
@@ -201,3 +217,8 @@ class LocalInput {
 }
 
 export const localInput = new LocalInput();
+try {
+  localInput.state.easy = localStorage.getItem('vsl-easy') === '1';
+} catch {
+  /* storage unavailable */
+}

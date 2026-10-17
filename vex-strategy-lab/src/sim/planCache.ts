@@ -54,6 +54,8 @@ const shipped = defaultPlans as unknown as StoredPlans;
 
 /** Plans available without computing (session cache or the shipped default). */
 export function cachedPlans(sc: ScenarioConfig, focus?: string): { plans: ScenarioPlans; stats: PlanningStats } | null {
+  // nothing to plan (practice, all scripted or driven robots)
+  if (!sc.slots.some((s) => s.enabled && s.strategy === 'optimized')) return { plans: new Map(), stats: { rounds: 0, converged: true, values: {} } };
   const key = scenarioKey(sc, focus);
   const hit = cache.get(key) ?? (shipped.key === key ? shipped : null);
   return hit ? { plans: restorePlans(sc, hit), stats: hit.stats } : null;

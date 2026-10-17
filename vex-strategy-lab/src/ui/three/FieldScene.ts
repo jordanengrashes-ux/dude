@@ -305,6 +305,29 @@ export class FieldScene {
     this.controls.update();
   }
 
+  private alignRing: THREE.Mesh | null = null;
+  private goalPos = new Map(buildGoals().map((g) => [g.id, g.pos]));
+
+  /** Aligner ring over the Goal the followed robot would place on (white near, orange too low, green: release). */
+  private updateAligner(frame: SceneFrame) {
+    const r = this.chaseId ? frame.robots.find((x) => x.id === this.chaseId) : undefined;
+    const a = r?.align ?? null;
+    if (!this.alignRing) {
+      this.alignRing = new THREE.Mesh(new THREE.TorusGeometry(1.9 * IN, 0.12 * IN, 10, 40), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.85, toneMapped: false, depthTest: false }));
+      this.alignRing.rotation.x = Math.PI / 2;
+      this.alignRing.renderOrder = 11;
+      this.scene.add(this.alignRing);
+    }
+    const ring = this.alignRing;
+    const g = a ? this.goalPos.get(a.goal) : undefined;
+    ring.visible = !!(a && g);
+    if (!a || !g) return;
+    const w = toWorld(g.x, g.y, a.top + 0.4);
+    ring.position.set(w.x, w.y, w.z);
+    (ring.material as THREE.MeshBasicMaterial).color.set(a.state === 2 ? '#39d353' : a.state === 1 ? '#ff9f1a' : '#ffffff');
+    ring.scale.setScalar(a.state === 2 ? 1.15 : 1);
+  }
+
   /** Robot the 3rd-person camera follows (null: none). */
   setFollow(id: string | null) {
     if (id !== this.chaseId) {
@@ -414,7 +437,9 @@ export class FieldScene {
       m.carriage.position.set(r.carriage.p.x, r.carriage.p.y, r.carriage.p.z);
       m.carriage.quaternion.set(r.carriage.q.x, r.carriage.q.y, r.carriage.q.z, r.carriage.q.w);
       m.setLift(r.holderH - r.cfg.lift.holderMinHeightIn);
+      m.setClaw(r.claw);
     }
+    this.updateAligner(frame);
     const mtx = new THREE.Matrix4();
     const q = new THREE.Quaternion();
     const up = new THREE.Vector3();

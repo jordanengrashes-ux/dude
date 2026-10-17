@@ -20,10 +20,10 @@ import { computeScore, evaluateMatch, type MatchResult, type ScoreReport } from 
 import { buildClock, isEndgame, periodAt, type MatchClock } from '../rules/timing';
 import { buildField, stepToggle, toggleAngle, togglePosition, toggleTargetAngle, type FieldBodies } from '../physics/field';
 import { CG, headingOf, toWorld, upOf, yawQuat, quatMul, type Quat, type V3 } from '../physics/frames';
-import { ObjectManager, type SimObject } from '../physics/objects';
+import { ObjectManager, objectColliders, setObjectGroups, type SimObject } from '../physics/objects';
 import { loadRapier, type Rapier } from '../physics/rapier';
 import { RobotBody } from '../physics/robot';
-import type { SceneFrame } from './frame';
+import type { AlignHint, SceneFrame } from './frame';
 
 /**
  * Match simulation: fixed-timestep physics (independent of rendering), the match
@@ -39,6 +39,8 @@ export interface MechanismRequest {
   intake: boolean;
   /** Run only the pocket for this kind (a controlled intake); null = whatever fits. */
   intakeKind?: 'pin' | 'cup' | null;
+  /** Only pick up loose objects, never the top of a Goal stack. */
+  noDescore?: boolean;
   /** Release the object in the primary pocket. */
   release: boolean;
   /** Swap primary and secondary pockets. */
@@ -83,6 +85,10 @@ export interface SimRobot {
   /** Sensor noise state. */
   noise: { pos: number; heading: number; driftX: number; driftY: number };
   trail: { t: number; x: number; y: number }[];
+  /** A driver's claw: closed / open; null when a bot drives (closed = holding something). */
+  clawClosed: boolean | null;
+  /** The driver plays in easy mode (Goals capture this robot's drops more loosely). */
+  easy: boolean;
 }
 
 export interface SimEvent {
@@ -134,6 +140,8 @@ export interface SimOptions {
   objectJitterSd?: number;
   /** Start time (s) for mid-match scenarios. */
   t0?: number;
+  /** Practice: drivers drive from the first second; no rule-violation checks. */
+  practice?: boolean;
 }
 
 export class MatchSim {
@@ -205,6 +213,8 @@ export class MatchSim {
         busyUntil: 0,
         noise: { pos: rs.sensorSd?.pos ?? 0, heading: rs.sensorSd?.heading ?? 0, driftX: 0, driftY: 0 },
         trail: [],
+        clawClosed: null,
+        easy: false,
       });
     }
     // objects
@@ -278,7 +288,7 @@ export class MatchSim {
   private attach(r: SimRobot, obj: SimObject, pocket: 'primary' | 'secondary', lp: { p: V3; q: Quat }) {
     const R = this.R;
     obj.body!.setBodyType(R.RigidBodyType.Dynamic, true);
-    obj.collider!.setCollisionGroups(CG.held);
+    setObjectGroups(obj, CG.held);
     const jd = R.JointData.fixed(lp.p, lp.q, { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0, w: 1 });
     obj.joint = this.world.createImpulseJoint(jd, r.body.carriage, obj.body!, true);
     obj.joint.setContactsEnabled(false);
@@ -395,7 +405,7 @@ export class MatchSim {
     // release
     if (req.release && r.primary && !busy) {
       const obj = r.primary;
-      this.objects.release(obj, t);
+      this.objects.release(obj, t, r.easy);
       r.primary = null;
       r.body.setPayload(r.secondary ? massOf(r.secondary) : 0);
       this.log({ t, type: 'release', robotId: r.id, text: `${r.id} releases ${obj.id} at holder height ${r.body.holderHeight().toFixed(1)}"` });
@@ -507,6 +517,7 @@ export class MatchSim {
       }
     }
     // descore: top element of a stack aligned with the holder at its height
+    if (r.req.noDescore) return;
     for (const st of this.objects.stacks.values()) {
       const top = st.elements[st.elements.length - 1];
       if (!top || st.pending || !canTake(top.kind)) continue;
@@ -596,7 +607,7 @@ export class MatchSim {
   }
 
   private checkViolations() {
-    if (this.clock.matchType !== 'headToHead') return;
+    if (this.clock.matchType !== 'headToHead' || this.opts.practice) return;
     const per = this.period();
     for (const r of this.robots) {
       const p = r.body.pose();
@@ -673,11 +684,13 @@ export class MatchSim {
   }
 
   private objectTouchesRobot(obj: SimObject): boolean {
-    if (!obj.collider) return false;
     let touch = false;
-    this.world.contactPairsWith(obj.collider, (c2: Collider) => {
-      if (this.robotColliderOwner.has(c2.handle)) touch = true;
-    });
+    for (const c of objectColliders(obj)) {
+      this.world.contactPairsWith(c, (c2: Collider) => {
+        if (this.robotColliderOwner.has(c2.handle)) touch = true;
+      });
+      if (touch) break;
+    }
     return touch;
   }
 
@@ -786,12 +799,42 @@ export class MatchSim {
     };
     return {
       t: this.t,
-      robots: this.robots.map((r) => ({ id: r.id, alliance: r.alliance, cfg: r.cfg, chassis: pq(r.body.chassis), carriage: pq(r.body.carriage), holderH: r.body.holderHeight(), trail: r.trail })),
+      robots: this.robots.map((r) => {
+        const held = [r.primary, r.secondary];
+        const holding = (held.some((o) => o?.kind === 'pin') ? 1 : 0) | (held.some((o) => o?.kind === 'cup') ? 2 : 0);
+        return { id: r.id, alliance: r.alliance, cfg: r.cfg, chassis: pq(r.body.chassis), carriage: pq(r.body.carriage), holderH: r.body.holderHeight(), trail: r.trail, claw: r.clawClosed ?? holding !== 0, holding, align: this.alignHint(r) };
+      }),
       objects: [...this.objects.objects.values()].map((o) =>
         o.body ? { id: o.id, kind: o.kind, colors: o.colors, ...pq(o.body), stacked: o.mode === 'stacked' || o.mode === 'seating' } : { id: o.id, kind: o.kind, colors: o.colors, p: null, q: null },
       ),
       toggles: this.field.toggles.map((tb) => ({ id: tb.geom.id, ...pq(tb.body) })),
     };
+  }
+
+  /**
+   * Aligner for the object a robot would release (primary pocket): the nearest Goal
+   * that takes that kind next, and whether opening the claw now would place it.
+   */
+  alignHint(r: SimRobot): AlignHint | null {
+    const obj = r.primary;
+    if (!obj?.body || obj.mode !== 'held') return null;
+    const p = obj.body.translation();
+    const x = p.x / IN;
+    const y = -p.z / IN;
+    const bottom = p.y / IN - (obj.kind === 'pin' ? PIN.length : CUP.length) / 2;
+    const tol = obj.assist || r.easy ? this.objects.funnel.assistRadius : obj.kind === 'pin' ? this.objects.funnel.pinRadius : this.objects.funnel.cupRadius;
+    let best: AlignHint | null = null;
+    let bestOff = 8;
+    for (const st of this.objects.stacks.values()) {
+      if (st.pending || this.objects.nextKind(st) !== obj.kind) continue;
+      const off = Math.hypot(x - st.goal.pos.x, y - st.goal.pos.y);
+      if (off >= bestOff) continue;
+      bestOff = off;
+      const lined = off <= tol;
+      const high = bottom >= this.objects.nextBottom(st) - this.objects.funnel.below;
+      best = { goal: st.goal.id, state: lined && high ? 2 : lined ? 1 : 0, top: this.objects.topHeight(st) };
+    }
+    return best;
   }
 
   /** Current physical state as a FieldLayout (for MPC replanning). */
@@ -852,7 +895,7 @@ export class MatchSim {
 }
 
 function emptyReq(): MechanismRequest {
-  return { intake: false, intakeKind: null, release: false, index: false, reorient: false, toggle: null, matchLoad: null };
+  return { intake: false, intakeKind: null, noDescore: false, release: false, index: false, reorient: false, toggle: null, matchLoad: null };
 }
 
 function massOf(o: SimObject) {

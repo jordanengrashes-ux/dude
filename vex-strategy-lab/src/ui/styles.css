@@ -626,3 +626,53 @@ kbd { font: 600 0.78em/1 ui-monospace, SFMono-Regular, Menlo, monospace; backgro
 .hud .drive-hint strong {
   letter-spacing: 0.02em;
 }
+
+.hud .claw-row {
+  gap: 8px;
+  margin-top: 4px;
+  align-items: center;
+}
+.claw-chip,
+.align-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  font-weight: 600;
+}
+.claw-chip.closed {
+  color: #39d353;
+}
+.claw-chip.open {
+  color: #ffb020;
+}
+.align-chip.s0 {
+  color: #d8dde3;
+}
+.align-chip.s1 {
+  color: #ff9f1a;
+}
+.align-chip.s2 {
+  color: #39d353;
+}
+.hud .easy {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  cursor: pointer;
+}
+
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.segmented button {
+  border: 0;
+  border-radius: 0;
+}
+.segmented button.on {
+  background: var(--text-primary);
+  color: var(--page);
+}

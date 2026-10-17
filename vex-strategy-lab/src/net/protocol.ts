@@ -1,8 +1,12 @@
+import { buildGoals } from '../field/geometry';
 import type { FieldLayout } from '../field/layout';
 import type { RobotConfig } from '../robot/config';
 import type { MatchType, OverrideParams, Alliance, HalfColor } from '../rules/ruleset';
 import type { DriverInput } from '../sim/driver';
 import type { HudData, SceneFrame } from '../sim/frame';
+
+/** Goals by index (the aligner's Goal travels as a number). */
+const GOAL_IDS = buildGoals().map((g) => g.id);
 
 /**
  * Team-mode wire protocol. The host runs the only physics simulation; guests
@@ -107,7 +111,10 @@ export function encodeSnap(frame: SceneFrame, hud: HudData, k: number, keyframe:
   return {
     k,
     f: keyframe ? 1 : 0,
-    r: frame.robots.map((r) => [...p3(r.chassis.p), ...q4(r.chassis.q), ...p3(r.carriage.p), ...q4(r.carriage.q), Math.round(r.holderH * 100)]),
+    r: frame.robots.map((r) => {
+      const goal = r.align ? GOAL_IDS.indexOf(r.align.goal) : -1;
+      return [...p3(r.chassis.p), ...q4(r.chassis.q), ...p3(r.carriage.p), ...q4(r.carriage.q), Math.round(r.holderH * 100), (r.claw ? 1 : 0) | (r.holding << 1), goal, r.align?.state ?? 0, Math.round((r.align?.top ?? 0) * 100)];
+    }),
     o,
     g: frame.toggles.map((t) => q4(t.q)),
     h: hud,
@@ -149,7 +156,10 @@ export function decodeSnap(snap: WireSnap, setup: SetupMsg, prev: SceneFrame | n
       const last = trail[trail.length - 1];
       const g = { x: chassis.p.x / 0.0254, y: -chassis.p.z / 0.0254 };
       if (!last || Math.hypot(last.x - g.x, last.y - g.y) > 1) trail.push(g);
-      return { id: r.id, alliance: r.alliance, cfg: r.cfg, chassis, carriage: { p: P(a, 7), q: Q(a, 10) }, holderH: a[14] / 100, trail };
+      const flags = a[15] ?? 0;
+      const goal = a[16] ?? -1;
+      const align = goal >= 0 && GOAL_IDS[goal] ? { goal: GOAL_IDS[goal], state: (a[17] ?? 0) as 0 | 1 | 2, top: (a[18] ?? 0) / 100 } : null;
+      return { id: r.id, alliance: r.alliance, cfg: r.cfg, chassis, carriage: { p: P(a, 7), q: Q(a, 10) }, holderH: a[14] / 100, trail, claw: (flags & 1) === 1, holding: flags >> 1, align };
     }),
     objects,
     toggles: setup.toggles.map((id, i) => ({ id, p: togglePos.get(id) ?? { x: 0, y: 0, z: 0 }, q: Q(snap.g[i], 0) })),

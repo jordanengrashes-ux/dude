@@ -63,20 +63,21 @@ describe('Driver controls (physics)', () => {
     sim.dispose();
   });
 
-  it('the claw toggles: opening lets go of the held object, closing grabs what is in front', async () => {
+  it('the claw toggles: closed on the preload at the start; a click opens it (lets go), the next closes it (grabs what is in front)', async () => {
     const inp: DriverInput = zeroInput();
     const built = await buildMatch(skillsDriver(), () => inp, undefined, new Map());
     const sim = built.sim;
     const r = sim.robots[0];
     const held = (r.primary ?? r.secondary)!;
-    inp.claw = true; // closing on a full pocket changes nothing
-    sim.runUntil(1.0);
-    expect([r.primary?.id, r.secondary?.id]).toContain(held.id);
-    inp.claw = false; // open: let go
-    sim.runUntil(2.0);
+    sim.runUntil(0.5);
+    expect(r.clawClosed).toBe(true);
+    inp.claw = !inp.claw; // click: open, let go
+    sim.runUntil(1.5);
+    expect(r.clawClosed).toBe(false);
     expect([r.primary?.id, r.secondary?.id]).not.toContain(held.id);
-    inp.claw = true; // close again: grabs the Pin lying in front of it
-    sim.runUntil(3.5);
+    inp.claw = !inp.claw; // click: close, grabs the Pin lying in front of it
+    sim.runUntil(3.0);
+    expect(r.clawClosed).toBe(true);
     expect([r.primary?.id, r.secondary?.id]).toContain(held.id);
     sim.dispose();
   });

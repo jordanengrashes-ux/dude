@@ -3,6 +3,7 @@ import { IN } from '../core/units';
 import { CUP, PIN, type GoalGeom } from '../field/geometry';
 import type { HalfColor } from '../rules/ruleset';
 import { CG, quatFromTo, quatMul, rotateV, slerp, toWorld, upOf, yawQuat, headingOf, type Quat, type V3 } from './frames';
+import { cupColliders, pinColliders } from './elementShapes';
 import type { Rapier } from './rapier';
 
 /**
@@ -32,6 +33,7 @@ export interface SimObject {
   kind: 'pin' | 'cup';
   colors?: [HalfColor, HalfColor];
   body: RigidBody | null;
+  /** First of the object's colliders (a Cup has several: its shell is hollow). */
   collider: Collider | null;
   mode: ObjMode;
   matchloadAlliance?: 'red' | 'blue';
@@ -52,6 +54,8 @@ export interface SimObject {
   releasedAt?: number;
   /** Time it was introduced (Match Loads). */
   introducedAt?: number;
+  /** Dropped by an easy-mode driver: Goals capture it within `funnel.assistRadius`. */
+  assist?: boolean;
 }
 
 export interface CarriageFrame {
@@ -75,14 +79,31 @@ export interface SeatEvent {
 }
 
 const halfLen = (k: 'pin' | 'cup') => ((k === 'pin' ? PIN.length : CUP.length) / 2) * IN;
-const radius = (k: 'pin' | 'cup') => ((k === 'pin' ? PIN.diameter : CUP.diameter) / 2) * IN;
+
+/** Every collider of an object's body. */
+export function objectColliders(obj: SimObject): Collider[] {
+  const b = obj.body;
+  if (!b) return [];
+  const out: Collider[] = [];
+  for (let i = 0; i < b.numColliders(); i++) out.push(b.collider(i));
+  return out;
+}
+
+/** Put all of an object's colliders in a collision group (free / held / stacked). */
+export function setObjectGroups(obj: SimObject, groups: number) {
+  for (const c of objectColliders(obj)) c.setCollisionGroups(groups);
+}
 
 export class ObjectManager {
   readonly objects = new Map<string, SimObject>();
   readonly stacks = new Map<string, StackRecord>();
   readonly seatEvents: SeatEvent[] = [];
-  /** Lateral/vertical capture tolerances of the Goal / Cup funnel (inches). */
-  funnel = { pinRadius: 0.6, cupRadius: 1.0, maxTiltDeg: 20, above: 3.6, below: 0.35 };
+  /**
+   * Lateral/vertical capture tolerances of the Goal / Cup funnel (inches). A Pin's
+   * tapered half self-centers in a Cup or Goal opening, a Cup's opening over a Pin's
+   * tip; easy-mode drops get a wider assist.
+   */
+  funnel = { pinRadius: 1.0, cupRadius: 1.1, assistRadius: 2.5, maxTiltDeg: 20, above: 3.6, below: 0.35 };
   seatDuration = 0.12;
 
   constructor(private R: Rapier, private world: World, goals: GoalGeom[]) {
@@ -92,13 +113,16 @@ export class ObjectManager {
   private makeBody(kind: 'pin' | 'cup', p: V3, q: Quat, mass: number): { body: RigidBody; collider: Collider } {
     const R = this.R;
     const body = this.world.createRigidBody(
-      R.RigidBodyDesc.dynamic().setTranslation(p.x, p.y, p.z).setRotation(q).setCcdEnabled(true).setLinearDamping(0.05).setAngularDamping(0.2),
+      R.RigidBodyDesc.dynamic().setTranslation(p.x, p.y, p.z).setRotation(q).setCcdEnabled(true).setLinearDamping(0.1).setAngularDamping(0.8),
     );
-    const collider = this.world.createCollider(
-      R.ColliderDesc.cylinder(halfLen(kind), radius(kind)).setMass(mass).setFriction(0.45).setRestitution(0.05).setCollisionGroups(CG.free),
-      body,
-    );
-    return { body, collider };
+    // shapes that follow the real geometry; plastic on foam tile: little bounce, rocking dies out quickly
+    const parts = kind === 'pin' ? pinColliders(R) : cupColliders(R);
+    let collider: Collider | null = null;
+    for (const d of parts) {
+      const c = this.world.createCollider(d.setMass(mass / parts.length).setFriction(0.45).setRestitution(0.03).setCollisionGroups(CG.free), body);
+      collider ??= c;
+    }
+    return { body, collider: collider! };
   }
 
   /** Create an object on the field (upright) or off-field (Match Load). */
@@ -166,9 +190,10 @@ export class ObjectManager {
   private finishSeat(obj: SimObject, st: StackRecord) {
     const b = obj.body!;
     b.setBodyType(this.R.RigidBodyType.Fixed, true);
-    obj.collider!.setCollisionGroups(CG.stacked);
+    setObjectGroups(obj, CG.stacked);
     obj.mode = 'stacked';
     obj.anim = undefined;
+    obj.assist = false;
     obj.stack = { goalId: st.goal.id, index: st.elements.length };
     st.elements.push(obj);
     if (st.pending === obj) st.pending = null;
@@ -178,7 +203,7 @@ export class ObjectManager {
   animate(obj: SimObject, frame: 'carriage' | 'world', from: { p: V3; q: Quat }, to: { p: V3; q: Quat }, t: number, dur: number, then: 'held' | 'stacked') {
     const b = obj.body!;
     if (b.bodyType() !== this.R.RigidBodyType.KinematicPositionBased) b.setBodyType(this.R.RigidBodyType.KinematicPositionBased, true);
-    obj.collider!.setCollisionGroups(CG.held);
+    setObjectGroups(obj, CG.held);
     obj.anim = { frame, from, to, t0: t, dur: Math.max(1e-3, dur), then };
     obj.mode = then === 'held' ? (obj.mode === 'held' ? 'indexing' : 'intaking') : 'seating';
   }
@@ -254,8 +279,7 @@ export class ObjectManager {
         if (st.pending || this.nextKind(st) !== obj.kind) continue;
         const g = toWorld(st.goal.pos.x, st.goal.pos.y);
         const off = Math.hypot(p.x - g.x, p.z - g.z) / IN;
-        const tol = obj.kind === 'pin' ? this.funnel.pinRadius : this.funnel.cupRadius;
-        if (off > tol) continue;
+        if (off > this.captureRadius(obj)) continue;
         const seat = this.nextBottom(st);
         if (bottomIn < seat - this.funnel.below || bottomIn > seat + this.funnel.above) continue;
         // capture: guided down the funnel onto the axis, keeping which end is up
@@ -263,7 +287,7 @@ export class ObjectManager {
         const yaw = headingOf(b.rotation());
         const target = this.seatPose(st, obj.kind, flipped, yaw);
         b.setBodyType(this.R.RigidBodyType.KinematicPositionBased, true);
-        obj.collider!.setCollisionGroups(CG.held);
+        setObjectGroups(obj, CG.held);
         const index = st.elements.length;
         obj.stack = { goalId: st.goal.id, index };
         const cur = { p: { x: p.x, y: p.y, z: p.z }, q: b.rotation() };
@@ -280,6 +304,11 @@ export class ObjectManager {
     return out;
   }
 
+  /** Lateral distance (in) within which a Goal captures this object. */
+  captureRadius(obj: SimObject): number {
+    return obj.assist ? this.funnel.assistRadius : obj.kind === 'pin' ? this.funnel.pinRadius : this.funnel.cupRadius;
+  }
+
   /** Remove the top element of a stack (descore by intake). */
   unstackTop(goalId: string): SimObject | null {
     const st = this.stacks.get(goalId);
@@ -291,17 +320,18 @@ export class ObjectManager {
   }
 
   /** Release from a holder: dynamic again, falls under gravity. */
-  release(obj: SimObject, t: number) {
+  release(obj: SimObject, t: number, assist = false) {
     if (obj.joint) {
       this.world.removeImpulseJoint(obj.joint, true);
       obj.joint = null;
     }
     const b = obj.body!;
     b.setBodyType(this.R.RigidBodyType.Dynamic, true);
-    obj.collider!.setCollisionGroups(CG.free);
+    setObjectGroups(obj, CG.free);
     obj.mode = 'free';
     obj.pocket = undefined;
     obj.releasedAt = t;
+    obj.assist = assist;
   }
 
   /** Orientation facts for scoring extraction. */

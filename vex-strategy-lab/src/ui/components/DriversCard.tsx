@@ -12,7 +12,9 @@ export function DriversCard() {
   const [, tick] = useState(0);
   useEffect(() => runner.subscribe(() => tick((x) => x + 1)), []);
   const t = useTeam();
-  const slots = useApp((s) => s.slots).filter((s) => s.enabled);
+  // robots on the field (practice has only yours)
+  const onField = new Set(runner.sim?.robots.map((r) => r.id) ?? []);
+  const slots = useApp((s) => s.slots).filter((s) => s.enabled && (t.role === 'guest' || onField.has(s.slot)));
   const [pad, setPad] = useState<string | null>(null);
   useEffect(() => {
     const id = setInterval(() => setPad(localInput.gamepad), 1000);

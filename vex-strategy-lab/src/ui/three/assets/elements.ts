@@ -1,15 +1,16 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { IN } from '../../../core/units';
-import { CUP, HALF, PERIMETER_HEIGHT, PERIMETER_THICKNESS, PIN, TILE, type GoalGeom, type LoaderGeom, type ToggleGeom } from '../../../field/geometry';
+import { CUP, GOAL_SOCKET, HALF, PERIMETER_HEIGHT, PERIMETER_THICKNESS, PIN, TILE, type GoalGeom, type LoaderGeom, type ToggleGeom } from '../../../field/geometry';
 import { toggleSection } from '../../../physics/field';
 import { toWorld } from '../../../physics/frames';
 import { PALETTE, type MaterialLibrary } from './materials';
 
 /**
  * Procedural models of the Override field and game elements, built from the same
- * dimensions the physics uses (Pin 1.6" × 6.5", Cup 3.15" × 6.5", Goal socket
- * heights 3.25 / 5.8 / 8.7", 25.8" Toggle bars, 11.5" walls). Fine details (edge
+ * dimensions the physics uses (Pin: 6.5", 3.0" ridge tapering to 1.3" tips; Cup:
+ * 6.5" hourglass, 3.15" rims; Goal sockets at 3.25 / 5.8 / 8.7"; 25.8" Toggle bars;
+ * 11.5" walls). Fine details (edge
  * chamfers, lips, seams, brackets, bolt heads) are modeled for realism but are not
  * taken from official drawings; official CAD can replace any of these via
  * public/models/manifest.json (see docs/CAD.md).
@@ -32,45 +33,40 @@ function lathe(profile: [number, number][], segments: number, mirror = false): T
 
 /**
  * One Pin half (3.25"), centered on its own midpoint. `outer` = which end is the
- * Pin's end (+1: +Y end, the seam at −Y). Body Ø1.6", seam groove at the middle of
- * the Pin, chamfered end with a shallow recess.
+ * Pin's tip (+1: +Y end, the middle ridge at −Y). Turned from PIN.profile: the 3.0"
+ * ridge, the taper, and a rounded 1.3" tip.
  */
 export function pinHalfGeometry(outer: 1 | -1): THREE.BufferGeometry {
-  const R = PIN.diameter / 2;
   const H = PIN.half / 2;
-  const prof: [number, number][] = [
-    [0, -H],
-    [R - 0.07, -H],
-    [R - 0.07, -H + 0.04],
-    [R - 0.015, -H + 0.1],
-    [R, -H + 0.16],
-    [R, H - 0.24],
-    [R - 0.03, H - 0.13],
-    [R - 0.14, H - 0.01],
-    [R - 0.2, H],
-    [0.36, H],
-    [0.32, H - 0.05],
-    [0, H - 0.05],
-  ];
+  const prof: [number, number][] = [[0, -H], ...PIN.profile.map(([r, d]) => [r, d - H] as [number, number])];
+  const [rt] = PIN.profile[PIN.profile.length - 1];
+  prof.push([rt - 0.1, H], [0, H]);
   return lathe(prof, 40, outer === -1);
 }
 
 // ---------------------------------------------------------------- Cups
 
 /**
- * One Cup half (3.25"): a Ø3.15" polymer tube with a rolled lip at the open end.
- * The gray half carries the internal ledge at the Cup's midpoint where the Pins
- * below and above meet (the stack model seats both there).
+ * One Cup half (3.25"), centered on its own midpoint, open end at `outer`: a conical
+ * shell from the 3.15" rim (rolled lip) to the 1.9" waist, closed by its share of
+ * the middle web. A Pin half nests inside with its ridge on the rim.
  */
-export function cupHalfGeometry(outer: 1 | -1, ledge: boolean): THREE.BufferGeometry {
-  const R = CUP.diameter / 2;
-  const Ri = R - 0.09;
+export function cupHalfGeometry(outer: 1 | -1, _ledge: boolean): THREE.BufferGeometry {
   const H = CUP.half / 2;
-  const prof: [number, number][] = [];
-  if (ledge) prof.push([0.5, -H], [0.5, -H + 0.08], [Ri, -H + 0.08]);
-  else prof.push([Ri, -H]);
-  prof.push([Ri, H - 0.04], [R - 0.03, H], [R + 0.05, H - 0.03], [R + 0.06, H - 0.12], [R, H - 0.2], [R, -H]);
-  if (ledge) prof.push([0.5, -H]);
+  const ro = CUP.diameter / 2;
+  const rw = CUP.waistDiameter / 2;
+  const t = CUP.wall;
+  const prof: [number, number][] = [
+    [0, -H + CUP.web],
+    [rw - t, -H + CUP.web],
+    [ro - t, H - 0.03],
+    [ro - t + 0.03, H],
+    [ro + 0.03, H - 0.02],
+    [ro + 0.04, H - 0.1],
+    [ro, H - 0.17],
+    [rw, -H],
+    [0, -H],
+  ];
   return lathe(prof, 48, outer === -1);
 }
 
@@ -78,8 +74,8 @@ export function cupHalfGeometry(outer: 1 | -1, ledge: boolean): THREE.BufferGeom
 
 /**
  * Goal: octagonal column on a powder-coated Field Element Plate. The column's
- * inradius equals the physics post radius; a 3.25"-deep socket at the top receives
- * the first Pin (the physics seats it with its lower half inside).
+ * inradius equals the physics post radius; it flares into a 3.25"-deep conical
+ * socket (the physics socket collider) that receives the first Pin's lower half.
  */
 export function goalModel(g: GoalGeom, mats: MaterialLibrary): THREE.Group {
   const grp = new THREE.Group();
@@ -88,8 +84,6 @@ export function goalModel(g: GoalGeom, mats: MaterialLibrary): THREE.Group {
   const plateR = g.baseRadius * oct;
   const plateT = 0.19;
   const H = g.height;
-  const bore = PIN.diameter / 2 + 0.06;
-  const socketBottom = Math.max(plateT + 0.05, H - PIN.half);
   const colColor = g.type === 'alliance' ? (g.allianceColor === 'red' ? PALETTE.red : PALETTE.blue) : PALETTE.neutralGoal;
   const colMat = mats.plastic(colColor).clone();
   colMat.flatShading = true;
@@ -120,26 +114,41 @@ export function goalModel(g: GoalGeom, mats: MaterialLibrary): THREE.Group {
     b.position.set(Math.cos(a) * r * IN, (plateT + 0.05) * IN, Math.sin(a) * r * IN);
     grp.add(b);
   }
-  // column with base flange, top collar, chamfered rim and socket bore
+  // octagonal column with a base flange, up to where the socket flares out
+  const flare = Math.max(plateT + 0.5, H - GOAL_SOCKET.depth - 0.1);
   const prof: [number, number][] = [
     [rc + 0.32, plateT],
     [rc + 0.32, plateT + 0.22],
     [rc + 0.04, plateT + 0.36],
     [rc, plateT + 0.42],
-    [rc, Math.max(plateT + 0.5, H - 0.55)],
-    [rc + 0.14, Math.max(plateT + 0.55, H - 0.45)],
-    [rc + 0.14, H - 0.08],
-    [rc + 0.06, H],
-    [bore + 0.08, H],
-    [bore, H - 0.08],
-    [bore, socketBottom],
-    [0, socketBottom],
+    [rc, flare],
+    [0, flare],
   ];
   const col = new THREE.Mesh(lathe(prof, 8), colMat);
   col.rotation.y = Math.PI / 8;
   grp.add(col);
+  // round conical socket on top: the first Pin's lower half sits in it, ridge on the rim
+  const Rt = GOAL_SOCKET.topRadius;
+  const socketBottom = Math.max(plateT + 0.05, H - GOAL_SOCKET.depth);
+  const rb = 0.8;
+  const sockMat = mats.plastic(colColor);
+  const socket = new THREE.Mesh(
+    lathe(
+      [
+        [g.postRadius, flare],
+        [Rt, H - 0.07],
+        [Rt - 0.05, H],
+        [Rt - 0.13, H],
+        [rb, socketBottom],
+        [0, socketBottom],
+      ],
+      40,
+    ),
+    sockMat,
+  );
+  grp.add(socket);
   // dark socket floor so the bore reads as a hole
-  const floor = new THREE.Mesh(new THREE.CircleGeometry(bore * IN, 24), mats.blackPlastic);
+  const floor = new THREE.Mesh(new THREE.CircleGeometry(rb * IN, 24), mats.blackPlastic);
   floor.rotation.x = -Math.PI / 2;
   floor.position.y = (socketBottom + 0.01) * IN;
   grp.add(floor);

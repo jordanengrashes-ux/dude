@@ -52,6 +52,8 @@ export interface AppState {
   setupTool: 'select' | 'move' | 'measure';
   message: string | null;
   simVersion: number;
+  /** Practice: only your robot on the field, you drive from the start, no team room. */
+  practice: boolean;
 }
 
 function defaultSlots(matchType: MatchType, robot: RobotConfig): SlotSetup[] {
@@ -91,6 +93,7 @@ function initial(): AppState {
     setupTool: 'select',
     message: null,
     simVersion: 0,
+    practice: typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('mode') === 'practice',
   };
 }
 
@@ -130,6 +133,11 @@ export function setMatchType(matchType: MatchType) {
     physicsStats: null,
     simVersion: state.simVersion + 1,
   });
+}
+
+/** Switch between a match (bots and players) and solo practice. */
+export function setPractice(practice: boolean) {
+  store.set((s) => ({ practice, camera: practice ? 'chase' : s.camera, simVersion: s.simVersion + 1 }));
 }
 
 export function setRobot(robot: RobotConfig) {

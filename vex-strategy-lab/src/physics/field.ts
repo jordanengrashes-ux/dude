@@ -3,6 +3,7 @@ import { IN, wrapAngle } from '../core/units';
 import { buildGoals, buildLoaders, buildToggles, HALF, PERIMETER_HEIGHT, PERIMETER_THICKNESS, type GoalGeom, type ToggleGeom } from '../field/geometry';
 import type { TogglePosition } from '../rules/fieldState';
 import { CG, quatConj, quatMul, toWorld, type Quat } from './frames';
+import { goalSocketCollider } from './elementShapes';
 import type { Rapier } from './rapier';
 
 /**
@@ -71,7 +72,8 @@ export function buildField(R: Rapier, world: World): FieldBodies {
       R.ColliderDesc.cylinder((g.height / 2) * IN, g.postRadius * IN).setTranslation(p.x, (g.height / 2) * IN, p.z).setFriction(0.4).setCollisionGroups(CG.post),
       fixed,
     );
-    goalColliders.set(g.id, [base, post]);
+    const socket = world.createCollider(goalSocketCollider(R, g.height, g.postRadius, 0.5).setTranslation(p.x, 0, p.z).setFriction(0.4).setCollisionGroups(CG.post), fixed);
+    goalColliders.set(g.id, [base, post, socket]);
   }
   const loaders: Collider[] = [];
   for (const l of buildLoaders()) {

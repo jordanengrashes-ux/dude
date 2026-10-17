@@ -228,6 +228,9 @@ export class PlanWorld {
       this.vgDriver = f.vgDriver;
       this.approachCache = f.approachCache;
       this.dfCache = f.dfCache;
+      this.escapeCache = f.escapeCache;
+      // cached paths carry drive times: share them only with the same robot and motors
+      if (!shared.motorScale && cfg.robot === f.cfg.robot) this.pathCache = f.pathCache;
     } else {
       this.gridAuto = new Grid({ clearance: this.clearance, cornerClearance: this.cornerClearance, alliance: cfg.alliance, forbidOpposingSide: cfg.matchType === 'headToHead' });
       this.gridDriver = new Grid({ clearance: this.clearance, cornerClearance: this.cornerClearance, alliance: cfg.alliance, forbidOpposingLoadZones: cfg.matchType === 'headToHead' });
@@ -393,7 +396,7 @@ export class PlanWorld {
         }
         s.status[e.obj] = ST_PLACED;
       } else if (e.kind === 'toggle' && e.toggle !== undefined && e.position) {
-        const ti = this.toggles.findIndex((t) => t.id === buildToggles()[e.toggle!].id);
+        const ti = this.toggles.findIndex((t) => t.id === this.allToggles[e.toggle!].id);
         if (ti >= 0) s.toggles[ti] = e.position;
       } else if (e.kind === 'midfield' && e.alliance && e.robotId) {
         if (!s.extMidfield.some((m) => m.robotId === e.robotId)) s.extMidfield.push({ alliance: e.alliance, robotId: e.robotId });
@@ -403,7 +406,7 @@ export class PlanWorld {
 
   /** External events reference the global goal index (buildGoals order). */
   private goalIdFromIndex(i: number): string {
-    return buildGoals()[i].id;
+    return this.allGoals[i].id;
   }
 
   isAutonomous(t: number): boolean {

@@ -23,19 +23,47 @@ export const MIDFIELD_INNER_HALF = TILE - TAPE_WIDTH / 2; // 22.372"
 /** Load Zone: square in each Loader corner (approximate footprint). */
 export const LOAD_ZONE_SIZE = TILE; // assumption
 
+/**
+ * Pin: two tapered halves joined at a ridge — widest (3.0") at the middle, narrowing
+ * to a 1.3" tip at each end. Each half nests in a Cup half (or a Goal socket) with
+ * the ridge on the rim. `profile`: [radius, distance from the middle] (in), middle →
+ * tip; the four diameters are the ridge, the start and end of the taper, and the tip.
+ * Approximate (community descriptions: "3 in wide at the middle", "ends 1.25–1.5 in",
+ * "four diameters", 6–6.5 in long); Appendix A drawings are authoritative.
+ */
 export const PIN = {
-  diameter: 1.6,
+  diameter: 3.0,
+  tipDiameter: 1.3,
   length: 6.5,
   half: 3.25,
-  massKg: 0.08,
+  massKg: 0.072,
+  profile: [
+    [1.5, 0],
+    [1.5, 0.18],
+    [1.45, 0.3],
+    [0.75, 3.05],
+    [0.65, 3.25],
+  ] as [number, number][],
 } as const;
 
+/**
+ * Cup: an hourglass shell — 3.15" rims at both ends narrowing to a 1.9" waist with a
+ * web at the middle; each half is a conical cup that takes one Pin half. One half
+ * clear, the other gray. Approximate (community: "3 in wide at the ends", 80 mm ×
+ * 164.5 mm); Appendix A drawings are authoritative.
+ */
 export const CUP = {
   diameter: 3.15,
+  waistDiameter: 1.9,
+  wall: 0.08,
+  web: 0.15,
   length: 6.5,
   half: 3.25,
-  massKg: 0.06,
+  massKg: 0.077,
 } as const;
+
+/** Goal top: a conical socket the first Pin's lower half sits in (ridge on the rim). */
+export const GOAL_SOCKET = { topRadius: 1.66, depth: PIN.half } as const;
 
 export interface GoalGeom {
   id: string;

@@ -1,4 +1,4 @@
-import { store, useApp, type Tab } from './store';
+import { setPractice, store, useApp, type Tab } from './store';
 import { FieldPanel } from './components/FieldPanel';
 import { OptimizerPanel, startOptimization } from './components/OptimizerPanel';
 import { RobotPanel } from './components/RobotPanel';
@@ -28,17 +28,25 @@ const TABS: { id: Tab; label: string }[] = [
  */
 function useAutoTeam() {
   const t = useTeam();
+  const practice = useApp((s) => s.practice);
   useEffect(() => {
+    // practice is only you: no room
+    if (practice) {
+      void team.session?.leave();
+      return;
+    }
     const room = new URLSearchParams(window.location.search).get('room');
     void team.session?.autoStart(savedPlayerName(), room ? room.trim().toUpperCase() : null);
-  }, []);
+  }, [practice]);
   useEffect(() => {
     if (!t.room && t.connecting) return;
     const url = new URL(window.location.href);
     if (t.room) url.searchParams.set('room', t.room);
     else url.searchParams.delete('room');
+    if (practice) url.searchParams.set('mode', 'practice');
+    else url.searchParams.delete('mode');
     if (url.href !== window.location.href) window.history.replaceState(null, '', url);
-  }, [t.room, t.connecting]);
+  }, [t.room, t.connecting, practice]);
   return t;
 }
 
@@ -62,6 +70,7 @@ function RoomBadge({ room, players, online }: { room: string; players: number; o
 
 export function App() {
   const t = useAutoTeam();
+  const practice = useApp((s) => s.practice);
   const tab = useApp((s) => s.tab);
   const matchType = useApp((s) => s.matchType);
   const params = useApp((s) => s.params);
@@ -85,6 +94,14 @@ export function App() {
           ))}
         </nav>
         <div className="quick">
+          <div className="segmented" role="group" aria-label="Mode">
+            <button className={!practice ? 'on' : ''} onClick={() => setPractice(false)} title="Bots and players on both alliances; a team room opens">
+              Match
+            </button>
+            <button className={practice ? 'on' : ''} onClick={() => setPractice(true)} title="Only your robot on the field; you drive from the start">
+              Practice
+            </button>
+          </div>
           {t.room && <RoomBadge room={t.room} players={Math.max(1, t.peers.length)} online={t.transport === 'online'} />}
           {optStatus === 'idle' ? (
             <button className="primary" onClick={startOptimization}>

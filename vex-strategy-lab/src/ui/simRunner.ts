@@ -111,6 +111,11 @@ export class SimRunner {
   }
 
   scenarioFrom(s: AppState): ScenarioConfig {
+    if (s.practice) {
+      // only your robot, driven by you from the first second
+      const me = s.slots.find((x) => x.slot === s.userSlot) ?? s.slots[0];
+      return { params: s.params, layout: s.layout, matchType: s.matchType, seed: s.settings.seed, practice: true, slots: [{ ...me, robot: s.robot, enabled: true, strategy: 'manual' }] };
+    }
     const userPlan = this.userPlan(s);
     return {
       params: s.params,

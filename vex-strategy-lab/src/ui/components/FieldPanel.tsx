@@ -85,7 +85,7 @@ function Hud() {
   );
 }
 
-/** What the player can do right now: start driving, start the match, or wait out Autonomous. */
+/** What the player can do right now, the claw's state, and the aligner. */
 function DriveHint({ period, t }: { period: string; t: number }) {
   const tm = useTeam();
   const guest = tm.role === 'guest';
@@ -93,17 +93,34 @@ function DriveHint({ period, t }: { period: string; t: number }) {
   if (!mine) return <div className="small muted">Press W A S D to drive your robot (3rd person).</div>;
   const playing = guest ? team.session?.hostPlaying : runner.playing;
   const auto = /auto/i.test(period);
+  const practice = store.get().practice;
   const msg =
     !playing && t === 0
       ? guest
         ? 'waiting for the host to start the match.'
-        : 'press P to start the match.'
-      : auto
+        : 'press P (or start driving) to start.'
+      : auto && !practice
         ? 'Autonomous: its program runs; you take over at Driver Control.'
-        : 'W A S D drive · Shift / Space arm up / down · click the claw.';
+        : 'W A S D drive · Space / Shift arm up / down · click the claw.';
+  const me = guest ? team.session?.frameAt()?.robots.find((r) => r.id === mine) : runner.sim?.sceneFrame().robots.find((r) => r.id === mine);
+  const held = me ? [me.holding & 1 ? 'Pin' : null, me.holding & 2 ? 'Cup' : null].filter(Boolean).join(' + ') : '';
+  const a = me?.align ?? null;
+  const align = !a ? null : a.state === 2 ? `over ${a.goal}: open the claw` : a.state === 1 ? `lined up on ${a.goal}: raise the arm` : `line up over ${a.goal}`;
   return (
     <div className="small drive-hint">
-      You drive <strong>{mine}</strong> — {msg}
+      <div>
+        You drive <strong>{mine}</strong> — {msg}
+      </div>
+      <div className="row claw-row">
+        <span className={`claw-chip ${me?.claw ? 'closed' : 'open'}`} title="Left click or C opens / closes the claw">
+          Claw {me?.claw ? 'closed' : 'open'}
+          {held ? ` · holding ${held}` : ''}
+        </span>
+        {align && <span className={`align-chip s${a!.state}`}>{align}</span>}
+        <label className="easy" title="The claw grabs whatever you drive into, and Goals catch your drops more easily (G)">
+          <input type="checkbox" checked={localInput.state.easy} onChange={(e) => localInput.setEasy(e.target.checked)} /> Easy claw
+        </label>
+      </div>
     </div>
   );
 }
@@ -289,6 +306,8 @@ function useDriverInput() {
         return;
       }
       const sim = runner.sim;
+      // practice: driving starts the clock
+      if (store.get().practice && sim && !runner.playing && sim.t < sim.clock.total) runner.setPlaying(true);
       if (runner.localSlot || !sim) return;
       const ids = sim.robots.map((r) => r.id);
       const slot = [store.get().userSlot, ...ids].find((id) => ids.includes(id) && runner.driverOf(id).kind === 'bot');

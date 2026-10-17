@@ -116,6 +116,8 @@ export interface RobotModel {
   carriage: THREE.Group;
   /** Rotate the lift pinion for a holder height above its minimum (in). */
   setLift(liftIn: number): void;
+  /** Swing the claw jaws closed / open (eased over a few frames) and set the status light. */
+  setClaw(closed: boolean): void;
 }
 
 export function robotModel(id: string, alliance: 'red' | 'blue', cfg: RobotConfig, mats: MaterialLibrary): RobotModel {
@@ -329,13 +331,19 @@ export function robotModel(id: string, alliance: 'red' | 'blue', cfg: RobotConfi
   const plate = new THREE.Mesh(new THREE.BoxGeometry(0.15 * IN, ch * IN, 5.6 * IN), holeMat);
   plate.position.set(-2.35 * IN, (ch / 2) * IN, 0);
   carriage.add(plate);
+  // claw: two jaws hinged at the back of the fork, rubber pads facing in
+  const jaws: { g: THREE.Group; side: number }[] = [];
   for (const s of [-1, 1]) {
+    const jaw = new THREE.Group();
+    jaw.position.set(-2.4 * IN, 0.9 * IN, s * 1.75 * IN);
     const finger = new THREE.Mesh(new THREE.BoxGeometry(3.6 * IN, 0.35 * IN, 0.35 * IN), mats.aluminum);
-    finger.position.set(-0.6 * IN, 0.9 * IN, s * 1.75 * IN);
-    carriage.add(finger);
+    finger.position.set(1.8 * IN, 0, 0);
+    jaw.add(finger);
     const grip = new THREE.Mesh(new THREE.BoxGeometry(2.4 * IN, 0.5 * IN, 0.12 * IN), mats.rubber);
-    grip.position.set(-0.3 * IN, 0.9 * IN, s * 1.52 * IN);
-    carriage.add(grip);
+    grip.position.set(2.1 * IN, 0, -s * 0.23 * IN);
+    jaw.add(grip);
+    carriage.add(jaw);
+    jaws.push({ g: jaw, side: s });
     const guard = new THREE.Mesh(new THREE.PlaneGeometry(3.4 * IN, (ch - 0.4) * IN), mats.polycarbonate);
     guard.position.set(-0.7 * IN, (ch / 2) * IN, s * 1.95 * IN);
     carriage.add(guard);
@@ -378,6 +386,17 @@ export function robotModel(id: string, alliance: 'red' | 'blue', cfg: RobotConfi
   const accent = new THREE.Mesh(new THREE.BoxGeometry(0.2 * IN, 0.5 * IN, 5.6 * IN), mats.plastic(alliance === 'red' ? PALETTE.red : PALETTE.blue));
   accent.position.set(-2.25 * IN, (ch - 0.25) * IN, 0);
   carriage.add(accent);
+  // claw status light: green = closed, amber = open
+  const ledMat = new THREE.MeshBasicMaterial({ color: '#ffb020', toneMapped: false });
+  const led = new THREE.Mesh(new THREE.SphereGeometry(0.32 * IN, 12, 8), ledMat);
+  led.position.set(-2.25 * IN, (ch + 0.15) * IN, 0);
+  carriage.add(led);
+  let jawOpen = 1; // 0 closed … 1 open
+  const setClaw = (closed: boolean) => {
+    jawOpen += ((closed ? 0 : 1) - jawOpen) * 0.35;
+    for (const j of jaws) j.g.rotation.y = -j.side * 0.5 * jawOpen; // ≈ 29° out when open
+    ledMat.color.set(closed ? '#39d353' : '#ffb020');
+  };
   carriage.traverse((o) => {
     if ((o as THREE.Mesh).isMesh) o.castShadow = true;
   });
@@ -386,9 +405,11 @@ export function robotModel(id: string, alliance: 'red' | 'blue', cfg: RobotConfi
   chassis.traverse((o) => {
     if ((o as THREE.Mesh).isMesh) o.castShadow = o.receiveShadow = true;
   });
+  setClaw(false);
   return {
     chassis,
     carriage,
     setLift: updateLift,
+    setClaw,
   };
 }

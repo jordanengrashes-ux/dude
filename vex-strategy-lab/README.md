@@ -83,15 +83,38 @@ bot drives); the camera locks behind it in 3rd person (mouse wheel: distance).
 | Action | Keyboard / mouse | Gamepad |
 |---|---|---|
 | Drive / turn (arcade) | W/S, A/D or arrows | left stick Y / right stick X |
-| Arm up / down (DR4B) | Shift / Space (also R / F) | RT / LT |
+| Arm up / down (DR4B) | Space / Shift (also R / F) | RT / LT |
 | Arm presets: floor, Alliance Goal, short Goal, tall Goal | 1 2 3 4 | D-pad ↓ ← → ↑ |
-| Claw: close (grab what is in front) / open (let go) | left click or C | A |
+| Claw: each click closes it (grabs what is in front) or opens it (lets go) | left click or C | A |
 | Open the claw (drop) | E | B |
+| Easy claw on / off | G | Back |
 | Toggle arm (hold) | T | X |
 | Swap pockets | Q | LB |
 | Flip the held object | X | Y |
 | Request a Match Load | L | RB |
 | Play / pause (host or offline) | P | Start |
+
+Turning works at speed: when forward + turn would exceed full power, both sides
+scale down together so the turn is kept, and the turn grows with speed (in place it
+stays gentle for aiming).
+
+The HUD shows the claw (closed / open, and what it holds; the light on the carriage
+is green when closed, amber when open) and the **aligner**: a ring on the Goal your
+held piece would go on — white when you are near, orange when you are over it but
+holding it too low, green when opening the claw now places it. Goals catch a Pin
+within 1.0" of their axis and a Cup within 1.1" (the tapered Pin half centers itself
+in the opening).
+
+**Easy claw** (checkbox in the HUD, or G): the claw grabs whatever the robot drives
+into, never takes a scored piece off a Goal, waits 1.5 s after a drop before grabbing
+again, and Goals catch your drops within 2.5". It is a per-player setting; a team
+host applies each player's choice.
+
+## Practice
+
+**Practice** (header switch, or `?mode=practice`) puts only your robot on the full
+Head-to-Head field: no bots, no team room, you drive from the first second (no
+Autonomous wait) and no rule checks. The clock starts when you start driving.
 
 ## The bots
 
@@ -172,9 +195,18 @@ against the current manual before relying on them.
 
 Field elements and robots are detailed procedural models built from the published
 dimensions:
-- Pins 1.6 × 6.5 in, Cups 3.15 × 6.5 in
-- octagonal Goals on element plates
+- Pins: 6.5 in, two tapered halves, 3.0 in at the middle ridge narrowing to 1.3 in
+  tips; Cups: 6.5 in hourglass shells with 3.15 in rims and a 1.9 in waist. Each Pin
+  half nests in a Cup half (ridge on the rim), so stacks are Pin, Cup, Pin, Cup.
+- octagonal Goals on element plates, topped by conical sockets for the first Pin
 - 25.8 in tri-color Toggle bars on 11.5 in walls
+
+The physics uses the same shapes: a Pin's collider is the convex hull of its profile;
+a Cup's is a hollow shell (8 wedges per half plus the middle web), so a Pin dropped
+into a loose Cup nests and a Cup on its side rolls on its rims. Pieces are 72 g / 77 g
+with plastic-on-foam friction and little bounce. The shapes follow community
+descriptions of the pieces (see the Rules tab); the Appendix A drawings and official
+CAD are authoritative.
 
 The official STEP files can replace any of them: `docs/CAD.md` covers
 `npm run cad`, the converter self-test and `public/models/manifest.json`.
