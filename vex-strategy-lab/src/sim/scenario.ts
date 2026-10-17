@@ -7,6 +7,7 @@ import { cloneRobot, type RobotConfig } from '../robot/config';
 import type { MatchType, OverrideParams, Alliance } from '../rules/ruleset';
 import { PlanWorld, type Action, type ExternalEvent, type PlanConfig } from '../planner/model';
 import { beamSearch } from '../planner/search/beam';
+import { planKey, replay } from '../planner/search/common';
 import type { UncertaintyConfig } from '../planner/robustness';
 import { DEFAULT_MPC, PlanExecutor, type MpcOptions } from './executor';
 import { MatchSim, type Controller, type RobotSetup, type Sensing, type SimRobot } from './match';
@@ -115,22 +116,94 @@ function scriptedEvents(sc: ScenarioConfig, exclude?: string): ExternalEvent[] {
   return events;
 }
 
+export type ScenarioPlans = Map<string, { actions: Action[]; world: PlanWorld; events: ExternalEvent[]; value: number }>;
+
+/** How the joint planning went, for the UI. */
+export interface PlanningStats {
+  rounds: number;
+  /** No robot found a better plan against the others' final plans. */
+  converged: boolean;
+  /** Each optimized robot's planned value (its alliance's score in the model). */
+  values: Record<string, number>;
+}
+
 /**
- * Plan every 'optimized' slot that has no plan yet. Each one plans around the
- * scripted robots and the optimized robots planned before it (the focus slot last,
- * so it sees everyone else).
+ * Plan every 'optimized' slot jointly, treating both alliances the same way. Each
+ * robot plans around the scripted robots and the other robots' plans (their
+ * predicted claims, placements, Toggle flips and Midfield parking).
+ *
+ * Partners coordinate: within an alliance robots plan in turn, each seeing its
+ * partner's latest plan (the focus slot last). Opponents respond simultaneously:
+ * round 0 each alliance plans without the opposing robots; in each following round
+ * both alliances re-plan against the opponent's plans from the previous round,
+ * keeping the better of the old and new plan. Neither alliance gets the last word.
+ *
+ * In Override this rarely settles: the last Toggle flip and the Midfield majority
+ * decide who scores the yellow halves, so best responses keep flipping. Planning
+ * stops when a round changes nothing (no robot can improve against the others: an
+ * equilibrium of the planning model) or after `rounds`, and each robot keeps the
+ * plan, world and value of the last round it planned in. A robot with a fixed plan
+ * (the optimizer's, for the user's slot) keeps it.
  */
-export function planScenario(sc: ScenarioConfig, focusSlot?: string): Map<string, { actions: Action[]; world: PlanWorld; events: ExternalEvent[] }> {
-  const out = new Map<string, { actions: Action[]; world: PlanWorld; events: ExternalEvent[] }>();
+export function planScenario(sc: ScenarioConfig, focusSlot?: string, opts: { rounds?: number; stats?: PlanningStats } = {}): ScenarioPlans {
   const order = sc.slots.filter((s) => s.enabled && s.strategy === 'optimized').sort((a, b) => (a.slot === focusSlot ? 1 : 0) - (b.slot === focusSlot ? 1 : 0));
-  let events: ExternalEvent[] = scriptedEvents(sc).sort((p, q) => p.t - q.t);
-  for (const slot of order) {
-    const cfg = planConfigFor(sc, slot, events.slice());
-    const w = new PlanWorld(cfg);
-    const actions = slot.plan ?? beamSearch(w, { width: sc.aiBeamWidth ?? 12, alpha: 0.3 }, { maxMs: Infinity, maxExpansions: Infinity }).best.actions;
-    out.set(slot.slot, { actions, world: w, events: events.slice() });
-    events = [...events, ...predictEvents(w, actions)].sort((p, q) => p.t - q.t);
+  const scripted = scriptedEvents(sc);
+  const out: ScenarioPlans = new Map();
+  const predicted = new Map<string, ExternalEvent[]>();
+  const beam = (w: PlanWorld) => beamSearch(w, { width: sc.aiBeamWidth ?? 12, alpha: 0.3 }, { maxMs: Infinity, maxExpansions: Infinity }).best;
+  const allianceOf = (slot: string) => sc.slots.find((s) => s.slot === slot)!.alliance;
+  /** Events of every other robot: partners from `own`, opponents from `opp`. */
+  const eventsAgainst = (slot: string, own: Map<string, ExternalEvent[]>, opp: Map<string, ExternalEvent[]>) => {
+    const a = allianceOf(slot);
+    const ev = [...scripted];
+    for (const [k, e] of own) if (k !== slot && allianceOf(k) === a) ev.push(...e);
+    for (const [k, e] of opp) if (allianceOf(k) !== a) ev.push(...e);
+    return ev.sort((p, q) => p.t - q.t);
+  };
+  /** Plan (or re-plan) one robot against `events`; returns whether its plan changed. */
+  const planOne = (slot: SlotSetup, events: ExternalEvent[], sink: Map<string, ExternalEvent[]>): boolean => {
+    const w = new PlanWorld(planConfigFor(sc, slot, events));
+    const prev = out.get(slot.slot)?.actions;
+    let actions: Action[];
+    let value: number;
+    if (slot.plan || prev) {
+      const old = replay(w, slot.plan ?? prev!);
+      actions = old.actions;
+      value = old.value;
+      if (!slot.plan) {
+        const fresh = beam(w);
+        if (fresh.value > value + 1e-9) {
+          actions = fresh.actions;
+          value = fresh.value;
+        }
+      }
+    } else {
+      const fresh = beam(w);
+      actions = fresh.actions;
+      value = fresh.value;
+    }
+    out.set(slot.slot, { actions, world: w, events, value });
+    sink.set(slot.slot, predictEvents(w, actions));
+    return !!prev && planKey(actions) !== planKey(prev);
+  };
+  const noOpp = new Map<string, ExternalEvent[]>();
+  for (const slot of order) planOne(slot, eventsAgainst(slot.slot, predicted, noOpp), predicted);
+  const maxRounds = opts.rounds ?? 2;
+  let rounds = 0;
+  let converged = new Set(order.map((s) => s.alliance)).size <= 1;
+  while (!converged && rounds < maxRounds) {
+    rounds++;
+    const prev = new Map(predicted);
+    const cur = new Map<string, ExternalEvent[]>();
+    let changed = false;
+    // partners: this round's plan if already updated, else the previous one
+    for (const slot of order) if (planOne(slot, eventsAgainst(slot.slot, new Map([...prev, ...cur]), prev), cur)) changed = true;
+    for (const [k, e] of cur) predicted.set(k, e);
+    converged = !changed;
   }
+  const values: Record<string, number> = {};
+  for (const [k, p] of out) values[k] = p.value;
+  if (opts.stats) Object.assign(opts.stats, { rounds, converged, values });
   return out;
 }
 
@@ -215,7 +288,7 @@ class DefenderController implements Controller {
 
 export interface BuiltScenario {
   sim: MatchSim;
-  plans: Map<string, { actions: Action[]; world: PlanWorld; events: ExternalEvent[] }>;
+  plans: ScenarioPlans;
   executors: Map<string, PlanExecutor>;
   /** Every robot's slot: its bot, which a human driver can take over at any time. */
   slots: Map<string, SlotController>;
@@ -244,7 +317,11 @@ export async function buildMatch(sc: ScenarioConfig, inputs?: InputSource, pertu
     if (perturb?.battery[slot.slot] !== undefined) robot.battery.voltage = perturb.battery[slot.slot];
     switch (slot.strategy) {
       case 'optimized': {
-        const p = plans.get(slot.slot)!;
+        const p = plans.get(slot.slot);
+        if (!p) {
+          ctl = new IdleController(); // plan still being computed
+          break;
+        }
         const ex = new PlanExecutor(p.world.cfg, p.actions, sc.mpc ?? DEFAULT_MPC, p.world);
         executors.set(slot.slot, ex);
         ctl = ex;

@@ -618,3 +618,11 @@ kbd { font: 600 0.78em/1 ui-monospace, SFMono-Regular, Menlo, monospace; backgro
 .error { color: #ff8a80; }
 .card.drivers { margin-top: 0.75rem; }
 .card.drivers h4 { margin: 0 0 0.4rem; }
+
+.hud .planning {
+  color: var(--accent, #f5c542);
+}
+
+.hud .drive-hint strong {
+  letter-spacing: 0.02em;
+}

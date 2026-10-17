@@ -59,6 +59,10 @@ export class TeamSession {
   private keyNext = true;
   private unsubRunner: (() => void) | null = null;
   private missingSince = new Map<string, number>();
+  /** When this host connected (two hosts in one room: the later one steps down). */
+  private hostAt = 0;
+  /** When the match ended with players in the room (the next one starts 10 s later). */
+  private endedAt: number | null = null;
   // guest
   setup: SetupMsg | null = null;
   hud: HudData | null = null;
@@ -124,7 +128,8 @@ export class TeamSession {
       const t = this.makeTransport(kind);
       t.onMessage((m) => this.onHostMsg(m));
       t.onPresence((peers) => this.onHostPresence(peers));
-      await t.connect(room, { peerId: this.state.me, name, role: 'host', at: Date.now() });
+      this.hostAt = Date.now();
+      await t.connect(room, { peerId: this.state.me, name, role: 'host', at: this.hostAt });
       this.transport = t;
       this.set({ role: 'host', room, transport: kind, connecting: false, roster: this.hostRoster(), status: `Room ${room} open — share the code` });
       this.snapTimer = setInterval(() => this.hostTick(), SNAP_MS);
@@ -164,6 +169,22 @@ export class TeamSession {
         this.broadcastRoster();
       }
     }
+    if (!this.state.peers.some((p) => p.peerId !== this.state.me)) {
+      // nobody to stream to: save the Realtime quota; everything is re-sent when someone joins
+      this.lastSim = null;
+      this.keyNext = true;
+      this.prevRows.clear();
+      this.endedAt = null;
+      return;
+    }
+    // with players in the room, the next match starts 10 s after one ends
+    if (sim.t >= sim.clock.total - 1e-9) {
+      this.endedAt ??= now;
+      if (now - this.endedAt > 10000) {
+        this.endedAt = null;
+        void this.runner.rebuild().then(() => this.runner.setPlaying(true));
+      }
+    } else this.endedAt = null;
     const store = this.runner.scenarioInfo();
     if (sim !== this.lastSim) {
       this.lastSim = sim;
@@ -196,6 +217,10 @@ export class TeamSession {
           const ally = (s: string) => this.runner.sim?.robots.find((r) => r.id === s)?.alliance === myAlliance;
           const pick = free.sort((a, b) => Number(ally(b)) - Number(ally(a)))[0];
           if (pick) this.runner.setDriver(pick, { kind: 'remote', name: m.name, peerId: m.from });
+          // a player joined: the match starts (from the beginning if the last one is over)
+          const sim = this.runner.sim;
+          if (sim && sim.t >= sim.clock.total - 1e-9) void this.runner.rebuild().then(() => this.runner.setPlaying(true));
+          else if (!this.runner.playing) this.runner.setPlaying(true);
         }
         this.broadcastRoster();
         break;
@@ -239,10 +264,37 @@ export class TeamSession {
 
   private onHostPresence(peers: PeerInfo[]) {
     this.set({ peers });
+    // two hosts opened the same room at once: the later one joins the earlier one
+    const rival = peers.find((p) => p.role === 'host' && p.peerId !== this.state.me && (p.at < this.hostAt || (p.at === this.hostAt && p.peerId < this.state.me)));
+    if (rival && this.state.room) {
+      void this.join(this.state.room, this.state.name, this.state.transport ?? 'online');
+      return;
+    }
     const here = new Set(peers.map((p) => p.peerId));
     for (const id of [...this.missingSince.keys()]) if (here.has(id)) this.missingSince.delete(id);
     for (const e of Object.values(this.hostRoster())) {
       if (e.peerId && e.peerId !== this.state.me && !here.has(e.peerId) && !this.missingSince.has(e.peerId)) this.missingSince.set(e.peerId, this.now());
+    }
+  }
+
+  /**
+   * Team mode without a click: join the room in the invite link, or host it when
+   * nobody does (the link's host reloaded or left); with no link, open a new room.
+   * Online first; if Supabase Realtime is unreachable, a room between this
+   * browser's tabs.
+   */
+  async autoStart(name: string, room: string | null) {
+    const role = () => this.state.role; // changes across the awaits
+    if (role() !== 'none' || this.state.connecting) return;
+    for (const kind of ['online', 'local'] as const) {
+      if (room) {
+        await this.join(room, name, kind);
+        if (role() !== 'guest') continue; // could not connect
+        const t0 = this.now();
+        while (role() === 'guest' && !this.setup && this.now() - t0 < 4000) await new Promise((r) => setTimeout(r, 200));
+        if (role() === 'guest' && !this.setup && !this.state.peers.some((p) => p.role === 'host')) await this.host(name, kind, room);
+      } else await this.host(name, kind);
+      if (role() !== 'none') return;
     }
   }
 

@@ -13,7 +13,8 @@ import type { PhysicsTrialStats, SlotSetup, Strategy } from '../sim/scenario';
  */
 
 export type Tab = 'field' | 'team' | 'optimizer' | 'robot' | 'analysis' | 'timeline' | 'setup' | 'rules';
-export type CameraMode = 'overhead' | 'iso' | 'side' | 'free';
+/** 'chase': 3rd person, locked behind the robot you drive. */
+export type CameraMode = 'overhead' | 'iso' | 'side' | 'free' | 'chase';
 
 export interface PlanOptions {
   objective: 'own' | 'margin';
@@ -57,9 +58,9 @@ function defaultSlots(matchType: MatchType, robot: RobotConfig): SlotSetup[] {
   if (matchType !== 'headToHead') return [{ slot: 'red-1', alliance: 'red', enabled: true, strategy: 'optimized', robot }];
   return [
     { slot: 'red-1', alliance: 'red', enabled: true, strategy: 'optimized', robot },
-    { slot: 'red-2', alliance: 'red', enabled: true, strategy: 'midfield', robot: cloneRobot() },
+    { slot: 'red-2', alliance: 'red', enabled: true, strategy: 'optimized', robot: cloneRobot() },
     { slot: 'blue-1', alliance: 'blue', enabled: true, strategy: 'optimized', robot: cloneRobot() },
-    { slot: 'blue-2', alliance: 'blue', enabled: true, strategy: 'toggles', robot: cloneRobot() },
+    { slot: 'blue-2', alliance: 'blue', enabled: true, strategy: 'optimized', robot: cloneRobot() },
   ];
 }
 

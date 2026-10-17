@@ -79,6 +79,44 @@ function Hud() {
       <div className="small muted">
         {h.violations} violations · {h.collisions} collisions{t.role !== 'none' ? ` · team room ${t.room}` : ''}
       </div>
+      {!guest && <PlanStatus />}
+      <DriveHint period={h.period} t={h.t} />
+    </div>
+  );
+}
+
+/** What the player can do right now: start driving, start the match, or wait out Autonomous. */
+function DriveHint({ period, t }: { period: string; t: number }) {
+  const tm = useTeam();
+  const guest = tm.role === 'guest';
+  const mine = guest ? (team.session?.mySlot() ?? null) : runner.localSlot;
+  if (!mine) return <div className="small muted">Press W A S D to drive your robot (3rd person).</div>;
+  const playing = guest ? team.session?.hostPlaying : runner.playing;
+  const auto = /auto/i.test(period);
+  const msg =
+    !playing && t === 0
+      ? guest
+        ? 'waiting for the host to start the match.'
+        : 'press P to start the match.'
+      : auto
+        ? 'Autonomous: its program runs; you take over at Driver Control.'
+        : 'W A S D drive · Shift / Space arm up / down · click the claw.';
+  return (
+    <div className="small drive-hint">
+      You drive <strong>{mine}</strong> — {msg}
+    </div>
+  );
+}
+
+/** Whether the robots' plans are ready, and how the joint planning went. */
+function PlanStatus() {
+  if (runner.planning) return <div className="small planning">Planning every robot's route (both alliances)…</div>;
+  const st = runner.planningStats;
+  if (!st || !Object.keys(st.values).length) return null;
+  const how = st.converged ? 'no robot can improve against the others' : `${st.rounds} best-response round${st.rounds === 1 ? '' : 's'}`;
+  return (
+    <div className="small muted" title="Planned value of each robot's route against the other robots' plans (its alliance's score in the planning model)">
+      Plans: {how} · {Object.entries(st.values).map(([k, v]) => `${k} ${v}`).join(' · ')}
     </div>
   );
 }
@@ -87,14 +125,16 @@ function SimControls() {
   useRunnerTick();
   const camera = useApp((s) => s.camera);
   const show = useApp((s) => s.show);
-  const guest = useTeam().role === 'guest';
+  const tm = useTeam();
+  const guest = tm.role === 'guest';
   const sim = guest ? null : runner.sim;
+  const driving = guest ? !!team.session?.mySlot() : !!runner.localSlot;
   const speeds = [0.1, 0.25, 0.5, 1, 2, 4, 8];
   return (
     <div className="controls">
       <div className="row">
-        <button className="primary" disabled={!sim} onClick={() => runner.setPlaying(!runner.playing)} title="Space">
-          {runner.playing ? 'Pause' : 'Play'}
+        <button className="primary" disabled={!sim || runner.planning} onClick={() => runner.setPlaying(!runner.playing)} title="P">
+          {runner.planning ? 'Planning…' : runner.playing ? 'Pause' : 'Play'}
         </button>
         <button disabled={!sim} onClick={() => runner.stepOnce(1)} title="Advance one physics step (1/120 s)">
           Step
@@ -126,9 +166,9 @@ function SimControls() {
         </select>
       </div>
       <div className="row">
-        {(['overhead', 'iso', 'side', 'free'] as CameraMode[]).map((c) => (
-          <button key={c} className={camera === c ? 'on' : ''} onClick={() => store.set({ camera: c })}>
-            {c === 'iso' ? 'Isometric' : c[0].toUpperCase() + c.slice(1)}
+        {(['chase', 'overhead', 'iso', 'side', 'free'] as CameraMode[]).map((c) => (
+          <button key={c} className={camera === c ? 'on' : ''} disabled={c === 'chase' && !driving} onClick={() => store.set({ camera: c })} title={c === 'chase' ? 'Locked behind the robot you drive' : undefined}>
+            {c === 'iso' ? 'Isometric' : c === 'chase' ? '3rd person' : c[0].toUpperCase() + c.slice(1)}
           </button>
         ))}
       </div>
@@ -237,6 +277,24 @@ function useDriverInput() {
     runner.live = localInput.state;
     localInput.onPlayPause = () => {
       if (team.role !== 'guest') runner.setPlaying(!runner.playing);
+    };
+    // W A S D while watching: take over your robot (3rd person follows)
+    localInput.onDriveKey = () => {
+      if (store.get().tab !== 'field') return;
+      const s = team.session;
+      if (team.role === 'guest') {
+        if (!s || s.mySlot()) return;
+        const free = Object.keys(s.state.roster).find((k) => !s.state.roster[k].peerId);
+        if (free) s.claimSlot(free);
+        return;
+      }
+      const sim = runner.sim;
+      if (runner.localSlot || !sim) return;
+      const ids = sim.robots.map((r) => r.id);
+      const slot = [store.get().userSlot, ...ids].find((id) => ids.includes(id) && runner.driverOf(id).kind === 'bot');
+      if (!slot) return;
+      if (team.role === 'host') team.claimSlot(slot);
+      else runner.setDriver(slot, { kind: 'local', name: 'You' });
     };
     const detach = localInput.attachKeyboard();
     const unsub = localInput.subscribe((inp) => team.session?.onLocalInput(inp));

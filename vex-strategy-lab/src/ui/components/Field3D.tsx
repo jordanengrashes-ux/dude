@@ -20,13 +20,14 @@ export function Field3D({ steps }: { steps: StepInfo[] | null }) {
     const sc = new FieldScene(canvas.current!);
     sceneRef.current = sc;
     // ?debug exposes the scene for automated screenshots / console inspection
-    if (new URLSearchParams(window.location.search).has('debug')) Object.assign(window as object, { __vexScene: sc, __vexRunner: runner, __vexTeam: team.session });
+    if (new URLSearchParams(window.location.search).has('debug')) Object.assign(window as object, { __vexScene: sc, __vexRunner: runner, __vexTeam: team.session, __vexStore: store });
     const ro = new ResizeObserver(() => sc.resize(wrap.current!.clientWidth, wrap.current!.clientHeight));
     ro.observe(wrap.current!);
     let raf = 0;
     let last = performance.now();
     let trailTick = 0;
     let robotSet: unknown[] = [];
+    let following: string | null = null;
     const loop = (now: number) => {
       const dt = (now - last) / 1000;
       last = now;
@@ -42,6 +43,14 @@ export function Field3D({ steps }: { steps: StepInfo[] | null }) {
           robotSet = cfgs;
         }
         sc.sync(frame, store.get().selection);
+        // 3rd person, locked on the robot you drive (back to the overview when you stop)
+        const mine = drivingSlot();
+        if (mine !== following) {
+          following = mine;
+          sc.setFollow(mine);
+          if (mine) store.set({ camera: 'chase' });
+          else if (store.get().camera === 'chase') store.set({ camera: 'iso' });
+        }
         if (trailTick++ % 10 === 0) sc.setTrails(frame.robots.map((r) => ({ id: r.id, alliance: r.alliance, pts: r.trail })));
       }
       sc.render();
@@ -72,13 +81,28 @@ export function Field3D({ steps }: { steps: StepInfo[] | null }) {
   }, [steps, userSlot, slots]);
 
   const onClick = (e: React.MouseEvent) => {
+    // driving: left click opens / closes the claw; otherwise it inspects
+    if (drivingSlot()) {
+      localInput.toggleClaw();
+      return;
+    }
     const pick = sceneRef.current?.pick(e.clientX, e.clientY) ?? null;
     store.set({ selection: pick });
   };
 
   return (
     <div ref={wrap} className="field3d">
-      <canvas ref={canvas} onClick={onClick} aria-label="3D field view — drag to rotate, scroll to zoom, right-drag to pan, click to inspect" />
+      <canvas
+        ref={canvas}
+        onClick={onClick}
+        onContextMenu={(e) => drivingSlot() && e.preventDefault()}
+        aria-label="3D field view — drag to rotate, scroll to zoom, right-drag to pan, click to inspect; while driving, click opens and closes the claw"
+      />
     </div>
   );
+}
+
+/** The robot this player drives: a team-mode guest's slot, or the local driver's. */
+function drivingSlot(): string | null {
+  return team.role === 'guest' ? (team.session?.mySlot() ?? null) : runner.localSlot;
 }

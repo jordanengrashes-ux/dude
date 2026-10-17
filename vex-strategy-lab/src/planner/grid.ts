@@ -67,7 +67,8 @@ export class Grid {
       for (const z of loadZones()) {
         if (z.alliance === opts.alliance) continue;
         const [x0, y0, x1, y1] = z.aabb;
-        this.boxes.push([x0 - c, y0 - c, x1 + c, y1 + c]);
+        // corner clearance: a robot turning in place sweeps its half-diagonal
+        this.boxes.push([x0 - cc, y0 - cc, x1 + cc, y1 + cc]);
       }
     }
     if (opts.alliance && opts.forbidOpposingSide) this.opp = opts.alliance === 'red' ? 'blue' : 'red';
@@ -95,8 +96,9 @@ export class Grid {
   private oppSum(p: Vec2): number {
     return this.opp === 'blue' ? p.x + p.y : -(p.x + p.y);
   }
+  /** The center stays a half-diagonal (+margin) off the line: a turning robot's corners sweep that far (SG7). */
   private get sideLimit(): number {
-    return -this.opts.clearance * 0.7 * Math.SQRT2;
+    return -(this.opts.cornerClearance ?? this.opts.clearance) * Math.SQRT2;
   }
   private inMidCenter(p: Vec2): boolean {
     return Math.abs(p.x) <= MIDFIELD_INNER_HALF && Math.abs(p.y) <= MIDFIELD_INNER_HALF;

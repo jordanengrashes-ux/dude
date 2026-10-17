@@ -16,6 +16,7 @@ npm run dev        # http://localhost:5173
 npm test           # unit, physics, planner, team-mode tests
 npm run build      # type-check + production build into dist/
 npm run report     # reproducible sample report → docs/sample-report.md / .json
+npm run plans      # re-plan the default match → src/sim/defaultPlans.json
 ```
 
 Node 20+ is recommended.
@@ -51,43 +52,74 @@ and RLS policies on `realtime.messages`.
 
 ## Team mode
 
-Every robot starts as a bot (its optimized plan, a scripted Toggle patrol, a Midfield
-parker, a defender, …). In the **Team** tab:
+A room opens by itself when the page loads, and the address bar becomes its invite
+link (`…/?room=CODE`; the header has **copy invite link**). Whoever opens the link
+joins: they replace a bot (the host's partner first, then the opponents), get the
+3rd-person camera on their robot, and the match starts. If nobody is hosting the
+linked room (its host left or reloaded), the visitor hosts it. Online rooms use
+Supabase Realtime; if it can't be reached, the room links tabs of the same browser.
 
-1. Enter a name, pick **Online (Supabase Realtime)** or **This browser only**
-   (other tabs on the same computer, no network), and **Create room**.
-2. Share the 5-letter code. Each player who **Join**s replaces a bot: the host's
-   partner first, then the opponents. Anyone can switch to a free robot from the
-   **Drivers** card, or **Hand back to bot**. When a player leaves (or disappears for
-   more than 6 s), the bot takes the robot back and replans from the current field.
-3. The host presses **Play**. During Autonomous every robot runs its program, as in a
-   real match; drivers take over at Driver Control (all match in Driver Skills).
-
-Without a room, the same **Drivers** card lets you drive any robot yourself while
-bots play the rest.
+- Anyone can switch to a free robot from the **Drivers** card, or **Hand back to
+  bot**. When a player leaves (or disappears for more than 6 s), the bot takes the
+  robot back and replans from the current field.
+- During Autonomous every robot runs its program, as in a real match; drivers take
+  over at Driver Control (all match in Driver Skills).
+- With players in the room, the next match starts 10 s after one ends.
+- Without guests, the same controls let you drive any robot while bots play the rest.
 
 How it works: the host runs the only simulation (fixed 1/120 s steps) and streams
 compact snapshots about 8 times a second: positions in millimeters, quantized
 quaternions, only the objects that moved, and a keyframe every 2 s. Guests render
 150 ms behind and interpolate. They send their controls when those change, plus a
-heartbeat. A four-player room stays inside Supabase's free-plan Realtime budget
-(100 messages/s). Keep the host's tab open; if it is hidden, the match keeps
-running on timer ticks.
+heartbeat. A host alone in its room sends nothing, and a four-player room stays
+inside Supabase's free-plan Realtime budget (100 messages/s). Keep the host's tab
+open; if it is hidden, the match keeps running on timer ticks.
 
 ## Controls
 
-| Action | Keyboard | Gamepad |
+Press W A S D on the field to take over your robot (your slot, or the first one a
+bot drives); the camera locks behind it in 3rd person (mouse wheel: distance).
+
+| Action | Keyboard / mouse | Gamepad |
 |---|---|---|
 | Drive / turn (arcade) | W/S, A/D or arrows | left stick Y / right stick X |
-| Raise / drop the lift (DR4B) | R / F | RT / LT |
-| Lift presets: floor, Alliance Goal, short Goal, tall Goal | 1 2 3 4 | D-pad ↓ ← → ↑ |
-| Close the claw (grab, hold) | Shift or C | A |
-| Drop (open the claw) | E or V | B |
+| Arm up / down (DR4B) | Shift / Space (also R / F) | RT / LT |
+| Arm presets: floor, Alliance Goal, short Goal, tall Goal | 1 2 3 4 | D-pad ↓ ← → ↑ |
+| Claw: close (grab what is in front) / open (let go) | left click or C | A |
+| Open the claw (drop) | E | B |
 | Toggle arm (hold) | T | X |
 | Swap pockets | Q | LB |
 | Flip the held object | X | Y |
 | Request a Match Load | L | RB |
-| Play / pause (host or offline) | Space | Start |
+| Play / pause (host or offline) | P | Start |
+
+## The bots
+
+Every robot of both alliances runs an optimized plan by default (scripted strategies
+remain selectable in Setup). The plans are made jointly and the same way for both
+alliances (`planScenario`):
+
+- Partners coordinate: within an alliance robots plan in turn, each seeing its
+  partner's plan, so they don't chase the same Pins and Cups.
+- Opponents respond simultaneously: first each alliance plans on its own, then
+  both re-plan against the other's previous plans (two rounds). Neither alliance
+  gets the last word.
+- There is no stable "best for both" to converge to: in Override the last Toggle
+  flip and the Midfield majority decide who scores the yellow halves, so best
+  responses keep flipping (more rounds make it swing, not settle). Each robot's
+  plan is the best its search found against what it expects the others to do; the
+  values shown under the score are those expectations, not predictions.
+
+Plans for the default match ship with the app (`src/sim/defaultPlans.json`,
+regenerated by `npm run plans`; a test checks they are current), so the match
+starts at once. Any other setup is planned in a Web Worker (about 15 s for four
+robots); the robots wait at their starting positions until their plans arrive.
+
+On the field, each bot follows its plan with replanning. Robots yield to robots in
+front of them, route around robots that stand in their path, wait briefly when
+another robot occupies their target, and back off and re-route when blocked. A
+virtual fence keeps them out of poses that break SG7 in Autonomous or enter the
+opposing Load Zones in Driver Control; violations left are from being pushed.
 
 ## The robot
 
@@ -158,10 +190,10 @@ The official STEP files can replace any of them: `docs/CAD.md` covers
 | `src/sim/` | Match simulation, plan executor (MPC), driver control, scenarios, frames |
 | `src/planner/` | World model, path planning, search methods, bounds, robustness, explanations |
 | `src/net/` | Team mode: protocol, transports (Supabase Realtime, BroadcastChannel), session |
-| `src/workers/` | Optimizer / physics trials in a Web Worker |
+| `src/workers/` | Optimizer / physics trials and scenario planning in Web Workers |
 | `src/ui/` | React UI, Three.js scene and assets, input, charts |
 | `tests/` | Vitest suites |
-| `scripts/` | Sample report, CAD converter |
+| `scripts/` | Sample report, default plans, CAD converter |
 
 ## Known limitations
 

@@ -5,11 +5,11 @@ import type { Controller, MatchSim, Sensing, SimRobot } from './match';
  * Human driver control and bot ↔ human hand-over.
  *
  * DriverInput is the whole control surface of a robot, the same for keyboard,
- * gamepad and remote players: arcade drive, the lift (analog up/down or a height
- * preset), the claw (close = run the intake, drop = release the held object), the
- * toggle arm, pocket index, flip and a Match Load request. One-shot actions are
- * press counters, so a press is never lost when inputs are sampled once per
- * physics step or arrive over the network.
+ * mouse, gamepad and remote players: arcade drive, the lift (analog up/down or a
+ * height preset), the claw (closing grabs what is in front, opening lets go; drop
+ * also opens it), the toggle arm, pocket index, flip and a Match Load request.
+ * One-shot actions are press counters, so a press is never lost when inputs are
+ * sampled once per physics step or arrive over the network.
  */
 
 export interface DriverInput {
@@ -20,7 +20,7 @@ export interface DriverInput {
   lift: number;
   /** Holder height preset (in) to move the lift to; null when none. Analog lift input cancels it. */
   preset: number | null;
-  /** Claw closed: the intake runs while held. */
+  /** Claw state: closing grabs what is in front, opening releases the held object. */
   claw: boolean;
   /** Toggle arm engaged while held (works the nearest Toggle toward this robot's color). */
   toggle: boolean;
@@ -54,6 +54,8 @@ export class DriverController implements Controller {
   private last: DriverInput = zeroInput();
   private holdH: number | null = null;
   private presetH: number | null = null;
+  /** The claw is closing on something until this time (s). */
+  private grabUntil = -1;
 
   constructor(private input: () => DriverInput | null) {}
 
@@ -63,6 +65,7 @@ export class DriverController implements Controller {
     this.last = { ...cur };
     this.holdH = null;
     this.presetH = null;
+    this.grabUntil = -1;
   }
 
   update(sim: MatchSim, r: SimRobot, sense: Sensing) {
@@ -87,8 +90,10 @@ export class DriverController implements Controller {
         r.body.liftTarget = this.holdH;
       }
     }
-    // claw and mechanisms
-    r.req.intake = inp.claw;
+    // claw: closing grabs what is in front (the intake runs briefly), opening lets go
+    if (inp.claw && !this.last.claw) this.grabUntil = sim.t + 0.7;
+    if (!inp.claw && this.last.claw) r.req.release = true;
+    r.req.intake = sim.t < this.grabUntil;
     if (inp.drop > this.last.drop) r.req.release = true;
     if (inp.index > this.last.index) r.req.index = true;
     if (inp.flip > this.last.flip) r.req.reorient = true;

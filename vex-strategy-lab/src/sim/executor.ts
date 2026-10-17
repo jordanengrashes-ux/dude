@@ -1,12 +1,13 @@
 import { IN, wrapAngle } from '../core/units';
 import type { Vec2 } from '../core/vec';
-import { add, dist, fromAngle } from '../core/vec';
+import { add, dist, distToSegment, fromAngle } from '../core/vec';
 import { MIDFIELD_INNER_HALF } from '../field/geometry';
 import { derivePerf, type DrivePerf } from '../robot/kinematics';
 import { toggleAngle, togglePosition, toggleTargetAngle } from '../physics/field';
 import { upOf } from '../physics/frames';
 import type { SimObject } from '../physics/objects';
 import { Grid } from '../planner/grid';
+import { astar } from '../planner/astar';
 import { PlanWorld, type Action, type Escape, type PlanConfig } from '../planner/model';
 import { beamSearch } from '../planner/search/beam';
 import { approach, backOff, DEFAULT_TUNING, driveStraight, pursue, turnTo, type DriveTuning, type PursuitState } from './drive';
@@ -57,6 +58,10 @@ interface Active {
   heldAtStart?: string[];
   /** Approach headings that failed (blocked by clutter); retries avoid them. */
   badHeadings: number[];
+  /** When a robot started blocking the way (route phase). */
+  blockedSince?: number;
+  /** Waiting for another robot to clear the target spot (start phase). */
+  waitUntil?: number;
 }
 
 export interface ActionRecord {
@@ -127,8 +132,25 @@ export class PlanExecutor implements Controller {
     }
     const a = this.cur;
     const ok = this.stepAction(sim, r, sense, a);
+    this.fence(sim, r, sense);
     if (ok === true) this.finish(sim, r, true);
     else if (typeof ok === 'string') this.finish(sim, r, false, ok);
+  }
+
+  /**
+   * Virtual fence: never drive (or turn) into a pose that breaks SG7 in Autonomous
+   * or enters the opposing Load Zones in Driver Control. Cuts the offending part of
+   * the command; a robot already pushed inside may still drive out.
+   */
+  private fence(sim: MatchSim, r: SimRobot, sense: Sensing) {
+    const w = this.world;
+    if (w.cfg.matchType !== 'headToHead' || !w.poseAllowed(sense.pos, sense.heading, sim.t)) return;
+    const { left, right } = r.body.cmd;
+    let fwd = (left + right) / 2;
+    let turn = (right - left) / 2;
+    if (Math.abs(fwd) > 0.02 && !w.poseAllowed(add(sense.pos, fromAngle(sense.heading, 3 * Math.sign(fwd))), sense.heading, sim.t)) fwd = 0;
+    if (Math.abs(turn) > 0.02 && !w.poseAllowed(sense.pos, sense.heading + 0.12 * Math.sign(turn), sim.t)) turn = 0;
+    r.body.cmd = { left: fwd - turn, right: fwd + turn };
   }
 
   private opposingSideInAutonomous(sim: MatchSim, a: Action): boolean {
@@ -202,23 +224,121 @@ export class PlanExecutor implements Controller {
     sim.log({ t: sim.t, type: 'replan', robotId: r.id, text: `${r.id} replans (${reason}): ${this.queue.length} actions, value ${res.best.value}` });
   }
 
-  private chooseApproach(sim: MatchSim, sense: Sensing, target: Vec2, key: string, except: { goal?: string; loader?: string; toggle?: string }, onlyHeading?: number, avoid: number[] = []) {
+  private chooseApproach(sim: MatchSim, r: SimRobot, sense: Sensing, target: Vec2, key: string, except: { goal?: string; loader?: string; toggle?: string }, onlyHeading?: number, avoid: number[] = []) {
     const aps = this.world.approaches(target, key, except, onlyHeading).filter((ap) => !avoid.some((h) => Math.abs(wrapAngle(ap.heading - h)) < Math.PI / 4));
     const grid = this.world.gridAt(sim.t);
     const vg = this.world.visGraph(grid);
     let best: { ap: (typeof aps)[number]; path: Vec2[]; cost: number; esc: Escape | null } | null = null;
-    const esc = this.escapeFrom(grid, sense);
-    const start = esc ? esc.pt : sense.pos;
+    const { esc, start, lead } = this.routeStart(grid, sense);
+    const others = this.otherRobots(sim, r);
+    let robotGrid: Grid | null = null;
+    this.robotInTheWay = false;
     for (const ap of aps) {
-      const path = grid.segmentClear(start, ap.pre) ? [start, ap.pre] : vg.path(start, grid.pointBlocked(ap.pre) ? grid.nearestFree(ap.pre) ?? ap.pre : ap.pre);
+      // another robot is standing where this approach ends
+      if (others.some((o) => dist(o.pos, ap.center) < o.r + this.world.clearance - 2 || dist(o.pos, ap.pre) < o.r + this.world.clearance - 2)) {
+        this.robotInTheWay = true;
+        continue;
+      }
+      let path = grid.segmentClear(start, ap.pre) ? [start, ap.pre] : vg.path(start, grid.pointBlocked(ap.pre) ? grid.nearestFree(ap.pre) ?? ap.pre : ap.pre);
       if (!path) continue;
+      let penalty = 0;
+      if (others.some((o) => this.blocksPath(o, path!))) {
+        // detour around the robots in the way (grid A* with them stamped in)
+        robotGrid ??= new Grid({ ...grid.opts, extraObstacles: others.map((o) => ({ pos: o.pos, r: o.r })) });
+        const alt = astar(robotGrid, start, ap.pre);
+        if (alt) path = [start, ...alt.points.slice(1)];
+        else penalty = 3; // no way around now: it may clear by the time we get there
+      }
+      path = [...lead, ...path];
       let len = 0;
       for (let i = 1; i < path.length; i++) len += dist(path[i - 1], path[i]);
       const turn = Math.abs(wrapAngle(ap.heading - Math.atan2(ap.pre.y - path[Math.max(0, path.length - 2)].y, ap.pre.x - path[Math.max(0, path.length - 2)].x)));
-      const cost = len / this.perf.vCruise + turn * 0.25;
+      const cost = len / this.perf.vCruise + turn * 0.25 + penalty;
       if (!best || cost < best.cost) best = { ap, path, cost, esc };
     }
     return best;
+  }
+
+  /** Set by chooseApproach: some approach was ruled out only because a robot stands there. */
+  private robotInTheWay = false;
+
+  /** No approach now: wait a little if another robot is in the way, else fail. */
+  private noApproach(r: SimRobot, a: Active, t: number, reason: string): string | undefined {
+    if (this.robotInTheWay && t - a.t0 < 2.5) {
+      r.body.cmd = { left: 0, right: 0 };
+      a.waitUntil = t + 0.3;
+      return undefined;
+    }
+    return reason;
+  }
+
+  /** The other robots as circles (center, radius of their footprint). */
+  private otherRobots(sim: MatchSim, r: SimRobot): { id: string; pos: Vec2; r: number }[] {
+    const out: { id: string; pos: Vec2; r: number }[] = [];
+    for (const o of sim.robots) {
+      if (o === r) continue;
+      out.push({ id: o.id, pos: o.body.pose().pos, r: Math.max(o.cfg.chassis.lengthIn, o.cfg.chassis.widthIn) / 2 });
+    }
+    return out;
+  }
+
+  /** Does robot `o` sit on this path (closer to a segment than our clearance + its radius)? */
+  private blocksPath(o: { pos: Vec2; r: number }, path: Vec2[]): boolean {
+    const R = o.r + this.world.clearance - 1;
+    // a robot we are already touching only counts if the path heads into it
+    const d0 = dist(o.pos, path[0]);
+    for (let i = 1; i < path.length; i++) {
+      const a = path[i - 1];
+      const b = path[i];
+      if (d0 < R && i === 1) {
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const into = (o.pos.x - a.x) * dx + (o.pos.y - a.y) * dy > 0.5 * Math.hypot(dx, dy) * d0;
+        if (into) return true;
+        continue;
+      }
+      if (distToSegment(o.pos, a, b) < R) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Another robot directly in front of the direction of travel: returns how close
+   * (0 = touching, 1 = at the edge of the look-ahead), or null when the way is clear.
+   */
+  private robotAhead(sim: MatchSim, r: SimRobot, sense: Sensing, dir: 1 | -1): { id: string; closeness: number } | null {
+    const fx = Math.cos(sense.heading) * dir;
+    const fy = Math.sin(sense.heading) * dir;
+    let best: { id: string; closeness: number } | null = null;
+    for (const o of this.otherRobots(sim, r)) {
+      const dx = o.pos.x - sense.pos.x;
+      const dy = o.pos.y - sense.pos.y;
+      const along = dx * fx + dy * fy;
+      const lat = Math.abs(dx * fy - dy * fx);
+      const contact = o.r + r.cfg.chassis.lengthIn / 2;
+      if (along <= 0 || lat > o.r + r.cfg.chassis.widthIn / 2 - 1) continue;
+      const look = contact + 10;
+      if (along > look) continue;
+      const c = Math.max(0, (along - contact) / (look - contact));
+      if (!best || c < best.closeness) best = { id: o.id, closeness: c };
+    }
+    return best;
+  }
+
+  /**
+   * Where a route starts: the robot's position, the end of the model's straight
+   * escape when it sits inside an inflated obstacle region, or — pinned where no
+   * straight escape exists (e.g. pushed against a wall) — the nearest free point,
+   * driven to first (`lead`). The planning model costs the same three cases.
+   */
+  private routeStart(grid: Grid, sense: Sensing): { esc: Escape | null; start: Vec2; lead: Vec2[] } {
+    const esc = this.escapeFrom(grid, sense);
+    if (esc) return { esc, start: esc.pt, lead: [] };
+    if (grid.pointBlocked(sense.pos)) {
+      const free = grid.nearestFree(sense.pos);
+      if (free) return { esc: null, start: free, lead: [sense.pos] };
+    }
+    return { esc: null, start: sense.pos, lead: [] };
   }
 
   /** The model's straight-line escape when the robot starts inside an inflated obstacle region. */
@@ -247,6 +367,10 @@ export class PlanExecutor implements Controller {
     if (t - a.t0 > 9 && act.type !== 'wait' && a.phase !== 'parked') return 'timed out';
     switch (a.phase) {
       case 'start': {
+        if (a.waitUntil !== undefined && t < a.waitUntil) {
+          r.body.cmd = { left: 0, right: 0 };
+          return undefined;
+        }
         if (act.type === 'wait') {
           this.setPhase(a, 'wait', t);
           return undefined;
@@ -259,8 +383,8 @@ export class PlanExecutor implements Controller {
           const target = { x: p.x / IN, y: -p.z / IN };
           a.objId = id;
           a.holderTarget = cfg.lift.holderMinHeightIn;
-          const ch = this.chooseApproach(sim, sense, target, `dyn-${id}`, {}, undefined, a.badHeadings);
-          if (!ch) return 'no approach to object';
+          const ch = this.chooseApproach(sim, r, sense, target, `dyn-${id}`, {}, undefined, a.badHeadings);
+          if (!ch) return this.noApproach(r, a, t, 'no approach to object');
           a.ap = ch.ap;
           a.ps = { path: ch.path, seg: 0 };
           a.esc = ch.esc ? { ...ch.esc } : undefined;
@@ -271,8 +395,8 @@ export class PlanExecutor implements Controller {
           a.loaderId = l.id;
           a.holderTarget = cfg.lift.holderMinHeightIn;
           const h = Math.atan2(-l.outward.y, -l.outward.x);
-          const ch = this.chooseApproach(sim, sense, l.dispense, `L-${l.id}`, { loader: l.id }, h);
-          if (!ch) return 'no approach to loader';
+          const ch = this.chooseApproach(sim, r, sense, l.dispense, `L-${l.id}`, { loader: l.id }, h);
+          if (!ch) return this.noApproach(r, a, t, 'no approach to loader');
           a.ap = ch.ap;
           a.ps = { path: ch.path, seg: 0 };
           a.esc = ch.esc ? { ...ch.esc } : undefined;
@@ -281,14 +405,24 @@ export class PlanExecutor implements Controller {
           const st = sim.objects.stacks.get(g.id)!;
           const kind = sim.objects.nextKind(st);
           const obj = this.heldOfKind(r, kind);
-          if (!obj) return `not holding a ${kind} for ${g.id}`;
-          if (st.pending) return `${g.id} busy`;
+          if (!obj || st.pending) {
+            // The plan has another robot place on this Goal first (e.g. the partner,
+            // running a little late): wait for it rather than give up the Goal.
+            const gi = this.world.allGoals.findIndex((x) => x.id === g.id);
+            const expected = this.base.externalEvents.some((e) => e.kind === 'place' && e.goal === gi && e.t > a.t0 - 2 && e.t < t + 4);
+            if (expected && t - a.t0 < 4) {
+              r.body.cmd = { left: 0, right: 0 };
+              a.waitUntil = t + 0.25;
+              return undefined;
+            }
+            return obj ? `${g.id} busy` : `not holding a ${kind} for ${g.id}`;
+          }
           a.goalId = g.id;
           a.objId = obj.id;
           a.bit = act.bit;
           a.holderTarget = Math.min(this.world.maxHolder, sim.objects.topHeight(st) + 0.9);
-          const ch = this.chooseApproach(sim, sense, g.pos, `G-${g.id}-${st.elements.length}`, { goal: g.id }, undefined, a.badHeadings);
-          if (!ch) return a.badHeadings.length ? 'every approach to the goal is blocked' : 'no approach to goal';
+          const ch = this.chooseApproach(sim, r, sense, g.pos, `G-${g.id}-${st.elements.length}`, { goal: g.id }, undefined, a.badHeadings);
+          if (!ch) return this.noApproach(r, a, t, a.badHeadings.length ? 'every approach to the goal is blocked' : 'no approach to goal');
           a.ap = ch.ap;
           a.ps = { path: ch.path, seg: 0 };
           a.esc = ch.esc ? { ...ch.esc } : undefined;
@@ -298,10 +432,10 @@ export class PlanExecutor implements Controller {
           const h = Math.atan2(-tg.normal.y, -tg.normal.x);
           let ch: ReturnType<typeof this.chooseApproach> = null;
           for (const target of this.world.toggleTargets(act.toggle)) {
-            const c = this.chooseApproach(sim, sense, target, `T-${tg.id}`, { toggle: tg.id }, h);
+            const c = this.chooseApproach(sim, r, sense, target, `T-${tg.id}`, { toggle: tg.id }, h);
             if (c && (!ch || c.cost < ch.cost)) ch = c;
           }
-          if (!ch) return 'no approach to toggle';
+          if (!ch) return this.noApproach(r, a, t, 'no approach to toggle');
           a.ap = ch.ap;
           a.ps = { path: ch.path, seg: 0 };
           a.esc = ch.esc ? { ...ch.esc } : undefined;
@@ -310,19 +444,27 @@ export class PlanExecutor implements Controller {
           let best: { path: Vec2[]; pos: Vec2; heading: number; len: number } | null = null;
           const grid = this.world.gridAt(t);
           const vg = this.world.visGraph(grid);
-          const esc = this.escapeFrom(grid, sense);
-          const start = esc ? esc.pt : sense.pos;
+          const { esc, start, lead } = this.routeStart(grid, sense);
+          const others = this.otherRobots(sim, r);
+          let robotGrid: Grid | null = null;
           for (let k = 0; k < 8; k++) {
             const h = (k / 8) * 2 * Math.PI;
             const pos = fromAngle(h + Math.PI, MIDFIELD_INNER_HALF + L / 2 - 4);
             if (!this.world.poseClear(pos, h)) continue;
-            const path = grid.segmentClear(start, pos) ? [start, pos] : vg.path(start, pos);
+            if (others.some((o) => dist(o.pos, pos) < o.r + this.world.clearance - 2)) continue; // spot taken
+            let path = grid.segmentClear(start, pos) ? [start, pos] : vg.path(start, pos);
+            if (path && others.some((o) => this.blocksPath(o, path!))) {
+              robotGrid ??= new Grid({ ...grid.opts, extraObstacles: others.map((o) => ({ pos: o.pos, r: o.r })) });
+              const alt = astar(robotGrid, start, pos);
+              if (alt) path = [start, ...alt.points.slice(1)];
+            }
             if (!path) continue;
+            path = [...lead, ...path];
             let len = 0;
             for (let i = 1; i < path.length; i++) len += dist(path[i - 1], path[i]);
             if (!best || len < best.len) best = { path, pos, heading: h, len };
           }
-          if (!best) return 'no route to the Midfield';
+          if (!best) return this.noApproach(r, a, t, 'no route to the Midfield');
           a.ap = { pre: best.pos, center: best.pos, heading: best.heading };
           a.ps = { path: best.path, seg: 0 };
           a.esc = esc ? { ...esc } : undefined;
@@ -356,6 +498,33 @@ export class PlanExecutor implements Controller {
         }
         const out = pursue(this.perf, sense, a.ps!, tw, this.tuning, act.type === 'park' ? 1.5 : 2.0);
         r.body.cmd = { left: out.left, right: out.right };
+        // Yield to a robot in the way: slow down, stop short of it, and re-route if it
+        // stays there. The robot whose id sorts first re-routes sooner, so two robots
+        // meeting head-on don't both swerve the same way.
+        // Only the forward part slows: the robot can still turn away from it.
+        const fwd = (out.left + out.right) / 2;
+        const ahead = Math.abs(fwd) > 0.05 ? this.robotAhead(sim, r, sense, fwd >= 0 ? 1 : -1) : null;
+        if (ahead) {
+          const k = ahead.closeness < 0.15 ? 0 : 0.35 + 0.65 * ahead.closeness;
+          const turn = (out.right - out.left) / 2;
+          r.body.cmd = { left: fwd * k - turn, right: fwd * k + turn };
+          a.blockedSince ??= t;
+          a.progress.t = t; // waiting for a robot is not being stuck
+          if (t - a.blockedSince > (r.id < ahead.id ? 0.6 : 1.3)) {
+            a.blockedSince = undefined;
+            a.stuckCount++;
+            sim.log({ t, type: 'collision', robotId: r.id, text: `${r.id} yields to ${ahead.id} — re-routing (${a.stuckCount})` });
+            if (a.stuckCount > 4) return `blocked by ${ahead.id}`;
+            if (fwd > 0) {
+              // back away to make room, then re-route around it
+              a.backFrom = sense.pos;
+              a.backHeading = sense.heading;
+              this.setPhase(a, 'backoff', t);
+            } else this.setPhase(a, 'start', t);
+          }
+          return undefined;
+        }
+        a.blockedSince = undefined;
         // stuck detection → reroute around other robots
         const dGoal = dist(sense.pos, a.ps!.path[a.ps!.path.length - 1]);
         if (dGoal < a.progress.d - 2) a.progress = { t, d: dGoal };
@@ -413,6 +582,12 @@ export class PlanExecutor implements Controller {
       }
       case 'approach': {
         const ap = a.ap!;
+        // A pushed object can lead the robot toward a forbidden zone: stop short of it.
+        const fwd = (r.body.cmd.left + r.body.cmd.right) / 2;
+        if (!this.world.poseAllowed(add(sense.pos, fromAngle(sense.heading, 2 * Math.sign(fwd || 1))), sense.heading, t)) {
+          r.body.cmd = { left: 0, right: 0 };
+          return sim.period() === 'autonomous' ? 'would cross the Autonomous Line' : 'would enter the opposing Load Zone';
+        }
         if (act.type === 'pick' || act.type === 'load') {
           r.req.intake = true;
           // run only the pocket for the planned kind, so a neighbor isn't swallowed

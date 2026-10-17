@@ -3,16 +3,32 @@ import { team, useTeam } from '../../net/session';
 import { DriversCard } from './DriversCard';
 import { store } from '../store';
 
+/** The player's name (saved in this browser), e.g. "Player-K7Q". */
+export function savedPlayerName(): string {
+  try {
+    let n = localStorage.getItem('vsl-name');
+    if (!n) {
+      n = `Player-${Math.random().toString(36).slice(2, 5).toUpperCase()}`;
+      localStorage.setItem('vsl-name', n);
+    }
+    return n;
+  } catch {
+    return 'Player';
+  }
+}
+
+/** Link that joins this room. */
+export function inviteLink(room: string): string {
+  const u = new URL(window.location.href);
+  u.search = '';
+  u.searchParams.set('room', room);
+  return u.href;
+}
+
 /** Team mode lobby: create or join a room; players replace bots. */
 export function TeamPanel() {
   const t = useTeam();
-  const [name, setName] = useState(() => {
-    try {
-      return localStorage.getItem('vsl-name') ?? 'Player';
-    } catch {
-      return 'Player';
-    }
-  });
+  const [name, setName] = useState(savedPlayerName);
   const [code, setCode] = useState('');
   const [kind, setKind] = useState<'online' | 'local'>('online');
   const s = team.session;
@@ -30,7 +46,7 @@ export function TeamPanel() {
       <section className="card">
         <h3>Team mode</h3>
         <p className="small">
-          Every robot is driven by its bot until a player takes it. When someone joins your room they replace a bot (your partner first); when they leave, the bot takes the robot back and replans from where things stand. Robots run their autonomous programs during Autonomous; drivers take over at Driver Control.
+          A room opens automatically when the page loads; send the invite link and whoever opens it joins. Every robot is driven by its bot until a player takes it: a joining player replaces a bot (your partner first) and the match starts; when they leave, the bot takes the robot back and replans from where things stand. Press W A S D on the field to drive your own robot in 3rd person. Robots run their autonomous programs during Autonomous; drivers take over at Driver Control.
         </p>
         {!inRoom ? (
           <>
@@ -64,9 +80,10 @@ export function TeamPanel() {
               Room <strong style={{ letterSpacing: '0.12em' }}>{t.room}</strong> · {t.transport === 'online' ? 'online' : 'this browser'} · you are the {t.role}
             </div>
             <div className="row">
-              <button className="link" onClick={() => navigator.clipboard?.writeText(t.room ?? '')}>
-                Copy code
-              </button>
+              <input aria-label="Invite link" readOnly value={inviteLink(t.room ?? '')} onFocus={(e) => e.target.select()} style={{ flex: 1, minWidth: 0 }} />
+              <button onClick={() => navigator.clipboard?.writeText(inviteLink(t.room ?? ''))}>Copy invite link</button>
+            </div>
+            <div className="row">
               <button onClick={() => void s?.leave()}>Leave room</button>
               <button className="primary" onClick={() => store.set({ tab: 'field' })}>
                 Go to the field

@@ -7,7 +7,9 @@ import { TimelinePanel } from './components/TimelinePanel';
 import { SetupPanel } from './components/SetupPanel';
 import { RulesPanel } from './components/RulesPanel';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { TeamPanel } from './components/TeamPanel';
+import { TeamPanel, inviteLink, savedPlayerName } from './components/TeamPanel';
+import { useEffect, useState } from 'react';
+import { team, useTeam } from '../net/session';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'field', label: 'Field' },
@@ -20,7 +22,46 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'rules', label: 'Rules' },
 ];
 
+/**
+ * Team mode starts with the page: join the room in the link (?room=CODE) or open
+ * one. The address bar then always holds the invite link.
+ */
+function useAutoTeam() {
+  const t = useTeam();
+  useEffect(() => {
+    const room = new URLSearchParams(window.location.search).get('room');
+    void team.session?.autoStart(savedPlayerName(), room ? room.trim().toUpperCase() : null);
+  }, []);
+  useEffect(() => {
+    if (!t.room && t.connecting) return;
+    const url = new URL(window.location.href);
+    if (t.room) url.searchParams.set('room', t.room);
+    else url.searchParams.delete('room');
+    if (url.href !== window.location.href) window.history.replaceState(null, '', url);
+  }, [t.room, t.connecting]);
+  return t;
+}
+
+/** Room code and invite link in the header. */
+function RoomBadge({ room, players, online }: { room: string; players: number; online: boolean }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      className="link small"
+      title={online ? 'Copy the invite link: whoever opens it joins this match' : 'Room between tabs of this browser (online play unavailable)'}
+      onClick={() => {
+        void navigator.clipboard?.writeText(inviteLink(room));
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      }}
+    >
+      Room {room} · {players} player{players === 1 ? '' : 's'} · {copied ? 'link copied' : 'copy invite link'}
+    </button>
+  );
+}
+
 export function App() {
+  const t = useAutoTeam();
   const tab = useApp((s) => s.tab);
   const matchType = useApp((s) => s.matchType);
   const params = useApp((s) => s.params);
@@ -44,6 +85,7 @@ export function App() {
           ))}
         </nav>
         <div className="quick">
+          {t.room && <RoomBadge room={t.room} players={Math.max(1, t.peers.length)} online={t.transport === 'online'} />}
           {optStatus === 'idle' ? (
             <button className="primary" onClick={startOptimization}>
               Optimize

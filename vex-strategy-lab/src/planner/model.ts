@@ -5,7 +5,9 @@ import {
   buildGoals,
   buildLoaders,
   buildToggles,
+  footprintInLoadZone,
   footprintInMidfield,
+  footprintOnOpposingSide,
   HALF,
   MIDFIELD_INNER_HALF,
   PIN,
@@ -456,6 +458,14 @@ export class PlanWorld {
     return true;
   }
 
+  /** Footprint obeys SG7 in Autonomous and stays out of the opposing Load Zones in Driver Control. */
+  poseAllowed(center: Vec2, heading: number, t: number): boolean {
+    if (this.cfg.matchType !== 'headToHead') return true;
+    const R = this.cfg.robot.chassis;
+    if (this.isAutonomous(t)) return !footprintOnOpposingSide(center, heading, R.lengthIn, R.widthIn, this.cfg.alliance);
+    return !footprintInLoadZone(center, heading, R.lengthIn, R.widthIn, this.cfg.alliance === 'red' ? 'blue' : 'red');
+  }
+
   /**
    * Holder-point targets for working Toggle ti: robot square to the wall with its
    * bumper `reachIn` + 1" off it (the arm tip stays clear of the bar's swing even with
@@ -548,11 +558,20 @@ export class PlanWorld {
     let escTurn = 0;
     if (grid.pointBlocked(s.pos)) {
       const esc = this.escape(grid, s.pos, s.heading);
-      if (!esc) return null;
-      startPt = esc.pt;
-      backOut = esc.dist;
-      heading0 = esc.heading;
-      escTurn = esc.rot > 1e-6 ? this.turnCost(esc.rot) : 0;
+      if (esc) {
+        startPt = esc.pt;
+        backOut = esc.dist;
+        heading0 = esc.heading;
+        escTurn = esc.rot > 1e-6 ? this.turnCost(esc.rot) : 0;
+      } else {
+        // pinned (e.g. pushed into a corner): turn and drive to the nearest free point
+        const free = grid.nearestFree(s.pos);
+        if (!free) return null;
+        startPt = free;
+        backOut = dist(s.pos, free);
+        heading0 = Math.atan2(free.y - s.pos.y, free.x - s.pos.x);
+        escTurn = this.turnCost(Math.abs(wrapAngle(heading0 - s.heading)));
+      }
     }
     const key = `${grid === this.gridAuto ? 'A' : 'D'}|${startPt.x.toFixed(1)},${startPt.y.toFixed(1)}|${ap.pre.x.toFixed(1)},${ap.pre.y.toFixed(1)}|${ap.heading.toFixed(3)}`;
     let cached = this.pathCache.get(key);
@@ -914,6 +933,7 @@ export class PlanWorld {
       for (const tgt of Array.isArray(target) ? target : [target]) {
         const direct = Math.atan2(tgt.y - s.pos.y, tgt.x - s.pos.x);
         for (const ap of this.approaches(tgt, key, except, onlyHeading)
+          .filter((ap) => this.poseAllowed(ap.center, ap.heading, s.t))
           .map((ap) => ({ ap, dh: Math.abs(wrapAngle(ap.heading - direct)) }))
           .sort((x, y) => x.dh - y.dh)
           .slice(0, 5))

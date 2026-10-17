@@ -53,6 +53,12 @@ export class FieldScene {
   private pinIds: string[] = [];
   private cupIds: string[] = [];
   private robots = new Map<string, RobotModel>();
+  /** 3rd-person camera: the robot it follows and its distance (m). */
+  private chaseId: string | null = null;
+  private chaseDist = 1.0;
+  private chaseLook = new THREE.Vector3();
+  private chaseInit = false;
+  private mode: CameraMode = 'iso';
   private toggleMeshes = new Map<string, THREE.Object3D>();
   private routeGroup = new THREE.Group();
   private trailGroup = new THREE.Group();
@@ -116,6 +122,15 @@ export class FieldScene {
     this.gridHelper = this.buildGrid();
     this.scene.add(this.gridHelper);
     this.setCamera('iso');
+    canvas.addEventListener(
+      'wheel',
+      (e) => {
+        if (this.mode !== 'chase') return;
+        e.preventDefault();
+        this.chaseDist = Math.min(2.6, Math.max(0.55, this.chaseDist * Math.exp(e.deltaY * 0.001)));
+      },
+      { passive: false },
+    );
     void applyCadOverrides(this).then((o) => (this.cad = o));
   }
 
@@ -275,6 +290,12 @@ export class FieldScene {
   }
 
   setCamera(mode: CameraMode) {
+    this.mode = mode;
+    this.controls.enabled = mode !== 'chase';
+    this.chaseInit = false;
+    if (mode === 'chase') return;
+    const followed = this.chaseId ? this.robots.get(this.chaseId) : undefined;
+    followed?.chassis.traverse((o) => o.userData.isLabel && (o.visible = this.showLabels));
     const c = this.camera;
     if (mode === 'overhead') c.position.set(0, 4.6, 0.001);
     else if (mode === 'iso') c.position.set(-2.4, 2.6, 2.9);
@@ -282,6 +303,43 @@ export class FieldScene {
     this.controls.target.set(0, 0, 0);
     this.controls.enableRotate = true;
     this.controls.update();
+  }
+
+  /** Robot the 3rd-person camera follows (null: none). */
+  setFollow(id: string | null) {
+    if (id !== this.chaseId) {
+      this.chaseInit = false;
+      const prev = this.chaseId ? this.robots.get(this.chaseId) : undefined;
+      prev?.chassis.traverse((o) => o.userData.isLabel && (o.visible = this.showLabels));
+    }
+    this.chaseId = id;
+  }
+
+  /** Place the 3rd-person camera behind and above the followed robot, smoothed. */
+  private updateChase() {
+    const m = this.chaseId ? this.robots.get(this.chaseId) : undefined;
+    if (this.mode !== 'chase' || !m) return;
+    const pos = m.chassis.position;
+    const fwd = new THREE.Vector3(1, 0, 0).applyQuaternion(m.chassis.quaternion);
+    fwd.y = 0;
+    if (fwd.lengthSq() < 1e-6) fwd.set(1, 0, 0);
+    fwd.normalize();
+    // your own name tag would sit right in front of the camera
+    m.chassis.traverse((o) => o.userData.isLabel && (o.visible = false));
+    const d = this.chaseDist;
+    const want = new THREE.Vector3(pos.x - fwd.x * d, pos.y + 0.32 + d * 0.38, pos.z - fwd.z * d);
+    // stay inside the perimeter: backed against a wall, the camera rises instead
+    const lim = HALF * IN - 0.12;
+    const over = Math.max(0, Math.abs(want.x) - lim, Math.abs(want.z) - lim);
+    want.x = Math.max(-lim, Math.min(lim, want.x));
+    want.z = Math.max(-lim, Math.min(lim, want.z));
+    want.y += over * 1.2;
+    const look = new THREE.Vector3(pos.x + fwd.x * 0.35, pos.y + 0.12, pos.z + fwd.z * 0.35);
+    const k = this.chaseInit ? 0.14 : 1;
+    this.chaseInit = true;
+    this.camera.position.lerp(want, k);
+    this.chaseLook.lerp(look, k);
+    this.camera.lookAt(this.chaseLook);
   }
 
   resize(w: number, h: number) {
@@ -448,7 +506,8 @@ export class FieldScene {
   }
 
   render() {
-    this.controls.update();
+    if (this.mode === 'chase') this.updateChase();
+    else this.controls.update();
     this.renderer.render(this.scene, this.camera);
   }
 

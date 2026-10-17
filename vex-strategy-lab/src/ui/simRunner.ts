@@ -1,4 +1,5 @@
-import { buildMatch, planScenario, type BuiltScenario, type ScenarioConfig } from '../sim/scenario';
+import { buildMatch, type BuiltScenario, type PlanningStats, type ScenarioConfig, type ScenarioPlans } from '../sim/scenario';
+import { cachedPlans, planScenarioAsync } from '../sim/planCache';
 import { DT, type MatchSim } from '../sim/match';
 import { zeroInput, type DriverInput } from '../sim/driver';
 import type { Action } from '../planner/model';
@@ -39,6 +40,11 @@ export class SimRunner {
   private scenario: ScenarioConfig | null = null;
   checkpoints: { t: number; steps: number; label: string }[] = [];
   error: string | null = null;
+  /** Plans are being computed in the background; the robots wait at their start. */
+  planning = false;
+  /** How the joint planning of the current scenario went (null while planning). */
+  planningStats: PlanningStats | null = null;
+  private version = 0;
 
   subscribe(l: () => void): () => void {
     this.listeners.add(l);
@@ -123,28 +129,62 @@ export class SimRunner {
     return (r.candidates.find((c) => c.id === id) ?? r.best).actions;
   }
 
+  /**
+   * Build the match for the current setup. With plans at hand (cache, or the
+   * shipped default) this is immediate; otherwise the field appears at once with
+   * the robots waiting, and the plans computed in a worker are swapped in when
+   * ready. A newer rebuild supersedes one still planning.
+   */
   async rebuild(s: AppState = store.get()) {
-    if (this.building) return;
+    const version = ++this.version;
     this.building = true;
     this.error = null;
+    this.emit();
     try {
-      this.sim?.dispose();
-      this.sim = null;
-      this.scenario = this.scenarioFrom(s);
-      const plans = planScenario(this.scenario, s.userSlot);
-      this.built = await buildMatch(this.scenario, (slot) => this.inputFor(slot), undefined, plans);
-      this.sim = this.built.sim;
-      this.applyDrivers();
-      this.inputLog = new Map();
-      this.checkpoints = [];
-      this.acc = 0;
-      this.playing = false;
-    } catch (e) {
-      this.error = e instanceof Error ? e.message : String(e);
-    } finally {
+      const sc = this.scenarioFrom(s);
+      const hit = cachedPlans(sc, s.userSlot);
+      if (hit) {
+        this.planning = false;
+        await this.install(version, sc, hit.plans, hit.stats);
+        return;
+      }
+      this.planning = true;
+      this.planningStats = null;
+      await this.install(version, sc, new Map(), null);
       this.building = false;
       this.emit();
+      const res = await planScenarioAsync(sc, s.userSlot);
+      if (version !== this.version) return;
+      this.planning = false;
+      await this.install(version, sc, res.plans, res.stats);
+    } catch (e) {
+      if (version !== this.version) return;
+      this.planning = false;
+      this.error = e instanceof Error ? e.message : String(e);
+    } finally {
+      if (version === this.version) {
+        this.building = false;
+        this.emit();
+      }
     }
+  }
+
+  private async install(version: number, sc: ScenarioConfig, plans: ScenarioPlans, stats: PlanningStats | null) {
+    const built = await buildMatch(sc, (slot) => this.inputFor(slot), undefined, plans);
+    if (version !== this.version) {
+      built.sim.dispose();
+      return;
+    }
+    this.sim?.dispose();
+    this.scenario = sc;
+    this.built = built;
+    this.sim = built.sim;
+    this.planningStats = stats;
+    this.applyDrivers();
+    this.inputLog = new Map();
+    this.checkpoints = [];
+    this.acc = 0;
+    this.playing = false;
   }
 
   /**
@@ -175,6 +215,7 @@ export class SimRunner {
   }
 
   setPlaying(p: boolean) {
+    if (p && this.planning) return; // robots have no plans yet
     this.playing = p;
     this.emit();
   }
@@ -196,8 +237,7 @@ export class SimRunner {
     const log = new Map([...this.inputLog].map(([k, v]) => [k, v.slice(0, steps)]));
     const cps = this.checkpoints.slice();
     this.sim?.dispose();
-    const plans = planScenario(this.scenario, store.get().userSlot);
-    this.built = await buildMatch(this.scenario, (slot) => this.inputFor(slot), undefined, plans);
+    this.built = await buildMatch(this.scenario, (slot) => this.inputFor(slot), undefined, this.built?.plans ?? new Map());
     this.sim = this.built.sim;
     this.applyDrivers();
     this.inputLog = log;

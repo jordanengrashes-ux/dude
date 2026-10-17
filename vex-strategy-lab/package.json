@@ -13,6 +13,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "report": "vite-node scripts/sample-report.ts",
+    "plans": "vite-node scripts/default-plans.ts",
     "bench": "vite-node scripts/benchmark.ts",
     "cad": "python3 scripts/cad/step_to_glb.py",
     "cad:selftest": "python3 scripts/cad/selftest.py"

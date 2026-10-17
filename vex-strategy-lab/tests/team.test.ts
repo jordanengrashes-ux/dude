@@ -62,6 +62,24 @@ describe('Driver controls (physics)', () => {
     expect(r.primary?.id === held!.id || r.secondary?.id === held!.id).toBe(false);
     sim.dispose();
   });
+
+  it('the claw toggles: opening lets go of the held object, closing grabs what is in front', async () => {
+    const inp: DriverInput = zeroInput();
+    const built = await buildMatch(skillsDriver(), () => inp, undefined, new Map());
+    const sim = built.sim;
+    const r = sim.robots[0];
+    const held = (r.primary ?? r.secondary)!;
+    inp.claw = true; // closing on a full pocket changes nothing
+    sim.runUntil(1.0);
+    expect([r.primary?.id, r.secondary?.id]).toContain(held.id);
+    inp.claw = false; // open: let go
+    sim.runUntil(2.0);
+    expect([r.primary?.id, r.secondary?.id]).not.toContain(held.id);
+    inp.claw = true; // close again: grabs the Pin lying in front of it
+    sim.runUntil(3.5);
+    expect([r.primary?.id, r.secondary?.id]).toContain(held.id);
+    sim.dispose();
+  });
 });
 
 describe('Bot ↔ human hand-over', () => {
@@ -143,18 +161,54 @@ describe('Wire protocol', () => {
 });
 
 describe('Team session over the local transport', () => {
+  const wait = async (cond: () => boolean, ms = 10000) => {
+    const t0 = Date.now();
+    while (!cond()) {
+      if (Date.now() - t0 > ms) throw new Error('timed out');
+      await new Promise((r) => setTimeout(r, 25));
+    }
+  };
+
+  it('a room starts by itself: the link joins it, the match starts, and a host alone streams nothing', async () => {
+    const hostRunner = new SimRunner();
+    await hostRunner.rebuild({ ...store.get() });
+    let sent = 0;
+    const counting = () => {
+      const t = new LocalTransport();
+      const send = t.send.bind(t);
+      t.send = (m) => {
+        if (m.type === 'snap') sent++;
+        send(m);
+      };
+      return t;
+    };
+    const host = new TeamSession(hostRunner, counting);
+    await host.autoStart('Hosty', null);
+    expect(host.role).toBe('host');
+    const room = host.state.room!;
+    await new Promise((r) => setTimeout(r, 600));
+    expect(sent).toBe(0); // nobody to stream to
+    // opening the invite link joins the room; the guest replaces a bot and the match starts
+    const guest = new TeamSession(new SimRunner(), () => new LocalTransport());
+    await guest.autoStart('Gina', room);
+    expect(guest.role).toBe('guest');
+    await wait(() => guest.mySlot() !== null && guest.frameAt() !== null);
+    expect(hostRunner.playing).toBe(true);
+    expect(sent).toBeGreaterThan(0);
+    // a link to a room nobody hosts (its host left): the visitor hosts it
+    const late = new TeamSession(new SimRunner(), () => new LocalTransport());
+    await late.autoStart('Lou', 'EMPTY');
+    expect(late.role).toBe('host');
+    expect(late.state.room).toBe('EMPTY');
+    await Promise.all([guest.leave(), host.leave(), late.leave()]);
+    hostRunner.sim?.dispose();
+  }, 30000);
+
   it('a joining player replaces a bot, drives it, and the bot takes over again when they leave', async () => {
     const hostRunner = new SimRunner();
     await hostRunner.rebuild({ ...store.get() }); // default Head-to-Head, four bots
     const host = new TeamSession(hostRunner, () => new LocalTransport());
     const guest = new TeamSession(new SimRunner(), () => new LocalTransport());
-    const wait = async (cond: () => boolean, ms = 8000) => {
-      const t0 = Date.now();
-      while (!cond()) {
-        if (Date.now() - t0 > ms) throw new Error('timed out');
-        await new Promise((r) => setTimeout(r, 25));
-      }
-    };
     // the host drives red-1 itself
     await host.host('Hosty', 'local', 'TEST1');
     host.claimSlot('red-1');
