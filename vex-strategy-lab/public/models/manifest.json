@@ -1,0 +1,4 @@
+{
+  "$comment": "Official CAD swap-in. Convert the official STEP files with scripts/cad/step_to_glb.py into this folder and list them here (see docs/CAD.md). Empty = procedural models.",
+  "elements": {}
+}

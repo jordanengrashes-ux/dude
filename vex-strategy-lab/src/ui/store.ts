@@ -46,7 +46,7 @@ export interface AppState {
   mcScores: number[];
   physicsStats: PhysicsTrialStats | null;
   camera: CameraMode;
-  show: { route: boolean; trails: boolean; labels: boolean; grid: boolean; zones: boolean };
+  show: { route: boolean; trails: boolean; labels: boolean; grid: boolean; zones: boolean; shadows: boolean };
   selection: { kind: 'object' | 'robot' | 'goal' | 'toggle'; id: string } | null;
   setupTool: 'select' | 'move' | 'measure';
   message: string | null;
@@ -85,7 +85,7 @@ function initial(): AppState {
     mcScores: [],
     physicsStats: null,
     camera: 'iso',
-    show: { route: true, trails: true, labels: true, grid: false, zones: true },
+    show: { route: true, trails: true, labels: true, grid: false, zones: true, shadows: true },
     selection: null,
     setupTool: 'select',
     message: null,
