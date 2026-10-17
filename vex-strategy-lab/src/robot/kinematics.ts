@@ -3,6 +3,7 @@ import type { Vec2 } from '../core/vec';
 import { dist } from '../core/vec';
 import type { RobotConfig } from './config';
 import { groupFreeSpeed, groupTorque } from './motor';
+import { liftMovingMassLb, liftRadius, liftTravel } from './lift';
 
 /**
  * Analytical performance model used by the planner to estimate action times.
@@ -37,9 +38,12 @@ export interface DrivePerf {
   yawRateMax: number;
   yawAccel: number;
   canTurnInPlace: boolean;
+  /** Typical (harmonic-mean) lift speeds over the travel, in/s. */
   liftUpSpeed: number;
   liftDownSpeed: number;
   liftAccel: number;
+  /** Lift speed vs holder height: samples every `step` inches from the lowest holder height. */
+  liftTable: { h0: number; step: number; up: number[]; down: number[] };
   /** Fractional performance scale applied (uncertainty sampling). */
   perfScale: number;
 }
@@ -86,15 +90,25 @@ export function derivePerf(cfg: RobotConfig, opt: PerfOptions = {}): DrivePerf {
   const yawRateMax = Math.max(0, (fracAtEq * vFreeM) / (tw / 2)) * cruiseFraction;
   const yawAccel = canTurnInPlace ? (driveMoment0 - scrub) / Izz : 0;
 
-  // Rack-and-pinion lift
-  const rp = (cfg.rack.pinionPitchDiameterIn / 2) * IN;
-  const liftFree = groupFreeSpeed(cfg.rack.motor, vb) * rp;
-  const liftF0 = groupTorque(cfg.rack.motor, 1, 0, vb, motorScale) / rp;
-  const liftMass = cfg.rack.carriageMassLb * LB + (opt.payloadKg ?? 0.14);
+  // Lift: steady-state speed at each height from the motor line and gravity, through
+  // the (possibly height-dependent) transmission radius — see robot/lift.ts.
+  const liftMass = liftMovingMassLb(cfg) * LB + (opt.payloadKg ?? 0.14);
   const gravity = liftMass * G;
-  const liftUp = liftF0 > gravity ? liftFree * (1 - gravity / liftF0) : 0;
-  const liftDown = Math.min(liftFree, liftFree * (1 + gravity / liftF0));
-  const liftAccel = Math.max(0.1, (liftF0 - gravity) / liftMass);
+  const step = 0.5;
+  const travel = liftTravel(cfg);
+  const up: number[] = [];
+  const down: number[] = [];
+  let accSum = 0;
+  for (let d = 0; d <= travel + 1e-9; d += step) {
+    const r = liftRadius(cfg, d) * IN;
+    const free = groupFreeSpeed(cfg.lift.motor, vb) * r;
+    const F0 = groupTorque(cfg.lift.motor, 1, 0, vb, motorScale) / r;
+    up.push(((F0 > gravity ? free * (1 - gravity / F0) : 0) / IN) * 0.9);
+    down.push((Math.min(free, free * (1 + gravity / F0)) / IN) * 0.9);
+    accSum += Math.max(0.1, (F0 - gravity) / liftMass);
+  }
+  const harmonic = (v: number[]) => (v.some((x) => x <= 0) ? 0 : v.length / v.reduce((a, x) => a + 1 / x, 0));
+  const liftAccel = accSum / up.length;
 
   return {
     massKg: m,
@@ -109,9 +123,10 @@ export function derivePerf(cfg: RobotConfig, opt: PerfOptions = {}): DrivePerf {
     yawRateMax,
     yawAccel,
     canTurnInPlace,
-    liftUpSpeed: (liftUp / IN) * 0.9,
-    liftDownSpeed: (liftDown / IN) * 0.9,
+    liftUpSpeed: harmonic(up),
+    liftDownSpeed: harmonic(down),
     liftAccel: liftAccel / IN,
+    liftTable: { h0: cfg.lift.holderMinHeightIn, step, up, down },
     perfScale: motorScale,
   };
 }
@@ -192,25 +207,43 @@ export function turnTime(p: DrivePerf, angle: number): number {
   return 2 * tAcc + (a - 2 * dAcc) / w + 0.08;
 }
 
+/**
+ * Lift move time between holder heights: the travel time through the height-
+ * dependent speed table, plus acceleration and settling.
+ */
 export function liftTime(p: DrivePerf, fromH: number, toH: number): number {
   const dh = toH - fromH;
   if (Math.abs(dh) < 0.05) return 0;
-  const v = dh > 0 ? p.liftUpSpeed : p.liftDownSpeed;
-  if (v <= 0) return Infinity;
+  const tab = p.liftTable;
+  const speeds = dh > 0 ? tab.up : tab.down;
+  const lo = Math.min(fromH, toH);
+  const hi = Math.max(fromH, toH);
+  let t = 0;
+  let vMean = 0;
+  for (let h = lo; h < hi - 1e-9; ) {
+    const k = Math.max(0, Math.min(speeds.length - 1, Math.floor((h - tab.h0) / tab.step)));
+    const next = Math.min(hi, tab.h0 + (k + 1) * tab.step);
+    const seg = Math.max(next - h, 1e-6);
+    const v = speeds[k];
+    if (v <= 0) return Infinity;
+    t += seg / v;
+    vMean += seg * v;
+    h = next > h ? next : h + seg;
+  }
+  vMean /= hi - lo;
   const a = Math.max(5, p.liftAccel);
-  const tAcc = v / a;
-  const dAcc = 0.5 * a * tAcc * tAcc;
-  const d = Math.abs(dh);
-  if (2 * dAcc >= d) return 2 * Math.sqrt(d / a) + 0.05;
-  return 2 * tAcc + (d - 2 * dAcc) / v + 0.05;
+  const d = hi - lo;
+  // trapezoidal profile at the mean speed: the accel + decel phases cost v/a extra
+  if (vMean * vMean / a >= d) return 2 * Math.sqrt(d / a) + 0.05;
+  return t + vMean / a + 0.05;
 }
 
 /** Maximum holder-bottom height the lift can reach. */
 export function maxHolderHeight(cfg: RobotConfig): number {
-  return cfg.rack.holderMinHeightIn + cfg.rack.travelIn;
+  return cfg.lift.holderMinHeightIn + liftTravel(cfg);
 }
 
 /** Highest point of the robot (excluding held Scoring Objects) for a holder height. */
 export function robotTopHeight(cfg: RobotConfig, holderHeight: number): number {
-  return Math.max(cfg.chassis.towerHeightIn, holderHeight + cfg.rack.carriageHeightIn);
+  return Math.max(cfg.chassis.towerHeightIn, holderHeight + cfg.lift.carriageHeightIn, cfg.toggleArm.heightIn + 0.25);
 }

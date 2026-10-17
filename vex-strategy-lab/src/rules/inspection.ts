@@ -1,5 +1,6 @@
 import type { RobotConfig } from '../robot/config';
 import { maxHolderHeight, robotTopHeight } from '../robot/kinematics';
+import { dr4bLayout, dr4bMaxKneeBack } from '../robot/lift';
 import type { OverrideParams } from './ruleset';
 
 /**
@@ -27,12 +28,17 @@ export interface InspectionResult {
 export function inspectRobot(cfg: RobotConfig, params: OverrideParams): InspectionResult {
   const R = params.robot;
   const items: InspectionItem[] = [];
-  const L = cfg.chassis.lengthIn;
   const W = cfg.chassis.widthIn;
-  const startH = robotTopHeight(cfg, cfg.rack.holderMinHeightIn);
+  // A DR4B's knee swings behind the towers; past the rear bumper it adds to the length.
+  const towerToRear = cfg.chassis.lengthIn / 2 + (cfg.chassis.lengthIn / 2 - cfg.chassis.slotDepthIn - 0.75);
+  const overhang = (back: number) => Math.max(0, back - towerToRear);
+  const isDr4b = cfg.lift.type === 'dr4b';
+  const L = cfg.chassis.lengthIn + (isDr4b ? overhang(dr4bLayout(cfg, 0).kneeBack) : 0);
+  const Lmatch = cfg.chassis.lengthIn + (isDr4b ? overhang(dr4bMaxKneeBack(cfg)) : 0);
+  const startH = robotTopHeight(cfg, cfg.lift.holderMinHeightIn);
   items.push({
     ruleId: 'SG (start size)',
-    label: 'Starting length',
+    label: isDr4b ? 'Starting length (incl. DR4B knee)' : 'Starting length',
     ok: L <= R.startMaxIn.length,
     value: `${L.toFixed(2)}"`,
     limit: `≤ ${R.startMaxIn.length}"`,
@@ -47,8 +53,8 @@ export function inspectRobot(cfg: RobotConfig, params: OverrideParams): Inspecti
     limit: `≤ ${R.startMaxIn.height}"`,
     severity: 'error',
   });
-  // The mechanism stays inside the chassis footprint (U-slot), so match footprint = chassis.
-  const footprint = Math.max(L, W);
+  // The holder stays inside the U-slot; a DR4B knee may swing past the rear during the match.
+  const footprint = Math.max(Lmatch, W);
   items.push({
     ruleId: 'SG (horizontal)',
     label: 'Footprint before Endgame',
@@ -86,7 +92,7 @@ export function inspectRobot(cfg: RobotConfig, params: OverrideParams): Inspecti
     limit: `≤ ${params.possession.maxPins} Pin + ${params.possession.maxCups} Cup`,
     severity: 'error',
   });
-  const legalPre = Math.min(maxH, R.verticalMaxIn - cfg.rack.carriageHeightIn);
+  const legalPre = Math.min(maxH, R.verticalMaxIn - cfg.lift.carriageHeightIn);
   const legalEnd = R.verticalLimitAppliesInEndgame ? legalPre : maxH;
   return {
     passed: items.every((i) => i.ok || i.severity === 'warning'),

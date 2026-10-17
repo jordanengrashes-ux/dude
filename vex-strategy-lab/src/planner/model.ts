@@ -232,7 +232,7 @@ export class PlanWorld {
     }
     this.maxHolder = maxHolderHeight(cfg.robot);
     const vmax = cfg.params.robot.verticalMaxIn;
-    const legalPre = Math.min(this.maxHolder, vmax - cfg.robot.rack.carriageHeightIn);
+    const legalPre = Math.min(this.maxHolder, vmax - cfg.robot.lift.carriageHeightIn);
     this.legalHolder = { pre: legalPre, end: cfg.params.robot.verticalLimitAppliesInEndgame ? legalPre : this.maxHolder };
     this.objs = [];
     const L = cfg.layout;
@@ -343,7 +343,7 @@ export class PlanWorld {
       t: cfg.tStart,
       pos: { ...sp.pos },
       heading: sp.heading,
-      holderH: cfg.startPose?.holderH ?? cfg.robot.rack.holderMinHeightIn,
+      holderH: cfg.startPose?.holderH ?? cfg.robot.lift.holderMinHeightIn,
       heldPin,
       heldCup,
       status,
@@ -458,13 +458,13 @@ export class PlanWorld {
 
   /**
    * Holder-point targets for working Toggle ti: robot square to the wall with its
-   * bumper `reachIn` + 0.5" off it (the arm tip stays clear of the bar's swing), at
-   * the bar's center or 8" either side (the bar is 25.8" long).
+   * bumper `reachIn` + 1" off it (the arm tip stays clear of the bar's swing even with
+   * ~0.5" of positioning error), at the bar's center or 8" either side (25.8" bar).
    */
   toggleTargets(ti: number): Vec2[] {
     const R = this.cfg.robot;
     const tg = this.toggles[ti];
-    const out = R.chassis.lengthIn / 2 + R.toggleArm.reachIn + 0.5 - R.intake.holderOffsetIn;
+    const out = R.chassis.lengthIn / 2 + R.toggleArm.reachIn + 1.0 - R.intake.holderOffsetIn;
     return [0, -8, 8].map((d) => add(add(tg.pos, scale(tg.normal, out)), scale(tg.tangent, d)));
   }
 
@@ -948,7 +948,7 @@ export class PlanWorld {
       return true;
     };
 
-    const minH = R.rack.holderMinHeightIn;
+    const minH = R.lift.holderMinHeightIn;
     switch (a.type) {
       case 'pick': {
         const o = this.objs[a.obj];

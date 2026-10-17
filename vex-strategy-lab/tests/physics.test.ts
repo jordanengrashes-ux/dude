@@ -3,7 +3,8 @@ import { IN } from '../src/core/units';
 import { HALF } from '../src/field/geometry';
 import { buildLayout, type FieldLayout } from '../src/field/layout';
 import { cloneRobot, DEFAULT_ROBOT } from '../src/robot/config';
-import { derivePerf, straightTime, turnTime } from '../src/robot/kinematics';
+import { derivePerf, liftTime, maxHolderHeight, straightTime, turnTime } from '../src/robot/kinematics';
+import { liftTravel } from '../src/robot/lift';
 import { OVERRIDE_DEFAULTS } from '../src/rules/ruleset';
 import { computeScore } from '../src/rules/scoring';
 import { togglePosition } from '../src/physics/field';
@@ -146,13 +147,41 @@ describe('Robot model vs physics (calibration)', () => {
 });
 
 describe('Mechanisms, seating and scoring', () => {
-  it('the rack-and-pinion lift reaches its travel limit and no further', async () => {
-    const sim = await simWith(fn((_s, r) => (r.body.liftTarget = 40)));
-    sim.runUntil(4);
-    const h = sim.robots[0].body.holderHeight();
-    expect(h).toBeGreaterThan(DEFAULT_ROBOT.rack.holderMinHeightIn + DEFAULT_ROBOT.rack.travelIn - 0.5);
-    expect(h).toBeLessThan(DEFAULT_ROBOT.rack.holderMinHeightIn + DEFAULT_ROBOT.rack.travelIn + 0.5);
-    sim.dispose();
+  it('the DR4B and the rack-and-pinion lift each reach their travel limit and no further', async () => {
+    const rack = cloneRobot();
+    rack.lift.type = 'rackPinion';
+    rack.lift.motor = { cartridgeRpm: 200, gearRatio: 1, motorCount: 1, direction: 1 };
+    for (const robot of [DEFAULT_ROBOT, rack]) {
+      const sim = await simWith(fn((_s, r) => (r.body.liftTarget = 40)), { robot });
+      sim.runUntil(4);
+      const h = sim.robots[0].body.holderHeight();
+      const top = robot.lift.holderMinHeightIn + liftTravel(robot);
+      expect(h).toBeGreaterThan(top - 0.5);
+      expect(h).toBeLessThan(top + 0.5);
+      sim.dispose();
+    }
+  });
+
+  it('DR4B: physics lift time matches the model, and the lift is fastest with the bars level', async () => {
+    const perf = derivePerf(DEFAULT_ROBOT);
+    const h0 = DEFAULT_ROBOT.lift.holderMinHeightIn;
+    // speed table: level bars (θ = 0) beat the top of travel (θ = 50°), as 2L·cos θ predicts
+    const tab = perf.liftTable;
+    const at = (h: number) => tab.up[Math.round((h - h0) / tab.step)];
+    const hLevel = h0 + 2 * DEFAULT_ROBOT.lift.barLengthIn * Math.sin((25 * Math.PI) / 180);
+    expect(at(hLevel)).toBeGreaterThan(at(maxHolderHeight(DEFAULT_ROBOT) - 0.5) * 1.3);
+    for (const target of [8, 18]) {
+      let reached = -1;
+      const sim = await simWith(fn((s, r) => {
+        r.body.liftTarget = target;
+        if (reached < 0 && r.body.holderHeight() >= target - 0.25) reached = s.t;
+      }));
+      sim.runUntil(3, () => reached < 0);
+      const model = liftTime(perf, h0, target);
+      expect(reached).toBeGreaterThan(0);
+      expect(Math.abs(reached - model) / model).toBeLessThan(0.3);
+      sim.dispose();
+    }
   });
 
   async function dropTest(offsetIn: number) {

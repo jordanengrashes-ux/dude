@@ -4,6 +4,7 @@ import { IN } from '../../../core/units';
 import type { RobotConfig } from '../../../robot/config';
 import { PALETTE, type MaterialLibrary } from './materials';
 import { brainScreen, holeAlpha, licensePlate } from './textures';
+import { DR4B_PIVOT_SPACING, DR4B_TOP_PIVOT_ABOVE_HOLDER, dr4bLayout } from '../../../robot/lift';
 
 /**
  * Detailed robot model built from the RobotConfig, in the physics body frames:
@@ -11,8 +12,10 @@ import { brainScreen, holeAlpha, licensePlate } from './textures';
  * chassis center) and carriage frame (origin on the holder axis at the holder's
  * lowest point). Structure follows common VEX V5 construction: 1×2×1 C-channel
  * with the 0.5" hole pattern, 3.25" wheels between inner and outer rails, V5 Smart
- * Motors with cartridge-colored caps, Brain, battery, a rack-and-pinion lift, the
- * toggle arm on a standoff and alliance license plates. Dimensions not in the
+ * Motors with cartridge-colored caps, Brain, battery, the lift (a DR4B linkage
+ * animated from the bar angle, with 84T/12T gearing and rubber bands, or a tower
+ * rack with a carriage pinion), the toggle arm on a standoff and alliance license
+ * plates. Dimensions not in the
  * config (motor size, channel gauge) are typical V5 values.
  */
 
@@ -200,9 +203,14 @@ export function robotModel(id: string, alliance: 'red' | 'blue', cfg: RobotConfi
   label.position.set((-L / 2 + 3) * IN, (axleY + 3.51) * IN, -3.0 * IN);
   chassis.add(label);
 
-  // ---- lift tower: two vertical C-channels flanking the slot, top brace, pinion and lift motor
+  // ---- lift: towers flanking the slot, then either a DR4B linkage or a rack
   const towerX = slotBack - 0.75;
-  const towerH = c.towerHeightIn - c.frameHeightIn;
+  const hx = cfg.intake.holderOffsetIn;
+  const isDr4b = cfg.lift.type === 'dr4b';
+  const sp = DR4B_PIVOT_SPACING;
+  const lay0 = dr4bLayout(cfg, 0);
+  const towerTop = isDr4b ? Math.max(c.towerHeightIn, lay0.baseY + sp + 0.75) : c.towerHeightIn;
+  const towerH = towerTop - c.frameHeightIn;
   for (const s of [-1, 1]) {
     const ch = cChannel(towerH, 1, 0.5, s as 1 | -1, towerHole);
     ch.rotation.z = Math.PI / 2;
@@ -210,14 +218,89 @@ export function robotModel(id: string, alliance: 'red' | 'blue', cfg: RobotConfi
     chassis.add(ch);
   }
   const brace = new THREE.Mesh(new THREE.BoxGeometry(1 * IN, 0.5 * IN, (c.slotWidthIn + 2) * IN), mats.aluminum);
-  brace.position.set(towerX * IN, (c.towerHeightIn - 0.25) * IN, 0);
+  brace.position.set((towerX - 0.6) * IN, (towerTop - 0.25) * IN, 0);
   chassis.add(brace);
-  // gear rack fixed to the tower's front face, teeth toward the carriage
   const rackZ = c.slotWidthIn / 2 + 1.2;
   const rackX = towerX + 0.9;
-  const rack = new THREE.Mesh(rackGeometry(towerH), mats.plastic('#d7d9dc'));
-  rack.position.set(rackX * IN, (c.frameHeightIn + towerH / 2) * IN, rackZ * IN);
-  chassis.add(rack);
+  let updateLift: (liftIn: number) => void = () => {};
+  if (isDr4b) {
+    // Two four-bar stages per side: lower bars pivot on the tower and rise backward to
+    // the knee; the reversed upper bars rise forward to the carriage (robot/lift.ts).
+    const Lb = cfg.lift.barLengthIn;
+    const zLow = c.slotWidthIn / 2 + 1.15;
+    const zUp = c.slotWidthIn / 2 + 1.75;
+    const barGeo = new THREE.BoxGeometry((Lb + 0.7) * IN, 0.5 * IN, 0.18 * IN);
+    const barMat = holeMat.clone();
+    const bh = holeAlpha();
+    bh.repeat.set((Lb + 0.7) / 0.5, 1);
+    barMat.alphaMap = bh;
+    const lower: { m: THREE.Mesh; off: number; side: number }[] = [];
+    const upper: { m: THREE.Mesh; off: number; side: number }[] = [];
+    const knees: THREE.Mesh[] = [];
+    const gears: THREE.Mesh[] = [];
+    const pinions: THREE.Mesh[] = [];
+    const bands: THREE.Mesh[] = [];
+    const bandGeo = new THREE.CylinderGeometry(0.06 * IN, 0.06 * IN, 1, 6);
+    for (const side of [-1, 1]) {
+      for (const off of [0, sp]) {
+        const lm = new THREE.Mesh(barGeo, barMat);
+        lower.push({ m: lm, off, side });
+        chassis.add(lm);
+        const um = new THREE.Mesh(barGeo, barMat);
+        upper.push({ m: um, off: off + sp, side });
+        chassis.add(um);
+      }
+      const knee = new THREE.Mesh(new THREE.BoxGeometry(0.9 * IN, (2 * sp + 0.9) * IN, 0.12 * IN), mats.aluminumDark);
+      knees.push(knee);
+      chassis.add(knee);
+      // 84T gear on the lower bar, driven by a 12T pinion on the lift motor (1:7)
+      const gear = new THREE.Mesh(gearGeometry(3.5, 84, 0.25), mats.plastic('#d7d9dc'));
+      gear.position.set(towerX * IN, lay0.baseY * IN, side * (c.slotWidthIn / 2 + 0.25) * IN);
+      gears.push(gear);
+      chassis.add(gear);
+      const pin = new THREE.Mesh(gearGeometry(0.5, 12, 0.25), mats.steel);
+      pin.position.set((towerX - 2.0) * IN, lay0.baseY * IN, side * (c.slotWidthIn / 2 + 0.25) * IN);
+      pinions.push(pin);
+      chassis.add(pin);
+      const lm = motor(mats, cfg.lift.motor.cartridgeRpm);
+      lm.rotation.y = side > 0 ? 0 : Math.PI;
+      lm.position.set((towerX - 2.35) * IN, (lay0.baseY - 0.1) * IN, side * (c.slotWidthIn / 2 - 0.5) * IN);
+      chassis.add(lm);
+      // rubber bands from the tower top to the knee (DR4Bs are rubber-band assisted)
+      for (let k = 0; k < 2; k++) {
+        const b = new THREE.Mesh(bandGeo, mats.plastic('#2a2a2a'));
+        bands.push(b);
+        chassis.add(b);
+      }
+    }
+    const place = (m: THREE.Object3D, x0: number, y0: number, x1: number, y1: number, z: number) => {
+      m.position.set(((x0 + x1) / 2) * IN, ((y0 + y1) / 2) * IN, z * IN);
+      m.rotation.set(0, 0, Math.atan2(y1 - y0, x1 - x0));
+    };
+    updateLift = (liftIn: number) => {
+      const lay = dr4bLayout(cfg, liftIn);
+      const kx = towerX - lay.kneeBack;
+      for (const b of lower) place(b.m, towerX, lay.baseY + b.off, kx, lay.kneeY + b.off, b.side * zLow);
+      for (const b of upper) place(b.m, kx, lay.kneeY + b.off, towerX, lay.kneeY + b.off + Lb * Math.sin(lay.theta), b.side * zUp);
+      knees.forEach((k, i) => k.position.set(kx * IN, (lay.kneeY + sp) * IN, (i ? 1 : -1) * ((zLow + zUp) / 2) * IN));
+      const dTheta = lay.theta - lay0.theta;
+      for (const g of gears) g.rotation.z = -dTheta;
+      for (const p of pinions) p.rotation.z = dTheta / Math.abs(cfg.lift.motor.gearRatio || 1 / 7);
+      bands.forEach((b, i) => {
+        const side = i < 2 ? -1 : 1;
+        const a = new THREE.Vector3(towerX * IN, (towerTop - 0.4 - (i % 2) * 0.6) * IN, side * zLow * IN);
+        const bpt = new THREE.Vector3(kx * IN, (lay.kneeY + sp * 0.5 + (i % 2) * 0.6) * IN, side * zLow * IN);
+        b.position.copy(a).add(bpt).multiplyScalar(0.5);
+        b.scale.set(1, a.distanceTo(bpt), 1);
+        b.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), bpt.clone().sub(a).normalize());
+      });
+    };
+  } else {
+    // gear rack fixed to the tower's front face, teeth toward the carriage
+    const rack = new THREE.Mesh(rackGeometry(towerH), mats.plastic('#d7d9dc'));
+    rack.position.set(rackX * IN, (c.frameHeightIn + towerH / 2) * IN, rackZ * IN);
+    chassis.add(rack);
+  }
 
   // ---- toggle arm: standoff at the tower, arm to reachIn past the bumper, rubber pad
   const ta = cfg.toggleArm;
@@ -242,14 +325,11 @@ export function robotModel(id: string, alliance: 'red' | 'blue', cfg: RobotConfi
 
   // ---- carriage (holder axis at x = 0): plate, bearing blocks, rack, fork with polycarbonate guards and a roller
   const carriage = new THREE.Group();
-  const ch = cfg.rack.carriageHeightIn;
+  const ch = cfg.lift.carriageHeightIn;
   const plate = new THREE.Mesh(new THREE.BoxGeometry(0.15 * IN, ch * IN, 5.6 * IN), holeMat);
   plate.position.set(-2.35 * IN, (ch / 2) * IN, 0);
   carriage.add(plate);
   for (const s of [-1, 1]) {
-    const block = new THREE.Mesh(new THREE.BoxGeometry(0.7 * IN, 1.2 * IN, 0.6 * IN), mats.blackPlastic);
-    block.position.set(-2.65 * IN, (ch / 2) * IN, s * (c.slotWidthIn / 2 + 0.5) * IN);
-    carriage.add(block);
     const finger = new THREE.Mesh(new THREE.BoxGeometry(3.6 * IN, 0.35 * IN, 0.35 * IN), mats.aluminum);
     finger.position.set(-0.6 * IN, 0.9 * IN, s * 1.75 * IN);
     carriage.add(finger);
@@ -260,16 +340,37 @@ export function robotModel(id: string, alliance: 'red' | 'blue', cfg: RobotConfi
     guard.position.set(-0.7 * IN, (ch / 2) * IN, s * 1.95 * IN);
     carriage.add(guard);
   }
-  // pinion meshing with the tower rack, driven by the lift motor riding on the carriage
-  const pitchD = cfg.rack.pinionPitchDiameterIn;
-  const hx = cfg.intake.holderOffsetIn;
-  const pinionX = rackX + 0.19 + 0.045 + pitchD / 2 - 0.05 - hx; // carriage frame
-  const pinion = new THREE.Mesh(gearGeometry(pitchD, 12, 0.25), mats.steel);
-  pinion.position.set(pinionX * IN, (ch / 2) * IN, rackZ * IN);
-  carriage.add(pinion);
-  const liftMotor = motor(mats, cfg.rack.motor.cartridgeRpm);
-  liftMotor.position.set(pinionX * IN, (ch / 2) * IN, (rackZ + 0.95) * IN);
-  carriage.add(liftMotor);
+  if (isDr4b) {
+    // side plates carrying the upper bars' carriage pivots, tied to the carriage plate
+    const px = towerX - hx; // pivot column in the carriage frame
+    const zUp = c.slotWidthIn / 2 + 1.75;
+    for (const s of [-1, 1]) {
+      const side = new THREE.Mesh(new THREE.BoxGeometry(2.2 * IN, (DR4B_PIVOT_SPACING + 1.2) * IN, 0.12 * IN), mats.aluminumDark);
+      side.position.set((px + 0.6) * IN, (DR4B_TOP_PIVOT_ABOVE_HOLDER + DR4B_PIVOT_SPACING / 2) * IN, s * (zUp - 0.2) * IN);
+      carriage.add(side);
+    }
+    const tie = new THREE.Mesh(new THREE.BoxGeometry(0.5 * IN, 0.5 * IN, 2 * (zUp - 0.2) * IN), mats.aluminum);
+    tie.position.set((px + 1.2) * IN, (DR4B_TOP_PIVOT_ABOVE_HOLDER + 0.25) * IN, 0);
+    carriage.add(tie);
+  } else {
+    // pinion meshing with the tower rack, driven by the lift motor riding on the carriage
+    const pitchD = cfg.lift.pinionPitchDiameterIn;
+    const pinionX = rackX + 0.19 + 0.045 + pitchD / 2 - 0.05 - hx; // carriage frame
+    const pinion = new THREE.Mesh(gearGeometry(pitchD, 12, 0.25), mats.steel);
+    pinion.position.set(pinionX * IN, (ch / 2) * IN, rackZ * IN);
+    carriage.add(pinion);
+    const liftMotor = motor(mats, cfg.lift.motor.cartridgeRpm);
+    liftMotor.position.set(pinionX * IN, (ch / 2) * IN, (rackZ + 0.95) * IN);
+    carriage.add(liftMotor);
+    for (const s of [-1, 1]) {
+      const block = new THREE.Mesh(new THREE.BoxGeometry(0.7 * IN, 1.2 * IN, 0.6 * IN), mats.blackPlastic);
+      block.position.set(-2.65 * IN, (ch / 2) * IN, s * (c.slotWidthIn / 2 + 0.5) * IN);
+      carriage.add(block);
+    }
+    updateLift = (liftIn: number) => {
+      pinion.rotation.z = -liftIn / (pitchD / 2);
+    };
+  }
   const roller = new THREE.Mesh(new THREE.CylinderGeometry(0.6 * IN, 0.6 * IN, 3 * IN, 16), mats.plastic('#3fae5a'));
   roller.rotation.x = Math.PI / 2;
   roller.position.set(-2.0 * IN, (ch - 0.7) * IN, 0);
@@ -281,11 +382,13 @@ export function robotModel(id: string, alliance: 'red' | 'blue', cfg: RobotConfi
     if ((o as THREE.Mesh).isMesh) o.castShadow = true;
   });
 
+  updateLift(0);
+  chassis.traverse((o) => {
+    if ((o as THREE.Mesh).isMesh) o.castShadow = o.receiveShadow = true;
+  });
   return {
     chassis,
     carriage,
-    setLift(liftIn: number) {
-      pinion.rotation.z = -liftIn / (pitchD / 2);
-    },
+    setLift: updateLift,
   };
 }

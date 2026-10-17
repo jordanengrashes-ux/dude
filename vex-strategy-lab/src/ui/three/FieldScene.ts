@@ -352,7 +352,7 @@ export class FieldScene {
       m.carriage.position.set(r.carriage.p.x, r.carriage.p.y, r.carriage.p.z);
       m.carriage.quaternion.set(r.carriage.q.x, r.carriage.q.y, r.carriage.q.z, r.carriage.q.w);
       const sr = sim.robot(r.id);
-      if (sr) m.setLift(sr.body.holderHeight() - sr.cfg.rack.holderMinHeightIn);
+      if (sr) m.setLift(sr.body.holderHeight() - sr.cfg.lift.holderMinHeightIn);
     }
     const mtx = new THREE.Matrix4();
     const q = new THREE.Quaternion();

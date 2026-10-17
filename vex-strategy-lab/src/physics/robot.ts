@@ -3,6 +3,7 @@ import { G as GRAV, IN, LB } from '../core/units';
 import type { Vec2 } from '../core/vec';
 import type { RobotConfig } from '../robot/config';
 import { groupFreeSpeed, groupTorque, utilization } from '../robot/motor';
+import { liftMovingMassLb, liftRadius, liftTravel } from '../robot/lift';
 import type { Alliance } from '../rules/ruleset';
 import { CG, fromWorld, headingOf, quatMul, rotateV, toWorld, yawQuat, type Quat, type V3 } from './frames';
 import type { Rapier } from './rapier';
@@ -19,9 +20,11 @@ import type { Rapier } from './rapier';
  *      rolling resistance;
  *    N comes from the actual contact impulses, so load transfer, wheel lift-off
  *    and tipping emerge from the rigid-body dynamics;
- *  - a rack-and-pinion lift: a carriage body on a prismatic joint with travel
- *    limits, driven by a motor force F = τ(ω)/r_pinion with gravity acting on the
- *    carriage and payload.
+ *  - the lift: the end effector moves straight up for both mechanisms, so it is a
+ *    carriage body on a prismatic joint with travel limits, driven by a motor force
+ *    F = τ(ω)/r(h). For a DR4B r(h) = 2L·cos θ(h) changes along the travel
+ *    (robot/lift.ts); for a rack and pinion it is the pinion radius. The carriage
+ *    carries the end effector plus the bars' equivalent mass and the payload.
  */
 
 export interface DriveCommand {
@@ -89,7 +92,7 @@ export class RobotBody {
     const p0 = toWorld(start.pos.x, start.pos.y, 0);
     const q0 = yawQuat(start.heading);
     const massTotal = cfg.mass.totalLb * LB;
-    const mCarriage = cfg.rack.carriageMassLb * LB;
+    const mCarriage = liftMovingMassLb(cfg) * LB;
     const mChassis = Math.max(0.5, massTotal - mCarriage);
     const H = c.towerHeightIn * IN;
     const com = { x: cfg.mass.comOffsetXIn * IN, y: cfg.mass.comHeightIn * IN, z: -cfg.mass.comOffsetYIn * IN };
@@ -157,28 +160,28 @@ export class RobotBody {
 
     // lift carriage on a prismatic joint
     const hx = cfg.intake.holderOffsetIn * IN;
-    const hMin = cfg.rack.holderMinHeightIn * IN;
+    const hMin = cfg.lift.holderMinHeightIn * IN;
     const anchorW = rotateV(q0, { x: hx, y: hMin, z: 0 });
     this.carriage = world.createRigidBody(
       R.RigidBodyDesc.dynamic()
         .setTranslation(p0.x + anchorW.x, p0.y + anchorW.y + 0.002, p0.z + anchorW.z)
         .setRotation(q0)
-        .setAdditionalMassProperties(mCarriage, { x: -2.35 * IN, y: (cfg.rack.carriageHeightIn / 2) * IN, z: 0 }, { x: 1e-3, y: 1e-3, z: 1e-3 }, { x: 0, y: 0, z: 0, w: 1 })
+        .setAdditionalMassProperties(mCarriage, { x: -2.35 * IN, y: (cfg.lift.carriageHeightIn / 2) * IN, z: 0 }, { x: 1e-3, y: 1e-3, z: 1e-3 }, { x: 0, y: 0, z: 0, w: 1 })
         .setCcdEnabled(true),
     );
     this.carriageCollider = world.createCollider(
-      R.ColliderDesc.cuboid(0.25 * IN, (cfg.rack.carriageHeightIn / 2) * IN, 2.5 * IN)
-        .setTranslation(-2.35 * IN, (cfg.rack.carriageHeightIn / 2) * IN, 0)
+      R.ColliderDesc.cuboid(0.25 * IN, (cfg.lift.carriageHeightIn / 2) * IN, 2.5 * IN)
+        .setTranslation(-2.35 * IN, (cfg.lift.carriageHeightIn / 2) * IN, 0)
         .setDensity(0)
         .setCollisionGroups(CG.robot),
       this.carriage,
     );
     const jd = R.JointData.prismatic({ x: hx, y: hMin, z: 0 }, { x: 0, y: 0, z: 0 }, { x: 0, y: 1, z: 0 });
     jd.limitsEnabled = true;
-    jd.limits = [0, cfg.rack.travelIn * IN];
+    jd.limits = [0, liftTravel(cfg) * IN];
     this.lift = world.createImpulseJoint(jd, this.chassis, this.carriage, true);
     this.lift.setContactsEnabled(false);
-    this.liftTarget = cfg.rack.holderMinHeightIn;
+    this.liftTarget = cfg.lift.holderMinHeightIn;
   }
 
   /** Pose in game coordinates (inches, radians). */
@@ -192,7 +195,7 @@ export class RobotBody {
   liftState(): { d: number; v: number } {
     const q = this.chassis.rotation();
     const hx = this.cfg.intake.holderOffsetIn * IN;
-    const hMin = this.cfg.rack.holderMinHeightIn * IN;
+    const hMin = this.cfg.lift.holderMinHeightIn * IN;
     const ct = this.chassis.translation();
     const a = rotateV(q, { x: hx, y: hMin, z: 0 });
     const anchor = { x: ct.x + a.x, y: ct.y + a.y, z: ct.z + a.z };
@@ -230,7 +233,7 @@ export class RobotBody {
   setPayload(kg: number) {
     if (Math.abs(kg - this.payloadKg) < 1e-9) return;
     this.payloadKg = kg;
-    const m = this.cfg.rack.carriageMassLb * LB + kg;
+    const m = liftMovingMassLb(this.cfg) * LB + kg;
     this.carriage.setAdditionalMassProperties(m, { x: -1.2 * IN, y: 3 * IN, z: 0 }, { x: 2e-3, y: 2e-3, z: 2e-3 }, { x: 0, y: 0, z: 0, w: 1 }, true);
   }
 
@@ -324,17 +327,17 @@ export class RobotBody {
       this.chassis.applyImpulseAtPoint({ x: F.x * dt, y: 0, z: F.z * dt }, p, true);
     });
 
-    // rack-and-pinion lift
-    // The pinion motor's force–speed slope (≈ F0/v_free) is stiff relative to the light
+    // lift (DR4B or rack and pinion), through the height-dependent radius r(h)
+    // The motor's force–speed slope (≈ F0/v_free) is stiff relative to the light
     // carriage, so the motor force is solved implicitly: the carriage velocity at the
     // end of the step satisfies m·Δv/dt = F0·(u − v'/v_free) − m·g_axis.
-    const rp = (cfg.rack.pinionPitchDiameterIn / 2) * IN;
     const ls = this.liftState();
-    const target = (this.liftTarget - cfg.rack.holderMinHeightIn) * IN;
-    const mLift = cfg.rack.carriageMassLb * LB + this.payloadKg;
+    const rp = liftRadius(cfg, Math.max(0, ls.d / IN)) * IN;
+    const target = (this.liftTarget - cfg.lift.holderMinHeightIn) * IN;
+    const mLift = liftMovingMassLb(cfg) * LB + this.payloadKg;
     const up = rotateV(q, { x: 0, y: 1, z: 0 });
-    const F0 = groupTorque(cfg.rack.motor, 1, 0, vb, this.motorScale) / rp;
-    const vFreeLift = groupFreeSpeed(cfg.rack.motor, vb) * rp;
+    const F0 = groupTorque(cfg.lift.motor, 1, 0, vb, this.motorScale) / rp;
+    const vFreeLift = groupFreeSpeed(cfg.lift.motor, vb) * rp;
     let u: number;
     if (this.liftManual !== null) u = this.liftManual;
     else {
@@ -344,7 +347,7 @@ export class RobotBody {
       const vDemand = Math.max(-vFreeLift, Math.min(vFreeLift, err * 25));
       u = Math.max(-1, Math.min(1, vDemand / Math.max(1e-6, vFreeLift) + ff + (vDemand - ls.v) * 0.8));
     }
-    const vMax = groupFreeSpeed(cfg.rack.motor, cfg.battery.voltage) * rp;
+    const vMax = groupFreeSpeed(cfg.lift.motor, cfg.battery.voltage) * rp;
     const uEff = u * (vMax > 0 ? 1 : 0);
     const gAxis = GRAV * up.y;
     let vNext = (mLift * (ls.v / dt) + F0 * uEff - mLift * gAxis) / (mLift / dt + F0 / Math.max(1e-6, vFreeLift));
@@ -370,7 +373,7 @@ export class RobotBody {
       accel: (speed - this.lastSpeed) / dt,
       utilLeft: utilization(d.left, tauL),
       utilRight: utilization(d.right, tauR),
-      utilLift: utilization(cfg.rack.motor, tauLift),
+      utilLift: utilization(cfg.lift.motor, tauLift),
       liftHeight: this.holderHeight(),
       slipping: slipCount,
       tilt: Math.acos(Math.max(-1, Math.min(1, up.y))),
@@ -402,7 +405,7 @@ export class RobotBody {
     this.chassis.setRotation(q, true);
     this.chassis.setLinvel({ x: 0, y: 0, z: 0 }, true);
     this.chassis.setAngvel({ x: 0, y: 0, z: 0 }, true);
-    const a = rotateV(q, { x: this.cfg.intake.holderOffsetIn * IN, y: this.cfg.rack.holderMinHeightIn * IN, z: 0 });
+    const a = rotateV(q, { x: this.cfg.intake.holderOffsetIn * IN, y: this.cfg.lift.holderMinHeightIn * IN, z: 0 });
     this.carriage.setTranslation({ x: p.x + a.x, y: p.y + a.y + 0.002, z: p.z + a.z }, true);
     this.carriage.setRotation(quatMul(q, { x: 0, y: 0, z: 0, w: 1 }), true);
   }

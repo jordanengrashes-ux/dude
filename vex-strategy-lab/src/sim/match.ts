@@ -36,6 +36,8 @@ export const DT = 1 / 120;
 
 export interface MechanismRequest {
   intake: boolean;
+  /** Run only the pocket for this kind (a controlled intake); null = whatever fits. */
+  intakeKind?: 'pin' | 'cup' | null;
   /** Release the object in the primary pocket. */
   release: boolean;
   /** Swap primary and secondary pockets. */
@@ -450,7 +452,7 @@ export class MatchSim {
         const along = rel.x * g.tangent.x + rel.y * g.tangent.y;
         const gap = rel.x * g.normal.x + rel.y * g.normal.y; // bumper to the inner wall face
         const facing = Math.abs(wrapAngle(pose.heading - Math.atan2(-g.normal.y, -g.normal.x)));
-        if (Math.abs(along) < g.length / 2 && gap < r.cfg.toggleArm.reachIn + 1.5 && facing < (40 * Math.PI) / 180) {
+        if (Math.abs(along) < g.length / 2 && gap < r.cfg.toggleArm.reachIn + 2.5 && facing < (40 * Math.PI) / 180) {
           const target = toggleTargetAngle(req.toggle.target);
           const delta = wrapAngle(target - toggleAngle(tb));
           if (Math.abs(delta) > (40 * Math.PI) / 180) tb.actuate = Math.sign(delta) * 600; // rad/s²: past the ridge, the detent seats it
@@ -474,9 +476,10 @@ export class MatchSim {
     const pinHeld = [r.primary, r.secondary].some((o) => o?.kind === 'pin');
     const cupHeld = [r.primary, r.secondary].some((o) => o?.kind === 'cup');
     const anyHeld = !!(r.primary || r.secondary);
-    const canTake = (k: 'pin' | 'cup') => (single ? !anyHeld : k === 'pin' ? !pinHeld && this.opts.params.possession.maxPins > 0 : !cupHeld && this.opts.params.possession.maxCups > 0);
+    const want = r.req.intakeKind ?? null;
+    const canTake = (k: 'pin' | 'cup') => (want === null || k === want) && (single ? !anyHeld : k === 'pin' ? !pinHeld && this.opts.params.possession.maxPins > 0 : !cupHeld && this.opts.params.possession.maxCups > 0);
     // floor pickups need the lift down
-    if (hh <= cfg.rack.holderMinHeightIn + 1.0) {
+    if (hh <= cfg.lift.holderMinHeightIn + 1.0) {
       let best: SimObject | null = null;
       let bestD = Infinity;
       for (const obj of this.objects.objects.values()) {
@@ -831,7 +834,7 @@ export class MatchSim {
 }
 
 function emptyReq(): MechanismRequest {
-  return { intake: false, release: false, index: false, reorient: false, toggle: null, matchLoad: null };
+  return { intake: false, intakeKind: null, release: false, index: false, reorient: false, toggle: null, matchLoad: null };
 }
 
 function massOf(o: SimObject) {

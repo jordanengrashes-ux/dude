@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ASSUMED_FIELDS, cloneRobot, DEFAULT_ROBOT, GIVEN_FIELDS, type RobotConfig } from '../../robot/config';
 import { derivePerf, maxHolderHeight } from '../../robot/kinematics';
+import { dr4bMaxKneeBack, liftTravel } from '../../robot/lift';
 import { inspectRobot } from '../../rules/inspection';
 import { setRobot, store, useApp } from '../store';
 import { getClient } from './OptimizerPanel';
@@ -74,7 +75,7 @@ export function RobotPanel() {
     <div className="panel-grid">
       <section className="card">
         <h3>Chassis & drivetrain</h3>
-        <p className="small muted">“given” = from your description (16 × 16, 4WD, rack-and-pinion); “assumed” = unknown, set to a typical value — change it to match your robot.</p>
+        <p className="small muted">“given” = from your description (16 × 16, 4WD, DR4B lift); “assumed” = unknown, set to a typical value — change it to match your robot.</p>
         <div className="form-grid">
           {F('chassis.lengthIn', 'Length', { unit: 'in' })}
           {F('chassis.widthIn', 'Width', { unit: 'in' })}
@@ -96,22 +97,37 @@ export function RobotPanel() {
         </div>
       </section>
       <section className="card">
-        <h3>Mass, battery, rack-and-pinion</h3>
+        <h3>Mass, battery, lift</h3>
         <div className="form-grid">
           {F('mass.totalLb', 'Total mass', { unit: 'lb' })}
           {F('mass.comHeightIn', 'Center of mass height', { unit: 'in' })}
           {F('mass.comOffsetXIn', 'CoM offset (fwd)', { unit: 'in' })}
           {F('mass.comOffsetYIn', 'CoM offset (left)', { unit: 'in' })}
           {F('battery.voltage', 'Battery voltage', { unit: 'V', step: 0.1 })}
-          {F('rack.travelIn', 'Rack travel', { unit: 'in' })}
-          {F('rack.pinionPitchDiameterIn', 'Pinion pitch Ø', { unit: 'in', step: 0.05 })}
-          {F('rack.motor.cartridgeRpm', 'Lift cartridge', { options: [100, 200, 600] })}
-          {F('rack.motor.gearRatio', 'Lift gear ratio', { step: 0.05 })}
-          {F('rack.motor.motorCount', 'Lift motors', { options: [1, 2] })}
-          {F('rack.carriageMassLb', 'Carriage mass', { unit: 'lb' })}
-          {F('rack.holderMinHeightIn', 'Holder height (down)', { unit: 'in' })}
-          {F('rack.carriageHeightIn', 'Carriage height', { unit: 'in' })}
+          {F('lift.type', 'Lift type', { options: ['dr4b', 'rackPinion'] })}
+          {robot.lift.type === 'dr4b' ? (
+            <>
+              {F('lift.barLengthIn', 'Bar length (pivot to pivot)', { unit: 'in', step: 0.25 })}
+              {F('lift.minAngleDeg', 'Bar angle, lowest', { unit: '°', step: 1 })}
+              {F('lift.maxAngleDeg', 'Bar angle, highest', { unit: '°', step: 1 })}
+              {F('lift.barMassLb', 'Bar mass (all bars)', { unit: 'lb', step: 0.05 })}
+            </>
+          ) : (
+            <>
+              {F('lift.travelIn', 'Rack travel', { unit: 'in' })}
+              {F('lift.pinionPitchDiameterIn', 'Pinion pitch Ø', { unit: 'in', step: 0.05 })}
+            </>
+          )}
+          {F('lift.motor.cartridgeRpm', 'Lift cartridge', { options: [100, 200, 600] })}
+          {F('lift.motor.gearRatio', robot.lift.type === 'dr4b' ? 'Lift ratio (bar / motor)' : 'Lift gear ratio', { step: 0.01 })}
+          {F('lift.motor.motorCount', 'Lift motors', { options: [1, 2, 4] })}
+          {F('lift.carriageMassLb', 'Carriage mass', { unit: 'lb' })}
+          {F('lift.holderMinHeightIn', 'Holder height (down)', { unit: 'in' })}
+          {F('lift.carriageHeightIn', 'Carriage height', { unit: 'in' })}
         </div>
+        <p className="small muted">
+          Travel {liftTravel(robot).toFixed(1)}"{robot.lift.type === 'dr4b' ? ` · knee swings up to ${dr4bMaxKneeBack(robot).toFixed(1)}" behind the towers` : ''}.
+        </p>
       </section>
       <section className="card">
         <h3>Mechanism & start</h3>

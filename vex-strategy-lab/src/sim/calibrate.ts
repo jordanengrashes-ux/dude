@@ -19,7 +19,7 @@ export interface CalibrationResult {
   plannedValue: number;
 }
 
-export async function calibrateExecution(robot: RobotConfig, params: OverrideParams, seed = 1, seconds = 45): Promise<CalibrationResult> {
+export async function calibrateExecution(robot: RobotConfig, params: OverrideParams, seed = 1, seconds = 45, runs = 4): Promise<CalibrationResult> {
   const layout = buildLayout('skillsDriver');
   const cfg: PlanConfig = {
     params,
@@ -42,18 +42,25 @@ export async function calibrateExecution(robot: RobotConfig, params: OverridePar
   };
   const w = new PlanWorld(cfg);
   const plan = beamSearch(w, { width: 12, alpha: 0.3 }, { maxMs: Infinity, maxExpansions: Infinity });
-  const ex = new PlanExecutor(cfg, plan.best.actions, { enabled: false, periodicSec: 0, beamWidth: 8, candidateK: 5, maxExpansions: 1000 }, w);
-  const sim = await MatchSim.create({ params, layout, robots: [{ id: 'red-1', alliance: 'red', config: robot, controller: ex, start: robot.start }], seed });
-  sim.runUntil(seconds);
+  // Several physics runs with small object-placement jitter; each contributes the
+  // actions executed before its first failure (after that the model state diverges).
   const samples: CalibrationResult['samples'] = [];
-  let s = w.initialState();
-  for (let i = 0; i < ex.history.length && i < plan.best.actions.length; i++) {
-    const a = plan.best.actions[i];
-    const h = ex.history[i];
-    const r = w.apply(s, a, true);
-    if (!r || !h.ok) break;
-    samples.push({ type: a.type, model: r.step.tEnd - r.step.tStart, physics: h.tEnd - h.tStart });
-    s = r.s;
+  let score = 0;
+  for (let k = 0; k < runs; k++) {
+    const ex = new PlanExecutor(cfg, plan.best.actions, { enabled: false, periodicSec: 0, beamWidth: 8, candidateK: 5, maxExpansions: 1000 }, w);
+    const sim = await MatchSim.create({ params, layout, robots: [{ id: 'red-1', alliance: 'red', config: robot, controller: ex, start: robot.start }], seed: seed + k, objectJitterSd: k === 0 ? 0 : 0.3 });
+    sim.runUntil(seconds);
+    let s = w.initialState();
+    for (let i = 0; i < ex.history.length && i < plan.best.actions.length; i++) {
+      const a = plan.best.actions[i];
+      const h = ex.history[i];
+      const r = w.apply(s, a, true);
+      if (!r || !h.ok) break;
+      samples.push({ type: a.type, model: r.step.tEnd - r.step.tStart, physics: h.tEnd - h.tStart });
+      s = r.s;
+    }
+    if (k === 0) score = sim.liveScore().totals.red;
+    sim.dispose();
   }
   const med = (type: string) => {
     const d = samples.filter((x) => x.type === type).map((x) => x.physics - x.model).sort((p, q) => p - q);
@@ -67,9 +74,7 @@ export async function calibrateExecution(robot: RobotConfig, params: OverridePar
     toggleOverheadSec: clampPos(e.toggleOverheadSec + med('toggle')),
     loadOverheadSec: clampPos(e.loadOverheadSec + med('load')),
     parkOverheadSec: e.parkOverheadSec,
-    calibratedFrom: `Physics calibration (seed ${seed}, ${samples.length} actions) ${new Date().toISOString().slice(0, 10)}`,
+    calibratedFrom: `Physics calibration (seeds ${seed}–${seed + runs - 1}, ${samples.length} actions) ${new Date().toISOString().slice(0, 10)}`,
   };
-  const score = sim.liveScore().totals.red;
-  sim.dispose();
   return { execution, samples, physicsScore: score, plannedValue: plan.best.value };
 }

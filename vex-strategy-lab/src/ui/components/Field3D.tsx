@@ -18,7 +18,7 @@ export function Field3D({ steps }: { steps: StepInfo[] | null }) {
     const sc = new FieldScene(canvas.current!);
     sceneRef.current = sc;
     // ?debug exposes the scene for automated screenshots / console inspection
-    if (new URLSearchParams(window.location.search).has('debug')) (window as unknown as { __vexScene?: FieldScene }).__vexScene = sc;
+    if (new URLSearchParams(window.location.search).has('debug')) Object.assign(window as object, { __vexScene: sc, __vexRunner: runner });
     const ro = new ResizeObserver(() => sc.resize(wrap.current!.clientWidth, wrap.current!.clientHeight));
     ro.observe(wrap.current!);
     let raf = 0;

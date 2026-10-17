@@ -122,7 +122,7 @@ export class PlanExecutor implements Controller {
         r.body.cmd = { left: 0, right: 0 };
         return;
       }
-      this.cur = { action: next, label: this.world.actionLabel(next), phase: 'start', t0: sim.t, phaseT0: sim.t, holderTarget: r.cfg.rack.holderMinHeightIn, retries: 0, progress: { t: sim.t, d: Infinity }, stuckCount: 0, phaseTimes: {}, heldAtStart: [r.primary?.id, r.secondary?.id].filter((x): x is string => !!x), badHeadings: [] };
+      this.cur = { action: next, label: this.world.actionLabel(next), phase: 'start', t0: sim.t, phaseT0: sim.t, holderTarget: r.cfg.lift.holderMinHeightIn, retries: 0, progress: { t: sim.t, d: Infinity }, stuckCount: 0, phaseTimes: {}, heldAtStart: [r.primary?.id, r.secondary?.id].filter((x): x is string => !!x), badHeadings: [] };
       sim.log({ t: sim.t, type: 'action', robotId: r.id, text: `${r.id} ▶ ${this.cur.label}` });
     }
     const a = this.cur;
@@ -251,7 +251,7 @@ export class PlanExecutor implements Controller {
           const p = obj.body.translation();
           const target = { x: p.x / IN, y: -p.z / IN };
           a.objId = id;
-          a.holderTarget = cfg.rack.holderMinHeightIn;
+          a.holderTarget = cfg.lift.holderMinHeightIn;
           const ch = this.chooseApproach(sim, sense, target, `dyn-${id}`, {}, undefined, a.badHeadings);
           if (!ch) return 'no approach to object';
           a.ap = ch.ap;
@@ -262,7 +262,7 @@ export class PlanExecutor implements Controller {
           const l = this.world.loaders[act.loader];
           a.objId = id;
           a.loaderId = l.id;
-          a.holderTarget = cfg.rack.holderMinHeightIn;
+          a.holderTarget = cfg.lift.holderMinHeightIn;
           const h = Math.atan2(-l.outward.y, -l.outward.x);
           const ch = this.chooseApproach(sim, sense, l.dispense, `L-${l.id}`, { loader: l.id }, h);
           if (!ch) return 'no approach to loader';
@@ -408,6 +408,8 @@ export class PlanExecutor implements Controller {
         const ap = a.ap!;
         if (act.type === 'pick' || act.type === 'load') {
           r.req.intake = true;
+          // run only the pocket for the planned kind, so a neighbor isn't swallowed
+          r.req.intakeKind = this.world.objs[act.obj].kind;
           const obj = sim.objects.objects.get(a.objId!);
           if (obj && (obj.mode === 'intaking' || obj.mode === 'held') && obj.robotId === r.id) {
             r.body.cmd = { left: 0, right: 0 };
@@ -508,12 +510,12 @@ export class PlanExecutor implements Controller {
         return undefined;
       }
       case 'backoff': {
-        a.holderTarget = act.type === 'place' ? Math.max(cfg.rack.holderMinHeightIn, a.holderTarget) : a.holderTarget;
+        a.holderTarget = act.type === 'place' ? Math.max(cfg.lift.holderMinHeightIn, a.holderTarget) : a.holderTarget;
         const out = backOff(this.perf, sense, a.backFrom!, act.type === 'toggle' ? 5 : a.retries >= 99 ? 6 : 10, a.backHeading!, tw, this.tuning);
         r.body.cmd = { left: out.left, right: out.right };
         if (out.done || t - a.phaseT0 > 1.5) {
           if (a.retries >= 99) {
-            if (act.type === 'place') a.holderTarget = cfg.rack.holderMinHeightIn;
+            if (act.type === 'place') a.holderTarget = cfg.lift.holderMinHeightIn;
             return true;
           }
           this.setPhase(a, 'start', t);
@@ -527,7 +529,7 @@ export class PlanExecutor implements Controller {
       }
       case 'parked': {
         r.body.cmd = { left: 0, right: 0 };
-        a.holderTarget = cfg.rack.holderMinHeightIn;
+        a.holderTarget = cfg.lift.holderMinHeightIn;
         return undefined; // stays parked to the end
       }
       default:

@@ -111,15 +111,20 @@ describe('Path planning', () => {
 
 describe('Model legality and physical feasibility', () => {
   it('rejects a placement the lift cannot reach (stack too tall)', () => {
-    const r = cloneRobot();
-    r.rack.travelIn = 4; // max holder ≈ 4.4" — below a neutral Goal rim + clearance (6.3")
-    const w = new PlanWorld(baseCfg({ robot: r }));
-    const s = w.initialState();
-    const gi = w.goals.findIndex((g) => g.id === 'G-R1n');
-    expect(w.apply(s, { type: 'place', goal: gi, bit: 0 })).toBeNull();
-    // the 3.25" Alliance Goal is still reachable (needs 3.75")
-    const ga = w.goals.findIndex((g) => g.id === 'G-R1a');
-    expect(w.apply(s, { type: 'place', goal: ga, bit: 0 })).not.toBeNull();
+    const rack = cloneRobot();
+    rack.lift.type = 'rackPinion';
+    rack.lift.travelIn = 4; // max holder ≈ 4.4" — below a neutral Goal rim + clearance (6.3")
+    const dr4b = cloneRobot();
+    dr4b.lift.maxAngleDeg = -11; // DR4B travel 2·8.5·(sin −11° + sin 25°) ≈ 3.9"
+    for (const r of [rack, dr4b]) {
+      const w = new PlanWorld(baseCfg({ robot: r }));
+      const s = w.initialState();
+      const gi = w.goals.findIndex((g) => g.id === 'G-R1n');
+      expect(w.apply(s, { type: 'place', goal: gi, bit: 0 })).toBeNull();
+      // the 3.25" Alliance Goal is still reachable (needs 3.75")
+      const ga = w.goals.findIndex((g) => g.id === 'G-R1a');
+      expect(w.apply(s, { type: 'place', goal: ga, bit: 0 })).not.toBeNull();
+    }
   });
 
   it('SG9: never offers placements in the opposing Alliance Goals', () => {

@@ -165,27 +165,42 @@ describe('Timing', () => {
 });
 
 describe('Robot inspection', () => {
-  it('the default 16×16 rack-and-pinion robot passes', () => {
-    const r = inspectRobot(DEFAULT_ROBOT, OVERRIDE_DEFAULTS);
-    expect(r.passed).toBe(true);
+  it('the default 16×16 DR4B robot passes (and so does the rack-and-pinion variant)', () => {
+    expect(DEFAULT_ROBOT.lift.type).toBe('dr4b');
+    expect(inspectRobot(DEFAULT_ROBOT, OVERRIDE_DEFAULTS).passed).toBe(true);
+    const rp = cloneRobot();
+    rp.lift.type = 'rackPinion';
+    expect(inspectRobot(rp, OVERRIDE_DEFAULTS).passed).toBe(true);
   });
   it('a 20" chassis fails the starting-size rule', () => {
     const c = cloneRobot();
     c.chassis.lengthIn = 20;
     const r = inspectRobot(c, OVERRIDE_DEFAULTS);
     expect(r.passed).toBe(false);
-    expect(r.items.find((i) => i.label === 'Starting length')!.ok).toBe(false);
+    expect(r.items.find((i) => i.label.startsWith('Starting length'))!.ok).toBe(false);
+  });
+  it('DR4B bars long enough that the knee swings past the rear bumper fail the starting length', () => {
+    const c = cloneRobot();
+    c.lift.barLengthIn = 14; // knee 12.7" behind the towers at −25°, towers 8.75" from the rear
+    const r = inspectRobot(c, OVERRIDE_DEFAULTS);
+    const item = r.items.find((i) => i.label.startsWith('Starting length'))!;
+    expect(item.ok).toBe(false);
+    expect(parseFloat(item.value)).toBeCloseTo(16 + 14 * Math.cos((25 * Math.PI) / 180) - 8.75, 1);
   });
   it('a lift tower taller than 18" fails the start height', () => {
     const c = cloneRobot();
     c.chassis.towerHeightIn = 19;
     expect(inspectRobot(c, OVERRIDE_DEFAULTS).passed).toBe(false);
   });
-  it('legal holder height is capped by the 50" vertical limit', () => {
+  it('legal holder height is capped by the 50" vertical limit (rack and DR4B)', () => {
     const c = cloneRobot();
-    c.rack.travelIn = 60;
-    const r = inspectRobot(c, OVERRIDE_DEFAULTS);
-    expect(r.maxLegalHolderHeight.preEndgame).toBeCloseTo(50 - c.rack.carriageHeightIn, 6);
+    c.lift.type = 'rackPinion';
+    c.lift.travelIn = 60;
+    expect(inspectRobot(c, OVERRIDE_DEFAULTS).maxLegalHolderHeight.preEndgame).toBeCloseTo(50 - c.lift.carriageHeightIn, 6);
+    const d = cloneRobot();
+    d.lift.barLengthIn = 20;
+    d.lift.maxAngleDeg = 80; // travel 2·20·(sin 80° + sin 25°) ≈ 56"
+    expect(inspectRobot(d, OVERRIDE_DEFAULTS).maxLegalHolderHeight.preEndgame).toBeCloseTo(50 - d.lift.carriageHeightIn, 6);
   });
 });
 
