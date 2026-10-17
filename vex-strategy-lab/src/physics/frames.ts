@@ -113,9 +113,13 @@ export const CG = {
   post: groups(G.POST, G.ROBOT | G.FREE | G.HELD),
   robot: groups(G.ROBOT, G.FIELD | G.ROBOT | G.FREE | G.STACKED | G.POST | G.TOGGLE),
   wheel: groups(G.WHEEL, G.FIELD),
-  free: groups(G.FREE, G.FIELD | G.ROBOT | G.FREE | G.STACKED | G.POST | G.HELD | G.TOGGLE),
+  free: groups(G.FREE, G.FIELD | G.ROBOT | G.FREE | G.STACKED | G.POST | G.TOGGLE),
   stacked: groups(G.STACKED, G.ROBOT | G.FREE | G.HELD),
-  held: groups(G.HELD, G.FIELD | G.FREE | G.STACKED | G.POST),
+  // Held / intaking / seating objects are kinematic (carried by the mechanism). They must
+  // not touch free objects: a free object trapped between a carried object and the same
+  // robot's chassis closes a push loop (chassis → carriage → held object → free object →
+  // chassis) that the solver resolves with unbounded force and launches the robot.
+  held: groups(G.HELD, G.FIELD | G.STACKED | G.POST),
   toggle: groups(G.TOGGLE, G.ROBOT | G.FREE),
   ghost: groups(G.GHOST, 0),
 };

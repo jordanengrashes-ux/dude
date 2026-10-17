@@ -161,9 +161,25 @@ export interface PlanConfig {
   toggleFilter?: (t: ToggleGeom) => boolean;
   /** Initial robot pose override. */
   startPose?: { pos: Vec2; heading: number; holderH?: number };
+  /**
+   * Toggle patrol (scripted robots): visiting a Toggle that already shows this
+   * alliance's color is a legal action (the robot drives there and re-asserts it).
+   */
+  patrolToggles?: boolean;
+  /** Toggle ids this robot will not actuate (e.g. contested ones the executor just failed on). */
+  blockedToggles?: string[];
 }
 
 const APPROACH = 9; // straight-in distance before pickup/placement (in)
+
+/** Straight-line escape from an inflated obstacle region: drive `dist` inches along `heading` (backward if `reverse`) after turning `rot` radians. */
+export interface Escape {
+  pt: Vec2;
+  dist: number;
+  heading: number;
+  rot: number;
+  reverse: boolean;
+}
 
 export interface PoseExcept {
   goal?: string;
@@ -364,8 +380,15 @@ export class PlanWorld {
       if (e.kind === 'claim' && e.obj !== undefined) {
         if (s.status[e.obj] === ST_FIELD || s.status[e.obj] === ST_MATCHLOAD) s.status[e.obj] = ST_UNAVAILABLE;
       } else if (e.kind === 'place' && e.goal !== undefined && e.obj !== undefined) {
+        // The other robot cannot place an object this robot already holds or placed, and
+        // a predicted placement that would break the Pin–Cup alternation (because this
+        // robot changed that stack first) is dropped: the other robot would adapt.
+        if (s.status[e.obj] === ST_HELD || s.status[e.obj] === ST_PLACED) continue;
         const gi = this.goals.findIndex((g) => g.id === this.goalIdFromIndex(e.goal!));
-        if (gi >= 0) s.stacks[gi].push(e.obj * 2 + (e.bit ?? 0));
+        if (gi >= 0) {
+          if (this.nextKind(s, gi) !== this.objs[e.obj].kind) continue;
+          s.stacks[gi].push(e.obj * 2 + (e.bit ?? 0));
+        }
         s.status[e.obj] = ST_PLACED;
       } else if (e.kind === 'toggle' && e.toggle !== undefined && e.position) {
         const ti = this.toggles.findIndex((t) => t.id === buildToggles()[e.toggle!].id);
@@ -416,10 +439,11 @@ export class PlanWorld {
    * being approached is exempt: a Goal post enters the U-slot, a Loader corner sits
    * in front of the slot, a Toggle is touched by the front of the robot.
    */
-  poseClear(center: Vec2, heading: number, except: PoseExcept = {}): boolean {
+  /** Footprint clear of walls (within `wallMargin`), posts, Loaders and Toggles. A negative margin tolerates wall contact. */
+  poseClear(center: Vec2, heading: number, except: PoseExcept = {}, wallMargin = 0.3): boolean {
     const r = this.cfg.robot.chassis;
     const poly = obbCorners(center, heading, r.lengthIn, r.widthIn);
-    for (const p of poly) if (Math.abs(p.x) > HALF - 0.3 || Math.abs(p.y) > HALF - 0.3) return false;
+    for (const p of poly) if (Math.abs(p.x) > HALF - wallMargin || Math.abs(p.y) > HALF - wallMargin) return false;
     for (const g of this.allGoals) {
       if (g.id === except.goal) continue;
       if (distPointToPolygon(g.pos, poly) < g.postRadius + 0.6) return false;
@@ -507,19 +531,19 @@ export class PlanWorld {
     const grid = this.gridAt(s.t);
     const p = this.perf;
     // If the robot sits inside the inflated region of the element it just used,
-    // it first reverses straight out (the way it came in).
+    // it first escapes in a straight line (reversing out the way it came in, or
+    // turning and driving out when reversing would pass a post).
     let startPt = s.pos;
     let backOut = 0;
+    let heading0 = s.heading;
+    let escTurn = 0;
     if (grid.pointBlocked(s.pos)) {
-      const back = fromAngle(s.heading + Math.PI);
-      for (let k = 1; k <= 14; k++) {
-        const q = add(s.pos, scale(back, k));
-        if (!grid.pointBlocked(q)) {
-          startPt = q;
-          backOut = k;
-          break;
-        }
-      }
+      const esc = this.escape(grid, s.pos, s.heading);
+      if (!esc) return null;
+      startPt = esc.pt;
+      backOut = esc.dist;
+      heading0 = esc.heading;
+      escTurn = esc.rot > 1e-6 ? this.turnCost(esc.rot) : 0;
     }
     const key = `${grid === this.gridAuto ? 'A' : 'D'}|${startPt.x.toFixed(1)},${startPt.y.toFixed(1)}|${ap.pre.x.toFixed(1)},${ap.pre.y.toFixed(1)}|${ap.heading.toFixed(3)}`;
     let cached = this.pathCache.get(key);
@@ -537,13 +561,69 @@ export class PlanWorld {
     const moving = cached.len > 1;
     const firstDir = moving ? Math.atan2(pts[1].y - pts[0].y, pts[1].x - pts[0].x) : ap.heading;
     const preDir = moving ? Math.atan2(ap.pre.y - pts[pts.length - 3].y, ap.pre.x - pts[pts.length - 3].x) : s.heading;
-    const t0 = this.turnCost(Math.abs(wrapAngle(firstDir - s.heading)));
+    const t0 = this.turnCost(Math.abs(wrapAngle(firstDir - heading0)));
     const t1 = this.turnCost(Math.abs(wrapAngle(ap.heading - preDir))) * (moving ? 0.5 : 1);
-    const tBack = backOut > 0 ? straightTime(p, backOut) : 0;
+    const tBack = backOut > 0 ? escTurn + straightTime(p, backOut) : 0;
     if (cached.time === undefined) cached.time = polylineTime(p, pts);
     const time = tBack + cached.time + t0 + t1;
     const path = backOut > 0 ? [s.pos, ...pts] : pts;
     return { time, dist: backOut + cached.len + APPROACH, turn: t0 + t1, path };
+  }
+
+  private escapeCache = new Map<string, Escape | null>();
+  /**
+   * Straight-line escape from a pose inside the planning grid's inflated obstacles
+   * (e.g. right after a pickup next to a post or wall). Prefers reversing straight
+   * out; otherwise the quickest turn-in-place + straight drive (forward or reverse)
+   * whose footprint stays clear of posts, Loaders, Toggles and walls.
+   */
+  escape(grid: Grid, pos: Vec2, heading: number): Escape | null {
+    const key = `${grid === this.gridAuto ? 'A' : 'D'}|${pos.x.toFixed(2)},${pos.y.toFixed(2)},${heading.toFixed(3)}`;
+    const hit = this.escapeCache.get(key);
+    if (hit !== undefined) return hit;
+    let best: Escape | null = null;
+    const back = fromAngle(heading + Math.PI);
+    for (let k = 1; k <= 14; k++) {
+      const q = add(pos, scale(back, k));
+      if (!grid.pointBlocked(q)) {
+        best = { pt: q, dist: k, heading, rot: 0, reverse: true };
+        break;
+      }
+    }
+    if (!best) {
+      // A robot pressed against a wall (physics contact) may sit a hair past the
+      // nominal margin; tolerate that so it can still turn and drive away.
+      const clear = (q: Vec2, h: number) => this.poseClear(q, h, {}, -0.5);
+      let bestT = Infinity;
+      const N = 16;
+      for (let k = 0; k < N; k++) {
+        const dir = heading + Math.PI + (k / N) * 2 * Math.PI;
+        const u = fromAngle(dir);
+        const dRev = wrapAngle(dir + Math.PI - heading);
+        const dFwd = wrapAngle(dir - heading);
+        const reverse = Math.abs(dRev) < Math.abs(dFwd);
+        const turn = reverse ? dRev : dFwd;
+        const h = heading + turn;
+        let ok = true;
+        for (let j = 1; j <= 4 && ok; j++) ok = clear(pos, heading + (turn * j) / 4);
+        if (!ok) continue;
+        for (let d = 1; d <= 18; d++) {
+          const q = add(pos, scale(u, d));
+          if (!clear(q, h)) break;
+          if (!grid.pointBlocked(q)) {
+            const t = this.turnCost(Math.abs(turn)) + straightTime(this.perf, d);
+            if (t < bestT) {
+              bestT = t;
+              best = { pt: q, dist: d, heading: h, rot: Math.abs(turn), reverse };
+            }
+            break;
+          }
+        }
+      }
+    }
+    if (this.escapeCache.size > 50000) this.escapeCache.clear();
+    this.escapeCache.set(key, best);
+    return best;
   }
 
   /** Turn cost for a heading change; small changes are absorbed by path following. */
@@ -743,15 +823,20 @@ export class PlanWorld {
     }
     // toggles
     for (let ti = 0; ti < this.toggles.length; ti++) {
-      const want: TogglePosition = this.toggleTarget();
-      if (s.toggles[ti] === want) continue;
-      const tg = this.toggles[ti];
-      if (auto && this.cfg.matchType === 'headToHead' && !tg.quadrant.startsWith(this.cfg.alliance === 'red' ? 'R' : 'B')) continue;
-      out.push({ type: 'toggle', toggle: ti });
+      if (this.toggleUsable(s, ti, s.t)) out.push({ type: 'toggle', toggle: ti });
     }
     if (this.cfg.allowPark && !auto && !s.parked) out.push({ type: 'park' });
     if (auto && this.cfg.tEnd > this.clock.autonomousEnd!) out.push({ type: 'wait', until: this.clock.autonomousEnd! });
     return out;
+  }
+
+  /** Whether this robot may actuate Toggle ti at time t (target color, SG7 side in Autonomous, blocked list). */
+  toggleUsable(s: PlanState, ti: number, t: number): boolean {
+    const tg = this.toggles[ti];
+    if (this.cfg.blockedToggles?.includes(tg.id)) return false;
+    if (s.toggles[ti] === this.toggleTarget() && !this.cfg.patrolToggles) return false;
+    if (this.cfg.matchType === 'headToHead' && this.isAutonomous(t) && !tg.quadrant.startsWith(this.cfg.alliance === 'red' ? 'R' : 'B')) return false; // SG7
+    return true;
   }
 
   toggleTarget(): TogglePosition {
@@ -793,6 +878,7 @@ export class PlanWorld {
    * illegal, lift cannot reach). The returned StepInfo explains the time cost.
    */
   apply(s0: PlanState, a: Action, detailed = false): { s: PlanState; step: StepInfo } | null {
+    if (s0.parked) return null; // parking is terminal: leaving the Midfield would forfeit it
     const cfg = this.cfg;
     const R = cfg.robot;
     const p = this.perf;
@@ -918,7 +1004,7 @@ export class PlanWorld {
       case 'toggle': {
         const tg = this.toggles[a.toggle];
         const want = this.toggleTarget();
-        if (s.toggles[a.toggle] === want) return null;
+        if (!this.toggleUsable(s, a.toggle, s.t)) return null;
         // face the wall at the toggle: robot front ~1" off the perimeter
         const target = add(tg.pos, scale(tg.normal, R.chassis.lengthIn / 2 + R.toggleArm.reachIn - R.intake.holderOffsetIn));
         const th = Math.atan2(-tg.normal.y, -tg.normal.x);

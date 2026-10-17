@@ -29,7 +29,8 @@ export function upperBoundAdd(w: PlanWorld, s: PlanState): number {
   const R = cfg.robot;
   const tEnd = cfg.tEnd;
   const remaining = tEnd - s.t;
-  if (remaining <= 0) return 0;
+  // Parking is terminal: no further robot actions, and value() already applies pending external events.
+  if (remaining <= 0 || s.parked) return 0;
   const vmax = w.perf.vFree * 1.15; // allow for performance uncertainty
   const reach = R.intake.holderOffsetIn * 2;
   const minMech = R.intake.intakeTimeSec + R.intake.releaseTimeSec + Math.min(R.execution.pickOverheadSec, R.execution.loadOverheadSec) + R.execution.placeOverheadSec;

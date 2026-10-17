@@ -1,18 +1,41 @@
 import type { PlanWorld } from '../model';
 import { upperBoundAdd } from './bounds';
-import { addToPool, configKey, pathOf, stopReason, type Budget, type Candidate, type Node, type SearchResult } from './common';
+import { addToPool, configKey, pathOf, rolloutStep, stopReason, type Budget, type Candidate, type Node, type SearchResult } from './common';
 
 /**
  * Beam search over action sequences. Each layer expands every node in the beam,
  * deduplicates by field configuration (keeping the earliest-time state), and keeps
- * the top `width` nodes ranked by value + α·(optimistic remaining potential).
- * Every node is a valid stopping point (the robot may idle), so the best value
- * seen at any depth is a valid plan.
+ * the top `width` nodes ranked by
+ *
+ *   value + α·(admissible remaining potential) + τ·ρ·(time left in the window)
+ *
+ * where ρ is the scoring rate (points/second) a greedy rollout achieves from the
+ * root. The admissible bound is loose and barely depends on time, so without the
+ * ρ term a node that idles (e.g. waits out Autonomous) ranks the same as one that
+ * spent that time productively. Every node is a valid stopping point (the robot
+ * may idle), so the best value seen at any depth is a valid plan.
  */
 export interface BeamOptions {
   width: number;
   /** Weight on the admissible bound in the ranking (0 = greedy on current value). */
   alpha: number;
+  /** Weight τ on the value of remaining time (default 1; 0 disables). */
+  timeWeight?: number;
+}
+
+/** Points per second a greedy rollout achieves from the initial state (≥ 0). */
+export function greedyRate(w: PlanWorld): number {
+  let s = w.initialState();
+  const v0 = w.value(s);
+  let best = v0;
+  for (let k = 0; k < 120; k++) {
+    const r = rolloutStep(w, s, null, 0);
+    if (!r) break;
+    s = r.s;
+    best = Math.max(best, r.v);
+  }
+  const span = w.cfg.tEnd - w.cfg.tStart;
+  return span > 0 ? Math.max(0, best - v0) / span : 0;
 }
 
 export function beamSearch(w: PlanWorld, opts: BeamOptions, budget: Budget): SearchResult {
@@ -24,7 +47,8 @@ export function beamSearch(w: PlanWorld, opts: BeamOptions, budget: Budget): Sea
   let beam: Node[] = [root];
   let expansions = 0;
   let stopped: ReturnType<typeof stopReason> = null;
-  const rank = (n: Node) => n.value + opts.alpha * upperBoundAdd(w, n.s) - 0.01 * n.s.t;
+  const rho = (opts.timeWeight ?? 1) > 0 ? (opts.timeWeight ?? 1) * greedyRate(w) : 0;
+  const rank = (n: Node) => n.value + opts.alpha * upperBoundAdd(w, n.s) + (n.s.parked ? 0 : rho * (w.cfg.tEnd - n.s.t)) - 0.01 * n.s.t;
 
   outer: while (beam.length) {
     const children = new Map<string, Node>();

@@ -23,6 +23,13 @@ export interface UncertaintyConfig {
   mechanismFail: number;
   /** Extra seconds for a retry after a failed attempt. */
   retryPenaltySec: number;
+  /**
+   * Timing uncertainty of the other robots' predicted actions (s). Each predicted
+   * event moves by N(0, σ) with σ = eventTimeSd·√(t / 15 s): their errors accumulate
+   * over the match like this robot's do. Plans that depend on beating another robot
+   * to a Toggle or object by a narrow margin become visibly fragile.
+   */
+  eventTimeSd: number;
 }
 
 export const DEFAULT_UNCERTAINTY: UncertaintyConfig = {
@@ -34,6 +41,7 @@ export const DEFAULT_UNCERTAINTY: UncertaintyConfig = {
   objectPosSd: 0.5,
   mechanismFail: 0.02,
   retryPenaltySec: 1.0,
+  eventTimeSd: 1.5,
 };
 
 export const NO_UNCERTAINTY: UncertaintyConfig = {
@@ -45,6 +53,7 @@ export const NO_UNCERTAINTY: UncertaintyConfig = {
   objectPosSd: 0,
   mechanismFail: 0,
   retryPenaltySec: 1.0,
+  eventTimeSd: 0,
 };
 
 export interface FailurePoint {
@@ -114,7 +123,11 @@ export function evaluateRobustness(
     r.battery.voltage = rng.range(unc.batteryMin, unc.batteryMax);
     r.drivetrain.muLongitudinal *= trac;
     r.drivetrain.muLateral *= trac;
-    const w = base.fork({ robot: r, motorScale: motor, positionSigma: unc.positionSigma });
+    const events =
+      (unc.eventTimeSd ?? 0) > 0 && cfg.externalEvents.length
+        ? cfg.externalEvents.map((e) => ({ ...e, t: clamp(e.t + rng.normal(0, unc.eventTimeSd * Math.sqrt(Math.max(0, e.t) / 15)), cfg.tStart, cfg.tEnd) })).sort((p, q) => p.t - q.t)
+        : undefined;
+    const w = base.fork({ robot: r, motorScale: motor, positionSigma: unc.positionSigma, config: events ? { externalEvents: events } : undefined });
     let s: PlanState = w.initialState();
     actions.forEach((a, i) => {
       const res = w.apply(s, a);

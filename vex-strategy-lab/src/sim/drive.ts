@@ -162,8 +162,13 @@ export function approach(perf: DrivePerf, sense: Sensing, target: Vec2, holderOf
 
 /** Drive straight backward by a distance (back off after scoring / toggling). */
 export function backOff(perf: DrivePerf, sense: Sensing, from: Vec2, distance: number, heading: number, trackWidth: number, tune = DEFAULT_TUNING): DriveOut {
+  return driveStraight(perf, sense, from, distance, heading, -1, trackWidth, tune);
+}
+
+/** Drive `distance` inches from `from` holding `heading`, forward (+1) or in reverse (−1). */
+export function driveStraight(perf: DrivePerf, sense: Sensing, from: Vec2, distance: number, heading: number, direction: 1 | -1, trackWidth: number, tune = DEFAULT_TUNING): DriveOut {
   const d = dist(sense.pos, from);
   if (d >= distance) return { left: 0, right: 0, done: true };
   const hErr = wrapAngle(heading - sense.heading);
-  return { ...wheelCommand(perf, -Math.min(30, 8 + (distance - d) * 4), hErr * 3, trackWidth, sense, tune), done: false };
+  return { ...wheelCommand(perf, direction * Math.min(30, 8 + (distance - d) * 4), hErr * 3, trackWidth, sense, tune), done: false };
 }

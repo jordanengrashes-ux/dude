@@ -7,9 +7,9 @@ import { toggleAngle, togglePosition, toggleTargetAngle } from '../physics/field
 import { upOf } from '../physics/frames';
 import type { SimObject } from '../physics/objects';
 import { Grid } from '../planner/grid';
-import { PlanWorld, type Action, type PlanConfig } from '../planner/model';
+import { PlanWorld, type Action, type Escape, type PlanConfig } from '../planner/model';
 import { beamSearch } from '../planner/search/beam';
-import { approach, backOff, DEFAULT_TUNING, pursue, turnTo, type DriveTuning, type PursuitState } from './drive';
+import { approach, backOff, DEFAULT_TUNING, driveStraight, pursue, turnTo, type DriveTuning, type PursuitState } from './drive';
 import type { Controller, MatchSim, Sensing, SimRobot } from './match';
 
 /**
@@ -29,7 +29,7 @@ export interface MpcOptions {
 
 export const DEFAULT_MPC: MpcOptions = { enabled: true, periodicSec: 0, beamWidth: 10, candidateK: 5, maxExpansions: 2500 };
 
-type Phase = 'start' | 'route' | 'align' | 'approach' | 'index' | 'reorient' | 'release' | 'settle' | 'toggle' | 'backoff' | 'waitLoad' | 'wait' | 'parked' | 'done';
+type Phase = 'start' | 'escape' | 'route' | 'align' | 'approach' | 'index' | 'reorient' | 'release' | 'settle' | 'toggle' | 'backoff' | 'waitLoad' | 'wait' | 'parked' | 'done';
 
 interface Active {
   action: Action;
@@ -47,6 +47,8 @@ interface Active {
   holderTarget: number;
   retries: number;
   backFrom?: Vec2;
+  /** Straight-line escape from a tight spot before following the route. */
+  esc?: Escape & { from?: Vec2 };
   backHeading?: number;
   progress: { t: number; d: number };
   stuckCount: number;
@@ -81,6 +83,7 @@ export class PlanExecutor implements Controller {
   /** Goals / objects recently failed on — excluded from replanning for a while. */
   private avoidGoals = new Map<string, number>();
   private avoidObjects = new Map<string, number>();
+  private avoidToggles = new Map<string, number>();
   private lastReplan = 0;
   private tuning: DriveTuning;
 
@@ -105,11 +108,17 @@ export class PlanExecutor implements Controller {
     if (!this.cur) {
       if (this.mpc.enabled && this.mpc.periodicSec > 0 && sim.t - this.lastReplan > this.mpc.periodicSec && this.queue.length) this.replan(sim, r, 'periodic');
       let next = this.queue.shift();
-      if (!next && this.mpc.enabled && sim.t < this.base.tEnd - 3 && sim.t - this.lastReplan > 2) {
+      if (!next && this.mpc.enabled && sim.t < this.base.tEnd - 3 && sim.t - this.lastReplan > 5) {
         this.replan(sim, r, 'plan exhausted');
         next = this.queue.shift();
       }
       if (!next) {
+        r.body.cmd = { left: 0, right: 0 };
+        return;
+      }
+      if (this.opposingSideInAutonomous(sim, next)) {
+        // physics ran ahead of the model's timing: hold until Driver Control (SG7)
+        this.queue.unshift(next);
         r.body.cmd = { left: 0, right: 0 };
         return;
       }
@@ -120,6 +129,15 @@ export class PlanExecutor implements Controller {
     const ok = this.stepAction(sim, r, sense, a);
     if (ok === true) this.finish(sim, r, true);
     else if (typeof ok === 'string') this.finish(sim, r, false, ok);
+  }
+
+  private opposingSideInAutonomous(sim: MatchSim, a: Action): boolean {
+    const w = this.world;
+    if (w.cfg.matchType !== 'headToHead' || !w.isAutonomous(sim.t)) return false;
+    const own = w.cfg.alliance === 'red' ? 'R' : 'B';
+    if (a.type === 'toggle') return !w.toggles[a.toggle].quadrant.startsWith(own);
+    if (a.type === 'place') return w.goals[a.goal].type !== 'midfield' && !w.goals[a.goal].quadrant.startsWith(own);
+    return false;
   }
 
   private setPhase(a: Active, p: Phase, t: number) {
@@ -143,6 +161,7 @@ export class PlanExecutor implements Controller {
       this.failures++;
       if (a.goalId) this.avoidGoals.set(a.goalId, sim.t + 20);
       if (a.objId && (a.action.type === 'pick' || a.action.type === 'load')) this.avoidObjects.set(a.objId, sim.t + 20);
+      if (a.toggleId) this.avoidToggles.set(a.toggleId, sim.t + 20);
       if (this.mpc.enabled) this.replan(sim, r, reason ?? 'failure');
     }
   }
@@ -165,6 +184,8 @@ export class PlanExecutor implements Controller {
     const baseObj = this.base.objectFilter;
     if (avoidG.size) cfg.goalFilter = (g) => !avoidG.has(g.id) && (!baseGoal || baseGoal(g));
     if (avoidO.size) cfg.objectFilter = (o) => !avoidO.has(o.id) && (!baseObj || baseObj(o));
+    const avoidT = [...this.avoidToggles].filter(([, until]) => until > now).map(([id]) => id);
+    cfg.blockedToggles = [...(this.base.blockedToggles ?? []), ...avoidT];
     const w = this.world.fork({ config: cfg });
     const res = beamSearch(w, { width: this.mpc.beamWidth, alpha: 0.3 }, { maxMs: Infinity, maxExpansions: this.mpc.maxExpansions });
     this.world = w;
@@ -178,26 +199,29 @@ export class PlanExecutor implements Controller {
     const aps = this.world.approaches(target, key, except, onlyHeading).filter((ap) => !avoid.some((h) => Math.abs(wrapAngle(ap.heading - h)) < Math.PI / 4));
     const grid = this.world.gridAt(sim.t);
     const vg = this.world.visGraph(grid);
-    let best: { ap: (typeof aps)[number]; path: Vec2[]; cost: number } | null = null;
+    let best: { ap: (typeof aps)[number]; path: Vec2[]; cost: number; esc: Escape | null } | null = null;
+    const esc = this.escapeFrom(grid, sense);
+    const start = esc ? esc.pt : sense.pos;
     for (const ap of aps) {
-      const start = grid.pointBlocked(sense.pos) ? this.backOutPoint(grid, sense) : sense.pos;
       const path = grid.segmentClear(start, ap.pre) ? [start, ap.pre] : vg.path(start, grid.pointBlocked(ap.pre) ? grid.nearestFree(ap.pre) ?? ap.pre : ap.pre);
       if (!path) continue;
       let len = 0;
       for (let i = 1; i < path.length; i++) len += dist(path[i - 1], path[i]);
       const turn = Math.abs(wrapAngle(ap.heading - Math.atan2(ap.pre.y - path[Math.max(0, path.length - 2)].y, ap.pre.x - path[Math.max(0, path.length - 2)].x)));
       const cost = len / this.perf.vCruise + turn * 0.25;
-      if (!best || cost < best.cost) best = { ap, path: start === sense.pos ? path : [sense.pos, ...path], cost };
+      if (!best || cost < best.cost) best = { ap, path, cost, esc };
     }
     return best;
   }
 
-  private backOutPoint(grid: Grid, sense: Sensing): Vec2 {
-    for (let k = 1; k <= 14; k++) {
-      const q = add(sense.pos, fromAngle(sense.heading + Math.PI, k));
-      if (!grid.pointBlocked(q)) return q;
-    }
-    return sense.pos;
+  /** The model's straight-line escape when the robot starts inside an inflated obstacle region. */
+  private escapeFrom(grid: Grid, sense: Sensing): Escape | null {
+    return grid.pointBlocked(sense.pos) ? this.world.escape(grid, sense.pos, sense.heading) : null;
+  }
+
+  /** Enter the route phase, escaping first when the route starts from a tight spot. */
+  private beginRoute(a: Active, t: number, esc: Active['esc']) {
+    this.setPhase(a, esc ? 'escape' : 'route', t);
   }
 
   private heldOfKind(r: SimRobot, kind: 'pin' | 'cup'): SimObject | null {
@@ -232,6 +256,7 @@ export class PlanExecutor implements Controller {
           if (!ch) return 'no approach to object';
           a.ap = ch.ap;
           a.ps = { path: ch.path, seg: 0 };
+          a.esc = ch.esc ? { ...ch.esc } : undefined;
         } else if (act.type === 'load') {
           const id = this.world.objs[act.obj].id;
           const l = this.world.loaders[act.loader];
@@ -243,6 +268,7 @@ export class PlanExecutor implements Controller {
           if (!ch) return 'no approach to loader';
           a.ap = ch.ap;
           a.ps = { path: ch.path, seg: 0 };
+          a.esc = ch.esc ? { ...ch.esc } : undefined;
         } else if (act.type === 'place') {
           const g = this.world.goals[act.goal];
           const st = sim.objects.stacks.get(g.id)!;
@@ -258,6 +284,7 @@ export class PlanExecutor implements Controller {
           if (!ch) return a.badHeadings.length ? 'every approach to the goal is blocked' : 'no approach to goal';
           a.ap = ch.ap;
           a.ps = { path: ch.path, seg: 0 };
+          a.esc = ch.esc ? { ...ch.esc } : undefined;
         } else if (act.type === 'toggle') {
           const tg = this.world.toggles[act.toggle];
           a.toggleId = tg.id;
@@ -268,28 +295,48 @@ export class PlanExecutor implements Controller {
           if (!ch) return 'no approach to toggle';
           a.ap = ch.ap;
           a.ps = { path: ch.path, seg: 0 };
+          a.esc = ch.esc ? { ...ch.esc } : undefined;
         } else if (act.type === 'park') {
           const L = cfg.chassis.lengthIn;
           let best: { path: Vec2[]; pos: Vec2; heading: number; len: number } | null = null;
           const grid = this.world.gridAt(t);
           const vg = this.world.visGraph(grid);
+          const esc = this.escapeFrom(grid, sense);
+          const start = esc ? esc.pt : sense.pos;
           for (let k = 0; k < 8; k++) {
             const h = (k / 8) * 2 * Math.PI;
             const pos = fromAngle(h + Math.PI, MIDFIELD_INNER_HALF + L / 2 - 4);
             if (!this.world.poseClear(pos, h)) continue;
-            const start = grid.pointBlocked(sense.pos) ? this.backOutPoint(grid, sense) : sense.pos;
             const path = grid.segmentClear(start, pos) ? [start, pos] : vg.path(start, pos);
             if (!path) continue;
             let len = 0;
             for (let i = 1; i < path.length; i++) len += dist(path[i - 1], path[i]);
-            if (!best || len < best.len) best = { path: start === sense.pos ? path : [sense.pos, ...path], pos, heading: h, len };
+            if (!best || len < best.len) best = { path, pos, heading: h, len };
           }
           if (!best) return 'no route to the Midfield';
           a.ap = { pre: best.pos, center: best.pos, heading: best.heading };
           a.ps = { path: best.path, seg: 0 };
+          a.esc = esc ? { ...esc } : undefined;
         }
         a.progress = { t, d: Infinity };
-        this.setPhase(a, 'route', t);
+        this.beginRoute(a, t, a.esc);
+        return undefined;
+      }
+      case 'escape': {
+        // Turn in place if needed, then drive straight out (forward or reverse), as the model assumes.
+        const e = a.esc!;
+        if (!e.from) {
+          const turn = turnTo(this.perf, sense, e.heading, this.tuning, 0.06);
+          r.body.cmd = { left: turn.left, right: turn.right };
+          if (turn.done || e.rot < 0.06 || t - a.phaseT0 > 1.5) e.from = sense.pos;
+          return undefined;
+        }
+        const out = driveStraight(this.perf, sense, e.from, e.dist, e.heading, e.reverse ? -1 : 1, tw, this.tuning);
+        r.body.cmd = { left: out.left, right: out.right };
+        if (out.done || t - a.phaseT0 > 3) {
+          a.progress = { t, d: Infinity };
+          this.setPhase(a, 'route', t);
+        }
         return undefined;
       }
       case 'route': {
