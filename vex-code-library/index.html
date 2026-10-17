@@ -1174,6 +1174,13 @@ ctd::Console.println("stall %s  asked %.1f  got %.1f in/s",
     [/\b(why|what)\b.*\b(minus|negative)\b|\b(minus|negative)\b.*\b(port|motor|on it|in front)\b|why\b.*-\d+/,"reverse-motor",36],
     [/(took|take|taking|removed?|without|no) (out )?(the )?delay|delay (out|removed)|screen (is )?(stuck|frozen)|stuck on one picture/,"delay",40],
     [/pros::task|\btask\b.*\b(use|for|what)\b|what would i use this/,"own-task",36],
+    [/three questions|not doing what (it|they|we|you) (expected|should|want)|value,? direction/,"debug",38],
+    [/\b(order|after|before|last|first)\b.*\binitialize\b|\binitialize\b.*\b(order|goes last|comes first)|has to come after|goes last|comes first/,"init-order",40,/keep(s)? (doing|checking|watching)|during the match|what does (it|this|that) (keep )?do/],
+    [/one motor,? one owner|\bone owner\b/,"one-owner",46],
+    [/\bctnav\b.*\bctd\b|\bctd\b.*\bctguard\b|\bctnav\b.*\bctguard\b|\bprefix(es)?\b/,"libraries",36],
+    [/which (files|ones) (am i|do i|should i|can i|are)|million files|supposed to (touch|edit|change)|files? (to|i can|i should) (touch|edit)/,"which-file",36],
+    [/steer ?floor/,"steer-floor",36],
+    [/hit a wall|look(s)? like it hit|like a wall|wedged/,"flat-battery",36],
     [/\bstatic\b|last_beat/,"heartbeat",34],
     [/\b(weav|wobbl|wiggl|zigzag|zig zag|snake|back and forth|back n forth)/,"kp",24],
     [/\bmenu\b.*\b(not|don'?t|doesn'?t|never) (show|appear)|buttons? (never|don'?t|doesn'?t) (show|appear)/,"comp-init",26],
@@ -1189,7 +1196,7 @@ ctd::Console.println("stall %s  asked %.1f  got %.1f in/s",
     [/\b(tell|told|say|said|ask|asked)\b.*\b(face|heading|turntoheading|turn to heading)\b.*\b(go|goes|went|turns?|turned|swings?|swung) (left|right)|\b(go|goes|went|turned|swung) (left|right)\b.*\b(face|heading|told|say)/,"turns-wrong-way",32],
     [/turn ?to ?heading\(?\s*-?\d*\s*\)?\s*(turns?|goes|went|turned|swings?|swung) (left|right)|\b(goes|went|turned|swung) (left|right)\b.*turn ?to ?heading/,"turns-wrong-way",34],
     [/\b(3|three) lines\b|spits out|print ?out (when|every time) it (turns on|boots|starts)|printout/,"boot-report",26],
-    [/\bctguard::start\b|ctguard start/,"watch",32],[/\bctguard::preflight\b|\bpreflight\(/,"preflight",30],[/\bctguard::watch\b|watchdevice/,"register",30],
+    [/\bctguard::start\b|ctguard start|keep(s)? (doing|checking|watching)\b|during the match/,"watch",46],[/\bctguard::preflight\b|\bpreflight\(/,"preflight",30],[/\bctguard::watch\b|watchdevice/,"register",30],
     [/\brequirehealthy\b/,"require-healthy",30],[/\bctnav::pose\b|\bpose\(\)/,"pose-readback",26],[/\bwaituntildone\b|ctnav::launch\b/,"launch",28],
     [/\bplanmovetopose\b/,"plan-move",30],[/\brequirestrategy\b/,"rungs",30],[/\btelemetry\b/,"stall",22],[/\bdash\.red\b|auton::start\b/,"selector",28],
     [/\bconsole\.println\b|\btoast\b/,"toast-log",20],[/\bauton::run\b/,"modes",20],
@@ -1218,7 +1225,7 @@ ctd::Console.println("stall %s  asked %.1f  got %.1f in/s",
   var FIX_RE=/\b(wrong|broken|doesn'?t|dosn'?t|doesnt|does not|won'?t|wont|isn'?t|not (working|moving|turning|running|driving|showing)|stuck|keeps?|problem|error|fail(s|ed)?|stall(s|ed)?|frozen|freez\w*|weird|issue|bug|too (fast|slow|much|far|big|small|sensitive)|drifts?|veers?|curves?|creeps?|over-?rotat\w*|overshoot\w*|over ?turns?|sat still|sat there|never|off by|messed up|wobbl\w*|wiggl\w*|zigzag\w*|weav\w*|twitch\w*|spam\w*|slammed|instead|but it|halfway|dead)\b/;
   var GREET_RE=/^(hi+|hey+|hello+|helo|yo+|sup|hiya|howdy|heya|wass?up|whats? up|good (morning|afternoon|evening))\b/;
   var THANKS_RE=/\b(thanks|thank (you|u)|thx|tysm|tyy*|cheers|appreciate it|that (fixed|worked|helped)|it worked)\b/;
-  var ABOUT_RE=/\b(what|wat|wut) (can|could) (you|u) (even )?(do|help( with)?)\b|\bwho are (you|u)\b|\bwhat are (you|u)\b|\bhow do (you|u) work\b|\bare (you|u) (an? )?(ai|bot|robot|human|real|chatgpt|claude)\b|\bwhat do (you|u) know\b|\bwhat (kind|kinda|sort|type)( of)? (stuff|things|questions)\b|^help\b\??$|^what can i ask\b|\b(what|which) (sorts?|kinds?|types?) of (questions|things|stuff)\b.*\b(help|answer|do|know|ask)\b|\bwhat (can|could) (you|u) help( me)? with\b|\bable to help( me)? with\b|\bwhat (do|can) (you|u) (help|answer)\b|\bwhat (thing|things|stuff)\b.*\b(you|u)\b.*\bhelp\b/;
+  var ABOUT_RE=/\b(what|wat|wut) (can|could) (you|u) (even )?(do|help( with)?)\b|\bwho are (you|u)\b|\bwhat are (you|u)\b|\bhow do (you|u) work\b|\bare (you|u) (an? )?(ai|bot|robot|human|real|chatgpt|claude)\b|\bwhat do (you|u) know\b|\bwhat (kind|kinda|sort|type)( of)? (stuff|things|questions)\b|^help\b\??$|^what can i ask\b|\b(what|which) (sorts?|kinds?|types?) of (questions|things|stuff)\b.*\b(help|answer|do|know|ask)\b|\bwhat (can|could) (you|u) help( me)? with\b|\bable to help( me)? with\b|\bwhat (do|can) (you|u) (help|answer)\b|\bwhat (thing|things|stuff)\b.*\b(you|u)\b.*\bhelp\b|\bwhat (topics|subjects)\b|\bthis helper\b.*\b(answer|help|know|do)\b|\bwhat can (this|the) helper\b/;
   function intentOf(q){
     var s=q.toLowerCase().trim(), n=s.split(/\s+/).length;
     if(GREET_RE.test(s)&&n<=5)return "greet";
@@ -1230,8 +1237,10 @@ ctd::Console.println("stall %s  asked %.1f  got %.1f in/s",
     return "how";
   }
   /* words that show a question is about this robot code at all */
-  var DOMAIN_RE=/\b(motors?|moters?|ports?|drive\w*|turn\w*|auton\w*|auto|routines?|encoders?|wheels?|sticks?|joysticks?|controllers?|battery|brain|screen|field|tiles?|inch\w*|heading|pose|ctnav|ct ?nav|ct ?guard|ct ?dash|pros|imu|inertial|gyro|delay|loop|task|intake|lift|log|print\w*|console|menu|tab|button|sensors?|upload\w*|files?|functions?|initialize|opcontrol|competition|deadband|curve|steer\w*|push test|robot|bot|vex|code|cpp|hpp|lemlib|setpose|move\w*|forward|backwards?|rumble|selector|calibrat\w*|odometry|track|gain|kp|kd|stall\w*|telemetry|preflight|fault|warning|toast|terminal|heartbeat|spin\w*|rotat\w*|degrees?|coordinates?|spot|arm\w*|mechanism|flywheel|pneumatic\w*|piston|claw|chassis|cartridge|gearset|rpm)\b|::/;
+  var DOMAIN_RE=/\b(motors?|moters?|ports?|drive\w*|turn\w*|auton\w*|auto|routines?|encoders?|wheels?|sticks?|joysticks?|controllers?|battery|brain|screen|field|tiles?|inch\w*|heading|pose|ctnav|ct ?nav|ct ?guard|ct ?dash|pros|imu|inertial|gyro|delay|loop|task|intake|lift|log|print\w*|console|menu|tab|button|sensors?|upload\w*|files?|functions?|initialize|opcontrol|competition|deadband|curve|steer\w*|push test|robot|bot|vex|code|cpp|hpp|lemlib|setpose|move\w*|forward|backwards?|rumble|selector|calibrat\w*|odometry|track|gain|kp|kd|stall\w*|telemetry|preflight|fault|warning|toast|terminal|heartbeat|debug\w*|bugs?|spin\w*|rotat\w*|degrees?|coordinates?|spot|arm\w*|mechanism|flywheel|pneumatic\w*|piston|claw|chassis|cartridge|gearset|rpm)\b|::/;
   var OFFTOPIC_RE=/\b(pizza|movies?|music|songs?|fortnite|minecraft|roblox|homework|essay|football|soccer|basketball|baseball|weather|girlfriend|boyfriend|recipe|anime|tiktok|youtube|world cup|super bowl|president|civil war|history class|who won|last night|joke|poem|restaurant|dinner|lunch|eat|food|bike|bicycle|riding my|car|driver'?s (license|ed)|driving test|cook\w*|homecoming|prom|crush|date with|dance)\b/;
+  var ROBOT_RE=/\b(motors?|auton\w*|encoders?|ctnav|ctd|ctguard|pros|robot|bot|vex|code|routine|drivetrain)\b|::/;
+  var HARD_OFFTOPIC_RE=/\b(fortnite|minecraft|roblox|pizza|movies?|music|songs?|homework|essay|football|soccer|basketball|baseball|anime|tiktok|youtube|chemistry|biology|history class|boston|new york|road trip|flight|miles away|homecoming|prom)\b|\bdrive from [a-z]+/;
   var STRONG_RE=/\b(motors?|ports?|auton\w*|encoders?|ctnav|pros|robot|bot|code|command|routine|field|tiles?|spot|angle|heading|turn ?to|move ?to|drive ?distance|wheels?|battery|brain)\b|::/;
 
   /* ---------- routine writer ---------- */
@@ -1243,7 +1252,7 @@ ctd::Console.println("stall %s  asked %.1f  got %.1f in/s",
        .replace(/\b(\d+(?:\.\d+)?|a|one|two|three) (tiles?|squares?|feet|foot) and a half\b/g,function(m,n,u){var v=({a:1,one:1,two:2,three:3}[n]||parseFloat(n))+0.5;return v+" "+(/sq/.test(u)?"tiles":u)})
        .replace(/\bsquares\b/g,"tiles").replace(/\b(\d+|a|one) square\b/g,"$1 tile")
        .replace(/\bhalf an? (tile|foot)\b/g,function(m,u){return (u==="tile"?"12":"6")+" inches"})
-       .replace(/\ba (tile|foot)\b/g,function(m,u){return u==="tile"?"24 inches":"12 inches"});
+       .replace(/\b(a|another|one more) (tile|foot)\b/g,function(m,w,u){return u==="tile"?"24 inches":"12 inches"});
     s=s.replace(/\b(twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)[\s-](one|two|three|four|five|six|seven|eight|nine)\b/g,function(m,a,b){return String(NUMW[a]+NUMW[b])});
     s=s.replace(/\bone hundred (and )?eighty\b/g,"180").replace(/\b(zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|eighteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)\b/g,function(m){return String(NUMW[m])});
     return s;
@@ -1267,6 +1276,7 @@ ctd::Console.println("stall %s  asked %.1f  got %.1f in/s",
     var coords=[];
     s=s.replace(/\(\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\)/g,function(m,a,b){coords.push([+a,+b]);return " @"+(coords.length-1)+"@ "})
        .replace(/\b(to|at|toward|towards|from|face|faces|facing|point|spot|coordinates?|coords?|position|location)\s+(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/g,function(m,w,a,b){coords.push([+a,+b]);return w+" @"+(coords.length-1)+"@ "})
+       .replace(/\b(to|at|toward|towards|face|faces|facing|point|spot|coordinates?|coords?|position|location)\s+(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\b(?!\s*(?:inches|inch|in\b|tiles?|feet|foot|ft\b|degrees?|deg\b|seconds?|secs?|sec\b|ms\b|%))/g,function(m,w,a,b){coords.push([+a,+b]);return w+" @"+(coords.length-1)+"@ "})
        .replace(/\bx\s*=?\s*(-?\d+(?:\.\d+)?)\s*,?\s*(?:and\s*)?y\s*=?\s*(-?\d+(?:\.\d+)?)/g,function(m,a,b){coords.push([+a,+b]);return " @"+(coords.length-1)+"@ "});
     s=s.replace(/^[^:\d]{0,60}:\s*/,function(m){return m.split(/\s+/).length<=8?"":m})
        .replace(/^\s*(?:(?:my|our|the) )?(?:skills start|auton plan|auton idea|plan|steps?(?: for (?:the )?auton\w*)?|routine|program)\s*(?:is|:|-)?\s*/,"")
@@ -1284,7 +1294,7 @@ ctd::Console.println("stall %s  asked %.1f  got %.1f in/s",
        .replace(/[,.;]?\s*(?:(?:could|can|would) (?:you|u) (?:write|code) (?:it|that|this)(?: out| up)?(?: for me)?|what would (?:that|the|this) code look like)\s*\??\s*$/,"")
        .replace(/^(?:i would like|we want|i'?d like|id like) (?:the robot|it|my robot|the bot) to\s+/,"");
     s=s.replace(/^(.+?)\s+after (it|the robot|the bot|that it)\s+(.+)$/,function(m,first,w,second){return second+" , "+first})
-       .replace(/\bfwd\b/g,"forward").replace(/\bhang a (left|right)\b/g,"turn $1").replace(/\bdo a 180\b/g,"turn around").replace(/\bccw\b/g,"counterclockwise").replace(/\bcw\b/g,"clockwise")
+       .replace(/\bfwd\b/g,"forward").replace(/\bhang a (left|right)\b/g,"turn $1").replace(/\b(do|does|doing|make|makes) a 180\b/g,"turn around").replace(/\b(chill|chills|hang on|sit|sits|hold|holds|stay|stays|rest|rests)\b(?=\s+(for\s+)?\d*\.?\d+\s*(s|sec|secs|seconds?|ms)\b)/g,"wait").replace(/\bccw\b/g,"counterclockwise").replace(/\bcw\b/g,"clockwise")
        .replace(/\b(counter|anti)[- ]?clockwise\b/g,"counterclockwise");
     var square=/\bsquare\b/.test(q.toLowerCase());
     s=s.replace(/\s+(?=(?:turn|turns|turning|rotate|rotates|rotating|spin|spins|pivot|pivots|swing|swings|drive|drives|driving|go|goes|going|move|moves|back up|backs up|backing up|reverse|reverses|reversing|wait|waits|pause|pauses|return|returns|come back|comes back|head back|heads back|heads home|get to|gets to|face|faces|forward|rumble|print|score|scoot|scoots|cruise|cruises|creep|creeps|roll|rolls|advance|advances|curve|make a|hang a)\b)/g,function(m,off,str){
@@ -1344,9 +1354,9 @@ ctd::Console.println("stall %s  asked %.1f  got %.1f in/s",
     var s=q.toLowerCase().trim();
     var moves=p.steps.filter(function(x){return x.t!=="print"&&x.t!=="rumble"&&x.t!=="wait"&&x.t!=="score"}).length;
     if(!moves)return false;
-    var question=/^(why|how|what|whats|what's|where|which|when|does|do|is|are|can i|could i|should|if|i ran|i put|i told|i start|i launched|told|i write|i wrote|i call|i do)\b/.test(s)||/^(my|our)\b(?! (auton |autonomous |skills )?(plan|idea|routine)\b)/.test(s)||/\b(which|what) (command|function|call|one)\b|\bwhat do i (use|type|call)\b/.test(s);
+    var question=/^(why|how|what|whats|what's|wats|where|which|when|does|do|is|are|can i|could i|should|if|i ran|i put|i told|i start|i launched|told|i write|i wrote|i call|i do|give the|give two|list|explain|describe|name the|compare|define|state)\b/.test(s)||/^(my|our)\b(?! (auton |autonomous |skills )?(plan|idea|routine)\b)/.test(s)||/\b(which|what) (command|function|call|one)\b|\bwhat do i (use|type|call)\b/.test(s);
     var trailingAsk=/(how (do i |to |can i |would i |should i )?(code|write|program) (that|this|it)|how code|code (for )?(that|this|it)( pls| please)?|write (it|that|this)( out| up)?( as an? \w+)?( for me)?|can (you|u) write (that|this|it)( for me)?|give me (the )?code|what would (that|the|this) code look like|(could|can|would) (you|u) (write|code) (it|that|this)( out| up)?( for me)?)\W*$/.test(s);
-    var strong=trailingAsk||/^(?:(?:please|pls|ok|okay|so|yo|hey)[, ]+)*(?:can (?:you|u) |could (?:you|u) |would (?:you|u) )?(write|create|build|generate|code|program)\b/.test(s)||/\bwrite (me |us )?(the |some )?(code|an? (auton|routine|autonomous))\b|^(need|i need) (code|an? (auton|routine))\b|^(need auton|auton|autonomous|routine|code|skills( auton)?)\b[^:]{0,20}:/.test(s);
+    var strong=trailingAsk||/^(?:(?:please|pls|ok|okay|so|yo|hey)[, ]+)*(?:can (?:you|u) |could (?:you|u) |would (?:you|u) )?(write|create|build|generate|code|program)\b/.test(s)||/\bwrite (me |us )?(the |some )?(code|an? (auton|routine|autonomous))\b|^(need|i need|gimme|give me) (an? |the |some )?(code|auton|routine|autonomous)\b|^(need auton|auton|autonomous|routine|code|skills( auton)?)\b[^:]{0,20}:/.test(s);
     var soft=!question&&(/\bmake (me |us )?(a |an |my |the )?(new |simple |basic |quick )?(routine|auton|autonomous|auto|program)\b|\b(make|have) (it|the robot|my robot|the bot)\b|\bi (want|need) (it|my robot|the robot|the bot|my bot) to\b|\b(my robot|the robot|it) (should|needs to)\b/.test(s));
     var problem=/\b(but|instead|wrong|keeps?|off by (a |about |like |\d)|are off|is off|crooked|different every|stall\w*|sits? there|sat there|doesn'?t|dosn'?t|does not|won'?t|isn'?t|never|too (far|much|fast|slow)|past|overshoot\w*|twitch\w*|supposed to|happens|happened|why|how long|how many|still go|does it|both|music|zigzag\w*|wobbl\w*|weav\w*)\b/.test(s);
     if(problem&&!strong)return false;
@@ -1455,7 +1465,7 @@ ctd::Console.println("stall %s  asked %.1f  got %.1f in/s",
       if(rn){CTX.routine.name=rn[1].trim().replace(/\s+/g,"_").replace(/[^a-z0-9_]/g,"");return {md:writeRoutine(CTX.routine),rel:[],keepRoutine:true}}
     }
 
-    if(OFFTOPIC_RE.test(s)&&!STRONG_RE.test(s))
+    if((OFFTOPIC_RE.test(s)&&!STRONG_RE.test(s))||(HARD_OFFTOPIC_RE.test(s)&&!ROBOT_RE.test(s)))
       return {md:"I only know the code in this VEX library, so I can't help with that one. Try asking where some code is, how something works, or ask me to write a routine.",rel:["What can you do?","Which file do I edit?","Write a routine that drives 24 inches and turns right"]};
     /* write a routine */
     var parsed=parseRoutine(q);
