@@ -1,10 +1,10 @@
 {
   "meta": {
     "Ruleset": "V5RC Override 2026-2027, manual v2.1",
-    "Code version": "git 287b934 (plus any uncommitted changes)",
+    "Code version": "git 6fdb32b (plus any uncommitted changes)",
     "Optimizer settings": "deterministic, seed 1, beam widths 1/16/64, MCTS 1200 iterations, evolution 30 generations, B&B 20000 expansions, model Monte Carlo 100 trials",
     "Physics uncertainty": "motor SD 5%, traction SD 8%, battery 12.2–12.9 V, object placement SD 0.5 in",
-    "Run time": "325 s on linux/x64, Node v22.22.0"
+    "Run time": "445 s on linux/x64, Node v22.22.0"
   },
   "sections": [
     {
@@ -68,7 +68,7 @@
           "method": "beam(w=1, α=0.3)",
           "expansions": 7,
           "evaluations": 55,
-          "ms": 48.03491199999996,
+          "ms": 48.60746299999994,
           "stoppedBy": "completed",
           "best": 35
         },
@@ -76,7 +76,7 @@
           "method": "beam(w=16, α=0.3)",
           "expansions": 86,
           "evaluations": 317,
-          "ms": 43.69077400000003,
+          "ms": 42.57106299999998,
           "stoppedBy": "completed",
           "best": 35
         },
@@ -84,7 +84,7 @@
           "method": "beam(w=64, α=0.3)",
           "expansions": 267,
           "evaluations": 1030,
-          "ms": 61.80824099999995,
+          "ms": 67.26288299999999,
           "stoppedBy": "completed",
           "best": 35
         },
@@ -92,7 +92,7 @@
           "method": "mcts(1200 iterations in slices of 400)",
           "expansions": 4928,
           "evaluations": 11772,
-          "ms": 427.6995470000004,
+          "ms": 357.0002380000002,
           "stoppedBy": "completed",
           "best": 35
         },
@@ -100,7 +100,7 @@
           "method": "evolutionary(30 generations)",
           "expansions": 744,
           "evaluations": 12687,
-          "ms": 79.46623199999999,
+          "ms": 102.39889300000004,
           "stoppedBy": "completed",
           "best": 35
         },
@@ -108,7 +108,7 @@
           "method": "branch&bound",
           "expansions": 1708,
           "evaluations": 15817,
-          "ms": 253.38920699999994,
+          "ms": 216.98812900000007,
           "stoppedBy": "completed",
           "best": 35,
           "proven": true,
@@ -365,7 +365,7 @@
           "method": "beam(w=1, α=0.3)",
           "expansions": 21,
           "evaluations": 828,
-          "ms": 176.18205799999987,
+          "ms": 165.25418199999967,
           "stoppedBy": "completed",
           "best": 98
         },
@@ -373,7 +373,7 @@
           "method": "beam(w=16, α=0.3)",
           "expansions": 352,
           "evaluations": 8119,
-          "ms": 842.6412080000005,
+          "ms": 811.9743149999999,
           "stoppedBy": "completed",
           "best": 128
         },
@@ -381,7 +381,7 @@
           "method": "beam(w=64, α=0.3)",
           "expansions": 1311,
           "evaluations": 34745,
-          "ms": 2292.763949,
+          "ms": 2374.137997,
           "stoppedBy": "completed",
           "best": 143
         },
@@ -389,7 +389,7 @@
           "method": "mcts(1200 iterations in slices of 400)",
           "expansions": 19737,
           "evaluations": 316952,
-          "ms": 8381.567767,
+          "ms": 7395.9008349999995,
           "stoppedBy": "completed",
           "best": 138
         },
@@ -397,7 +397,7 @@
           "method": "evolutionary(30 generations)",
           "expansions": 744,
           "evaluations": 317868,
-          "ms": 536.7507909999986,
+          "ms": 483.28739099999984,
           "stoppedBy": "completed",
           "best": 143
         },
@@ -405,7 +405,7 @@
           "method": "branch&bound",
           "expansions": 20224,
           "evaluations": 766643,
-          "ms": 28280.716603999997,
+          "ms": 27509.430454999994,
           "stoppedBy": "expansions",
           "best": 143,
           "proven": false,
@@ -785,67 +785,43 @@
       "physics": {
         "trials": 8,
         "scores": [
-          80,
-          98,
-          68,
-          78,
-          63,
-          50,
-          63,
-          75
+          48,
+          90,
+          45,
+          60,
+          75,
+          70,
+          128,
+          80
         ],
         "margins": [
-          80,
-          98,
-          68,
-          78,
-          63,
-          50,
-          63,
-          75
+          48,
+          90,
+          45,
+          60,
+          75,
+          70,
+          128,
+          80
         ],
-        "mean": 71.875,
-        "median": 68,
-        "best": 98,
-        "worst": 50,
-        "sd": 13.448396744593758,
+        "mean": 74.5,
+        "median": 70,
+        "best": 128,
+        "worst": 45,
+        "sd": 24.839484696748443,
         "pTarget": null,
         "failures": [
           {
             "label": "Set T-R2 → red",
-            "count": 3
-          },
-          {
-            "label": "Place on G-R2a",
-            "count": 3
+            "count": 2
           },
           {
             "label": "Place on G-B1n",
             "count": 2
           },
           {
-            "label": "Place on G-R1a",
+            "label": "Place on G-R2a",
             "count": 2
-          },
-          {
-            "label": "Place on G-B2n",
-            "count": 2
-          },
-          {
-            "label": "Set T-R1 → red",
-            "count": 2
-          },
-          {
-            "label": "Place on G-R1n",
-            "count": 1
-          },
-          {
-            "label": "Pick C21",
-            "count": 1
-          },
-          {
-            "label": "Pick P01-YY",
-            "count": 1
           },
           {
             "label": "Place on G-B2a",
@@ -854,70 +830,90 @@
           {
             "label": "Set T-B1 → red",
             "count": 1
+          },
+          {
+            "label": "Pick C23",
+            "count": 1
+          },
+          {
+            "label": "Pick C19",
+            "count": 1
+          },
+          {
+            "label": "Set T-B2 → red",
+            "count": 1
+          },
+          {
+            "label": "Place on G-R1n",
+            "count": 1
+          },
+          {
+            "label": "Pick P02-YY",
+            "count": 1
+          },
+          {
+            "label": "Pick P28-RY",
+            "count": 1
+          },
+          {
+            "label": "Pick P04-YY",
+            "count": 1
           }
         ],
         "violations": [],
-        "meanReplans": 3.375
+        "meanReplans": 3
       },
       "physicsAlt": {
         "trials": 8,
         "scores": [
-          43,
-          95,
-          68,
-          78,
-          78,
-          50,
-          33,
-          75
+          63,
+          70,
+          45,
+          60,
+          55,
+          88,
+          143,
+          43
         ],
         "margins": [
-          43,
-          95,
-          68,
-          78,
-          78,
-          50,
-          33,
-          75
+          63,
+          70,
+          45,
+          60,
+          55,
+          88,
+          143,
+          43
         ],
-        "mean": 65,
-        "median": 68,
-        "best": 95,
-        "worst": 33,
-        "sd": 19.621416870348583,
+        "mean": 70.875,
+        "median": 60,
+        "best": 143,
+        "worst": 43,
+        "sd": 30.362137194209502,
         "pTarget": null,
         "failures": [
           {
             "label": "Place on G-B1n",
-            "count": 4
-          },
-          {
-            "label": "Place on G-R2a",
             "count": 3
           },
           {
-            "label": "Set T-B2 → red",
+            "label": "Set T-B1 → red",
             "count": 2
           },
           {
-            "label": "Place on G-R1n",
+            "label": "Place on G-R2a",
             "count": 2
           },
           {
             "label": "Place on G-MID",
-            "count": 2
-          },
-          {
-            "label": "Place on G-R1a",
             "count": 1
           },
           {
-            "label": "Pick C21",
+            "label": "Pick C23",
             "count": 1
           },
           {
-            "label": "Pick P01-YY",
+            "label": "Pick C19",
             "count": 1
           },
           {
@@ -925,20 +921,20 @@
             "count": 1
           },
           {
+            "label": "Place on G-R2n",
+            "count": 1
+          },
+          {
             "label": "Place on G-B1a",
             "count": 1
           },
           {
-            "label": "Set T-R1 → red",
-            "count": 1
-          },
-          {
-            "label": "Set T-R2 → red",
+            "label": "Set T-B2 → red",
             "count": 1
           }
         ],
         "violations": [],
-        "meanReplans": 2.75
+        "meanReplans": 2.125
       }
     },
     {
@@ -1002,7 +998,7 @@
           "method": "beam(w=1, α=0.3)",
           "expansions": 37,
           "evaluations": 1200,
-          "ms": 427.0677970000106,
+          "ms": 257.480550999986,
           "stoppedBy": "completed",
           "best": 193
         },
@@ -1010,7 +1006,7 @@
           "method": "beam(w=16, α=0.3)",
           "expansions": 631,
           "evaluations": 10018,
-          "ms": 2455.0100740000053,
+          "ms": 1662.493537000002,
           "stoppedBy": "completed",
           "best": 203
         },
@@ -1018,7 +1014,7 @@
           "method": "beam(w=64, α=0.3)",
           "expansions": 2510,
           "evaluations": 43526,
-          "ms": 7284.230999999985,
+          "ms": 4516.266458000027,
           "stoppedBy": "completed",
           "best": 226
         },
@@ -1026,7 +1022,7 @@
           "method": "mcts(1200 iterations in slices of 400)",
           "expansions": 39327,
           "evaluations": 481327,
-          "ms": 51537.36774800002,
+          "ms": 26416.317764000007,
           "stoppedBy": "completed",
           "best": 251
         },
@@ -1034,7 +1030,7 @@
           "method": "evolutionary(30 generations)",
           "expansions": 744,
           "evaluations": 482243,
-          "ms": 1159.1498879999854,
+          "ms": 1153.3157239999855,
           "stoppedBy": "completed",
           "best": 256
         },
@@ -1042,7 +1038,7 @@
           "method": "branch&bound",
           "expansions": 20224,
           "evaluations": 556573,
-          "ms": 11721.582904999988,
+          "ms": 11446.296473999973,
           "stoppedBy": "expansions",
           "best": 256,
           "proven": false,
@@ -1591,38 +1587,42 @@
       "physics": {
         "trials": 4,
         "scores": [
-          84,
-          73,
-          41,
-          99
+          38,
+          67,
+          15,
+          114
         ],
         "margins": [
-          -72,
-          -105,
-          -124,
-          0
+          -154,
+          -21,
+          -147,
+          43
         ],
-        "mean": 74.25,
-        "median": 73,
-        "best": 99,
-        "worst": 41,
-        "sd": 21.299941314473145,
+        "mean": 58.5,
+        "median": 38,
+        "best": 114,
+        "worst": 15,
+        "sd": 36.96281915655244,
         "pTarget": null,
         "failures": [
           {
             "label": "Pick C31",
-            "count": 4
+            "count": 3
+          },
+          {
+            "label": "Place on G-MID",
+            "count": 3
           },
           {
             "label": "Set T-B1 → red",
-            "count": 4
+            "count": 3
           },
           {
             "label": "Place on G-R1n",
             "count": 3
           },
           {
-            "label": "Pick C28",
+            "label": "Set T-R2 → red",
             "count": 2
           },
           {
@@ -1630,7 +1630,7 @@
             "count": 2
           },
           {
-            "label": "Place on G-R2a",
+            "label": "Place on G-B1n",
             "count": 2
           },
           {
@@ -1638,35 +1638,15 @@
             "count": 2
           },
           {
-            "label": "Pick C05",
-            "count": 1
+            "label": "Pick C29",
+            "count": 2
           },
           {
-            "label": "Pick P13-RY",
-            "count": 1
+            "label": "Place on G-R2a",
+            "count": 2
           },
           {
-            "label": "Pick P07-YY",
-            "count": 1
-          },
-          {
-            "label": "Pick C11",
-            "count": 1
-          },
-          {
-            "label": "Pick C25",
-            "count": 1
-          },
-          {
-            "label": "Place on G-B2n",
-            "count": 1
-          },
-          {
-            "label": "Place on G-B1n",
-            "count": 1
-          },
-          {
-            "label": "Pick P26-RY",
+            "label": "Pick P32-RB",
             "count": 1
           },
           {
@@ -1674,11 +1654,7 @@
             "count": 1
           },
           {
-            "label": "Set T-R2 → red",
-            "count": 1
-          },
-          {
-            "label": "Pick C14",
+            "label": "Set T-B2 → red",
             "count": 1
           },
           {
@@ -1686,7 +1662,31 @@
             "count": 1
           },
           {
-            "label": "Pick P24-BY",
+            "label": "Pick P13-RY",
+            "count": 1
+          },
+          {
+            "label": "Pick C28",
+            "count": 1
+          },
+          {
+            "label": "Pick P04-YY",
+            "count": 1
+          },
+          {
+            "label": "Pick P12-YY",
+            "count": 1
+          },
+          {
+            "label": "Pick P31-RB",
+            "count": 1
+          },
+          {
+            "label": "Pick C34",
+            "count": 1
+          },
+          {
+            "label": "Load Cup at L-R-low",
             "count": 1
           }
         ],
@@ -1696,7 +1696,7 @@
             "count": 1
           }
         ],
-        "meanReplans": 10.75
+        "meanReplans": 10
       },
       "physicsAlt": null
     }
