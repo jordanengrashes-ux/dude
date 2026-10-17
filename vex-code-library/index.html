@@ -937,7 +937,7 @@ ctd::Console.println("stall %s  asked %.1f  got %.1f in/s",
    a:"`ctnav::turnAngle(90);` turns 90° to the **right** from wherever the robot points now; a negative angle turns left. Keep it under 180°: 270 looks the same as -90 and never reports done. To face a fixed direction instead, use `turnToHeading`.",s:["Turn by an angle"],rel:["turn-heading","turn-270"]},
   {id:"turn-270",q:["My turnAngle(270) never finishes","A big turn never stops"],k:"270 never finishes stops done big turn 180 hangs",fix:true,
    a:"Keep `turnAngle` under 180. Progress is measured as the shortest angle from where the turn started, so 270 is indistinguishable from -90 and never reports done. Turn -90 instead, or use `turnToHeading` with the final heading.",s:["Turn by an angle","Turn to a heading"],rel:["turn-heading"]},
-  {id:"turn-heading",q:["How do I turn to face a heading?","What is turnToHeading?","How do I face 90 degrees?"],k:"turntoheading heading face absolute compass shorter way 350 10 certain direction no matter which way pointing face a direction",
+  {id:"turn-heading",q:["How do I turn to face a heading?","What is turnToHeading?","How do I face 90 degrees?"],k:"turntoheading heading face absolute compass shorter way 350 10 regardless which command choose certain direction no matter which way pointing face a direction",
    a:"`ctnav::turnToHeading(90);` turns until the robot faces compass heading 90, whichever way is shorter. Sitting at 350 and asked for 10, it turns 20° right, not 340° left.",s:["Turn to a heading"],rel:["heading","turn-angle"]},
   {id:"turn-point",q:["How do I turn to face a point?","How do I point the back at a spot?"],k:"turntopoint face point toward towards aim atan2 turnawayfrompoint reverse back",
    a:"`ctnav::turnToPoint(48, 24);` works out the heading to that spot and turns to it. `turnAwayFromPoint` points the back at it, ready to reverse in. Let these do the trigonometry: a compass bearing is `atan2(dx, dy)`, not the textbook `atan2(dy, dx)`.",s:["Turn to face a point"],rel:["move-to-point"]},
@@ -1185,7 +1185,15 @@ ctd::Console.println("stall %s  asked %.1f  got %.1f in/s",
     [/\bctguard::start\b|ctguard start/,"watch",32],[/\bctguard::preflight\b|\bpreflight\(/,"preflight",30],[/\bctguard::watch\b|watchdevice/,"register",30],
     [/\brequirehealthy\b/,"require-healthy",30],[/\bctnav::pose\b|\bpose\(\)/,"pose-readback",26],[/\bwaituntildone\b|ctnav::launch\b/,"launch",28],
     [/\bplanmovetopose\b/,"plan-move",30],[/\brequirestrategy\b/,"rungs",30],[/\btelemetry\b/,"stall",22],[/\bdash\.red\b|auton::start\b/,"selector",28],
-    [/\bconsole\.println\b|\btoast\b/,"toast-log",20],[/\bauton::run\b/,"modes",20]
+    [/\bconsole\.println\b|\btoast\b/,"toast-log",20],[/\bauton::run\b/,"modes",20],
+    [/new robot\b.*\b(check|first|order)|what (should|do) (we|i) check\b|before (the students |we |i )?(begin|start)\w* (writing|coding)/,"checklist",30],
+    [/(two times|twice|second (call|time)|in a row)\b.*\b(move ?to ?point|coordinates?)|move ?to ?point\b.*\b(two times|twice|in a row|second (call|time))/,"place-not-step",36],
+    [/turn ?angle\(\s*-?(1[89]\d|2\d\d|3[0-5]\d)\b/,"turn-270",38],
+    [/\b(inside|in) (the |my )?(20 ?ms |main |opcontrol |while )?loop\b|every (tick|loop|cycle)/,"what-to-log",26],
+    [/move ?to ?pose\b.*\brefus\w*|refus\w*\b.*\bmove ?to ?pose/,"pose-refused",36],
+    [/ct ?guard\b.*\b(keep an eye|watch|know about|register|track|monitor)|fault says|not a port number|instead of (a |the )?port number/,"register",30],
+    [/\b(restart|fix|repair|retry|reconnect)\w*\b.*\b(for me|itself|on its own|automatically)|will ct ?guard (restart|fix|repair|reconnect)/,"never-fixes",34],
+    [/not (run|drive)\b.*\b(problem|fault|broken|busted|something wrong)|(problem|fault)\b.*\bnot (run|drive)|refuse to (run|drive)|skip (the )?auton\b.*\b(fault|problem|broken)/,"require-healthy",34]
   ];
   var factById={}; FACTS.forEach(function(f){factById[f.id]=f});
 
@@ -1193,11 +1201,11 @@ ctd::Console.println("stall %s  asked %.1f  got %.1f in/s",
   var FIX_RE=/\b(wrong|broken|doesn'?t|dosn'?t|doesnt|does not|won'?t|wont|isn'?t|not (working|moving|turning|running|driving|showing)|stuck|keeps?|problem|error|fail(s|ed)?|stall(s|ed)?|frozen|freez\w*|weird|issue|bug|too (fast|slow|much|far|big|small|sensitive)|drifts?|veers?|curves?|creeps?|over-?rotat\w*|overshoot\w*|over ?turns?|sat still|sat there|never|off by|messed up|wobbl\w*|wiggl\w*|zigzag\w*|weav\w*|twitch\w*|spam\w*|slammed|instead|but it|halfway|dead)\b/;
   var GREET_RE=/^(hi+|hey+|hello+|helo|yo+|sup|hiya|howdy|heya|wass?up|whats? up|good (morning|afternoon|evening))\b/;
   var THANKS_RE=/\b(thanks|thank (you|u)|thx|tysm|tyy*|cheers|appreciate it|that (fixed|worked|helped)|it worked)\b/;
-  var ABOUT_RE=/\b(what|wat|wut) (can|could) (you|u) (even )?(do|help( with)?)\b|\bwho are (you|u)\b|\bwhat are (you|u)\b|\bhow do (you|u) work\b|\bare (you|u) (an? )?(ai|bot|robot|human|real|chatgpt|claude)\b|\bwhat do (you|u) know\b|\bwhat (kind|kinda|sort|type)( of)? (stuff|things|questions)\b|^help\b\??$|^what can i ask\b/;
+  var ABOUT_RE=/\b(what|wat|wut) (can|could) (you|u) (even )?(do|help( with)?)\b|\bwho are (you|u)\b|\bwhat are (you|u)\b|\bhow do (you|u) work\b|\bare (you|u) (an? )?(ai|bot|robot|human|real|chatgpt|claude)\b|\bwhat do (you|u) know\b|\bwhat (kind|kinda|sort|type)( of)? (stuff|things|questions)\b|^help\b\??$|^what can i ask\b|\b(what|which) (sorts?|kinds?|types?) of (questions|things|stuff)\b.*\b(help|answer|do|know|ask)\b|\bwhat (can|could) (you|u) help( me)? with\b|\bable to help( me)? with\b|\bwhat (do|can) (you|u) (help|answer)\b/;
   function intentOf(q){
     var s=q.toLowerCase().trim(), n=s.split(/\s+/).length;
     if(GREET_RE.test(s)&&n<=5)return "greet";
-    if(THANKS_RE.test(s)&&n<=8&&!/\?$/.test(s))return "thanks";
+    if(THANKS_RE.test(s)&&(n<=8||/^(thanks|thank (you|u)|thx|ty|tysm|cheers)\b/.test(s))&&!/\?/.test(s))return "thanks";
     if(ABOUT_RE.test(s))return "about";
     if(/^(where|which file|what file|in which)\b|\bwhere (is|are|do|does|can|should|would)\b|\bwhich file\b|\bwhat file\b/.test(s)&&!FIX_RE.test(s))return "where";
     if(/^why\b|\bwhy (is|does|do|did|are|won'?t|doesn'?t|can'?t)\b/.test(s))return FIX_RE.test(s)?"fix":"why";
@@ -1206,7 +1214,7 @@ ctd::Console.println("stall %s  asked %.1f  got %.1f in/s",
   }
   /* words that show a question is about this robot code at all */
   var DOMAIN_RE=/\b(motors?|moters?|ports?|drive\w*|turn\w*|auton\w*|auto|routines?|encoders?|wheels?|sticks?|joysticks?|controllers?|battery|brain|screen|field|tiles?|inch\w*|heading|pose|ctnav|ct ?nav|ct ?guard|ct ?dash|pros|imu|inertial|gyro|delay|loop|task|intake|lift|log|print\w*|console|menu|tab|button|sensors?|upload\w*|files?|functions?|initialize|opcontrol|competition|deadband|curve|steer\w*|push test|robot|bot|vex|code|cpp|hpp|lemlib|setpose|move\w*|forward|backwards?|rumble|selector|calibrat\w*|odometry|track|gain|kp|kd|stall\w*|telemetry|preflight|fault|warning|toast|terminal|heartbeat|spin\w*|rotat\w*|degrees?|coordinates?|spot|arm\w*|mechanism|flywheel|pneumatic\w*|piston|claw|chassis|cartridge|gearset|rpm)\b|::/;
-  var OFFTOPIC_RE=/\b(pizza|movies?|music|songs?|fortnite|minecraft|roblox|homework|essay|football|soccer|basketball|baseball|weather|girlfriend|boyfriend|recipe|anime|tiktok|youtube|world cup|super bowl|president|civil war|history class|who won|last night|joke|poem|dinner|lunch|restaurant)\b/;
+  var OFFTOPIC_RE=/\b(pizza|movies?|music|songs?|fortnite|minecraft|roblox|homework|essay|football|soccer|basketball|baseball|weather|girlfriend|boyfriend|recipe|anime|tiktok|youtube|world cup|super bowl|president|civil war|history class|who won|last night|joke|poem|dinner|lunch|restaurant|bike|bicycle|riding my|car|driver'?s (license|ed)|driving test|cook\w*)\b/;
 
   /* ---------- routine writer ---------- */
   var NUMW={zero:0,a:1,an:1,one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10,eleven:11,twelve:12,fifteen:15,eighteen:18,
@@ -1239,8 +1247,13 @@ ctd::Console.println("stall %s  asked %.1f  got %.1f in/s",
     if(nm){name=nm[1].trim().replace(/\s+/g,"_").replace(/[^a-z0-9_]/g,"");s=s.replace(nm[0]," ")}
     var coords=[];
     s=s.replace(/\(\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\)/g,function(m,a,b){coords.push([+a,+b]);return " @"+(coords.length-1)+"@ "})
-       .replace(/\b(to|at|toward|towards|from|face|faces|facing)\s+(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/g,function(m,w,a,b){coords.push([+a,+b]);return w+" @"+(coords.length-1)+"@ "})
+       .replace(/\b(to|at|toward|towards|from|face|faces|facing|point|spot)\s+(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/g,function(m,w,a,b){coords.push([+a,+b]);return w+" @"+(coords.length-1)+"@ "})
        .replace(/\bx\s*=?\s*(-?\d+(?:\.\d+)?)\s*,?\s*(?:and\s*)?y\s*=?\s*(-?\d+(?:\.\d+)?)/g,function(m,a,b){coords.push([+a,+b]);return " @"+(coords.length-1)+"@ "});
+    s=s.replace(/^\s*(?:(?:my|our|the) )?(?:skills start|auton plan|auton idea|plan|steps?(?: for (?:the )?auton\w*)?|routine|program)\s*(?:is|:|-)?\s*/,"")
+       .replace(/(^|[\s,;])(?:step\s*)?\d{1,2}[).]\s+/g,"$1 , ")
+       .replace(/^(?:(?:can|could|would|will) (?:you|u) )?(?:please )?(?:write|code|make) (?:this|that|it)(?: (?:out|up))?(?: for me)?\s*[:,-]?\s*/,"")
+       .replace(/[,.;]?\s*(?:(?:could|can|would) (?:you|u) (?:write|code) (?:it|that|this)(?: out| up)?(?: for me)?|what would (?:that|the|this) code look like)\s*\??\s*$/,"")
+       .replace(/^(?:i would like|we want|i'?d like|id like) (?:the robot|it|my robot|the bot) to\s+/,"");
     s=s.replace(/^(.+?)\s+after (it|the robot|the bot|that it)\s+(.+)$/,function(m,first,w,second){return second+" , "+first})
        .replace(/\bfwd\b/g,"forward").replace(/\bhang a (left|right)\b/g,"turn $1").replace(/\bdo a 180\b/g,"turn around").replace(/\bccw\b/g,"counterclockwise").replace(/\bcw\b/g,"clockwise")
        .replace(/\b(counter|anti)[- ]?clockwise\b/g,"counterclockwise");
@@ -1248,7 +1261,8 @@ ctd::Console.println("stall %s  asked %.1f  got %.1f in/s",
     s=s.replace(/\s+(?=(?:turn|turns|turning|rotate|rotates|spin|spins|pivot|pivots|drive|drives|go|goes|move|moves|back up|backs up|reverse|reverses|wait|waits|pause|pauses|return|returns|come back|comes back|head back|heads back|get to|gets to|face|faces|forward|rumble|print|score)\b)/g,function(m,off,str){
       var before=str.slice(0,off), prev=(before.match(/(\S+)\s*$/)||[])[1]||"";
       var next=str.slice(off).trim();
-      if(/^(to|and|then|,|;|it|robot|bot|should|will|i|we|can|please|pls|me|you|u|that|which|who|auton|routine)$/.test(prev))return m;
+      if(/^(to|and|then|,|;|it|robot|bot|should|will|i|we|can|please|pls|me|you|u|that|which|who|auton|routine|a|an|the)$/.test(prev))return m;
+      if(/^drive\b/.test(next)&&/(?:^|\s)(?:a|an)\s+\d*\.?\d+\s+(?:tiles?|inch(?:es)?|in|foot|feet|ft)\s*$/.test(before))return m;
       if(/^face/.test(next)&&/^(to|turn|turns|turning|till|until|its|is|and)$/.test(prev))return m;
       if(/^forward/.test(next)&&/^(drive|drives|go|goes|move|moves|head|heads|straight|driving|going|moving)$/.test(prev))return m;
       if(/^(back up|reverse|return|come back)/.test(next)&&/^(drive|drives|go|goes)$/.test(prev))return m;
@@ -1262,18 +1276,19 @@ ctd::Console.println("stall %s  asked %.1f  got %.1f in/s",
       var cm=c.match(/@(\d+)@/), coord=cm?coords[+cm[1]]:null;
       var hm=c.match(/\b(?:facing|face|heading|pointing|point)\s*(?:to\s*|at\s*)?(-?\d+(?:\.\d+)?)/), hNum=hm?parseFloat(hm[1]):null, hW=headingWord(c);
       var hasDrive=/\b(drive|drives|driving|go|goes|move|moves|forward|forwards|ahead|straight|travel|roll|head)\b/.test(c);
+      if(/\b(launch|in the background)\b/.test(c)&&!isMechWord(c)&&hasDrive){var ld=distanceIn(c);if(ld!=null){steps.push({t:"launchOnly",d:ld});return}}
       var isMech=/\b(intake|intaking|roller|conveyor|mechanism|spin up|outtake|outtaking|flywheel)\b/.test(c);
       if((/\b(start|starts|starting|begin|begins|placed|place it|setpose)\b\s*(at|from|on|in)?\s*@/.test(c)||/^from @/.test(c))&&coord){start={x:coord[0],y:coord[1],h:hNum!=null?hNum:(hW!=null?hW:0)};var rest=c.replace(/^.*?@\d+@\s*(facing\s*-?\d+|facing \w+)?/,"").trim();if(!rest)return;c=rest;cm=c.match(/@(\d+)@/);coord=cm?coords[+cm[1]]:null;hm=c.match(/\b(?:facing|face|heading|pointing|point)\s*(?:to\s*|at\s*)?(-?\d+(?:\.\d+)?)/);hNum=hm?parseFloat(hm[1]):null;hW=headingWord(c)}
       else if(/\b(start|starts|starting|begin|begins)\b.*\b(facing|pointing|heading)\b/.test(c)&&(hNum!=null||hW!=null)&&!coord){start={x:0,y:0,h:hNum!=null?hNum:hW};return}
       c=c.replace(/^(begin|start) (by|with) /,"");
       if(/\b(rumble|buzz|vibrate)\b/.test(c)){steps.push({t:"rumble"});return}
       if(/\b(print|log)\b/.test(c)&&/\b(pose|position|where)\b/.test(c)){steps.push({t:"print"});return}
-      if(isMech&&hasDrive&&/\b(while|during|as it|same time|at once|with the|with intake|intaking)\b/.test(c)){var dd=distanceIn(c.replace(/\b\d+\s*(ms|milliseconds?|seconds?|secs?|s)\b/g,""));steps.push({t:"launch",d:dd!=null?dd:24});return}
+      if(isMech&&(hasDrive||/\blaunch\b/.test(c))&&/\b(while|during|as it|same time|at once|with the|with intake|intaking|background|launch)\b/.test(c)){var dd=distanceIn(c.replace(/\b\d+\s*(ms|milliseconds?|seconds?|secs?|s)\b/g,""));steps.push({t:"launch",d:dd!=null?dd:24});return}
       if(isMech){var ms=c.match(/(\d+(?:\.\d+)?)\s*(ms|milliseconds?|seconds?|secs?|s)\b/);steps.push({t:"mech",ms:ms?(/^m/.test(ms[2])?+ms[1]:Math.round(+ms[1]*1000)):500});return}
       if(/\b(score|scores|scoring|drop|place the)\b/.test(c)&&!coord&&!distanceIn(c)){steps.push({t:"score"});return}
       if(/\b(piston|pneumatic\w*|solenoid|claw|catapult|wings?|fire|shoot|shooter|lift)\b/.test(c)&&!coord&&!distanceIn(c)){unknown.push(raw.trim());return}
       if(/\b(wait|waits|pause|pauses|delay|sit|stop for|hold for)\b/.test(c)){var w=c.match(/(\d*\.?\d+)\s*(ms|milliseconds?|seconds?|secs?|sec|s\b)?/);var v=w?+w[1]:1;var unit=w&&w[2]||"";steps.push({t:"wait",ms:/^m/.test(unit)?v:(unit||v<=10?Math.round(v*1000):v)});return}
-      if(coord&&/\b(face|faces|facing|point|points|aim|aims|look|looks|turn|turns|rotate|turning)\s+(the (front|back) )?((toward|towards|at|to)\s+)?(face\s+)?@\d+@/.test(c)&&!hasDrive){steps.push({t:/\b(back|away|rear)\b/.test(c)?"turnAway":"turnPoint",x:coord[0],y:coord[1]});return}
+      if(coord&&/\b(face|faces|facing|point|points|aim|aims|look|looks|turn|turns|rotate|turning)\s+(the (front|back) )?((toward|towards|at|to)\s+)?(face\s+)?(the )?((point|spot|location|coordinate)\s+)?@\d+@/.test(c)&&!hasDrive){steps.push({t:/\b(back|away|rear)\b/.test(c)?"turnAway":"turnPoint",x:coord[0],y:coord[1]});return}
       if(coord){steps.push(hNum!=null||hW!=null?{t:"pose",x:coord[0],y:coord[1],h:hNum!=null?hNum:hW}:{t:"point",x:coord[0],y:coord[1]});return}
       if(/\b(return|returns|come back|comes back|go back|goes back|head back|heads back|back to (the )?start|go home|back home|to the start|where it started|starting (spot|point|position))\b/.test(c)||(/\b(drive|drives|go|goes)\s+back\b/.test(c)&&distanceIn(c)==null)){steps.push({t:"home",assumed:/\b(drive|drives|go|goes)\s+back\b/.test(c)});return}
       if(/\b(back up|backs up|backup|reverse|reverses|backwards?|back)\b/.test(c)){var bd=distanceIn(c);if(bd!=null){steps.push({t:"drive",d:-Math.abs(bd)});return}}
@@ -1290,12 +1305,13 @@ ctd::Console.println("stall %s  asked %.1f  got %.1f in/s",
     if(square&&steps.length<=1){var side=steps.length&&steps[0].t==="drive"?steps[0].d:distanceIn(s.replace(/@\d+@/g,""));side=side!=null?side:24;steps=[];for(var k=0;k<4;k++){steps.push({t:"drive",d:side});steps.push({t:"turn",a:90})}}
     return {steps:steps,start:start,name:name,unknown:unknown};
   }
-  var IMPERATIVE_RE=/^(?:(?:please|pls|ok|okay|so|now|first|then|alright|yo)[, ]+)*(drive|go|move|turn|rotate|spin|pivot|back up|back|reverse|forward|fwd|head|get|face|wait|pause|start|begin|from|return|come|run|(?:left|right) \d|make|have|write|create|build|code|generate|program|give|can you|could you|can u|could u|would you|i want|i need|i'?d like|id like|the robot should|robot should|it should|let'?s|lets|auton|autonomous|routine|a routine|an auton|new auton|new routine)\b/;
+  var IMPERATIVE_RE=/^(?:(?:please|pls|ok|okay|so|now|first|then|alright|yo)[, ]+)*(drive|go|move|turn|rotate|spin|pivot|back up|back|reverse|forward|fwd|head|get|face|wait|pause|start|begin|from|return|come|run|launch|(?:left|right) \d|steps?|routine|plan|my plan|our plan|the plan|auton plan|my auton plan|auton idea|skills|program it|i would like (?:the robot|it|my robot|the bot) to|we want (?:the robot|it) to|make|have|write|create|build|code|generate|program|give|can you|could you|can u|could u|would you|i want|i need|i'?d like|id like|the robot should|robot should|it should|let'?s|lets|auton|autonomous|routine|a routine|an auton|new auton|new routine)\b/;
+  function isMechWord(c){return /\b(intake|intaking|roller|conveyor|mechanism|outtake|flywheel)\b/.test(c)}
   function looksLikeRoutine(q,p){
     var s=q.toLowerCase().trim();
     var moves=p.steps.filter(function(x){return x.t!=="print"&&x.t!=="rumble"&&x.t!=="wait"&&x.t!=="score"}).length;
     if(!moves)return false;
-    var explicit=/\b(write|make|create|build|generate|code up|program|give me|need)\b.*\b(routine|auton|autonomous|auto|path|program|code)\b|\b(make|have) (it|the robot|my robot|the bot)\b|\bi (want|need) (it|my robot|the robot|the bot|my bot) to\b|\b(my robot|the robot|it) (should|needs to)\b/.test(s);
+    var explicit=/\b(write|make|create|build|generate|code up|program|give me|need)\b.*\b(routine|auton|autonomous|auto|path|program|code)\b|what would (that|the|this) code look like|(could|can|would) you (write|code) (it|that|this)( out| up)?\b|write (it|that|this) out\b|\b(make|have) (it|the robot|my robot|the bot)\b|\bi (want|need) (it|my robot|the robot|the bot|my bot) to\b|\b(my robot|the robot|it) (should|needs to)\b/.test(s);
     var problem=/\b(but|instead|wrong|keeps?|off by|are off|is off|crooked|different every|stall\w*|sits? there|sat there|doesn'?t|dosn'?t|does not|won'?t|isn'?t|never|too (far|much|fast|slow)|past|overshoot\w*|twitch\w*|supposed to|happens|happened|why|how long|how many|still go|does it|do i|can i|should i|both|music)\b/.test(s);
     if(problem&&!/^(write|make|create|build|code|generate)\b/.test(s))return false;
     return explicit||IMPERATIVE_RE.test(s);
@@ -1335,6 +1351,10 @@ ctd::Console.println("stall %s  asked %.1f  got %.1f in/s",
       else if(st.t==="launch"){usesMech=true;var r2=h*Math.PI/180;x+=st.d*Math.sin(r2);y+=st.d*Math.cos(r2);leg++;
         lines.push("");lines.push("    ctnav::launch(ctnav::Move::driveDistance("+fmt(st.d)+"));  // leg "+leg+": returns at once; expect "+where());
         lines.push("    intake.move(127);  // runs while the robot drives; swap in your mechanism");lines.push("    pros::delay(300);");lines.push("    intake.move(0);");
+        lines.push("    if (ctnav::waitUntilDone() != ctnav::MoveResult::DONE) {");lines.push('        ctd::Console.println("leg '+leg+' did not finish");');lines.push("    }")}
+      else if(st.t==="launchOnly"){var r3=h*Math.PI/180;x+=st.d*Math.sin(r3);y+=st.d*Math.cos(r3);leg++;
+        lines.push("");lines.push("    ctnav::launch(ctnav::Move::driveDistance("+fmt(st.d)+"));  // leg "+leg+": returns at once; expect "+where());
+        lines.push("    // do other work here while the robot drives");
         lines.push("    if (ctnav::waitUntilDone() != ctnav::MoveResult::DONE) {");lines.push('        ctd::Console.println("leg '+leg+' did not finish");');lines.push("    }")}
       else if(st.t==="rumble"){lines.push("");lines.push('    controller.rumble("..");  // two short buzzes: finished')}
       else if(st.t==="print"){lines.push("");lines.push('    ctd::Console.println("x %.1f  y %.1f  h %.1f", ctnav::pose().x, ctnav::pose().y, ctnav::pose().theta);')}
@@ -1407,6 +1427,9 @@ ctd::Console.println("stall %s  asked %.1f  got %.1f in/s",
     }
 
     var ranked=scoreAll(q,intent), top=ranked[0];
+    var shortfall=s.match(/drive ?distance\(\s*(\d+(?:\.\d+)?)\s*\)[^0-9]{0,40}?(\d+(?:\.\d+)?)(?:\s*(?:or|-|to)\s*(\d+(?:\.\d+)?))?\s*(?:inches|inch|in\b|")/)||s.match(/(?:told it|asked (?:it )?for|should go|supposed to go)\s*(\d+(?:\.\d+)?)\s*(?:inches|in\b)?[^0-9]{0,40}?(?:only|just) (?:goes|went|moves|moved|drives|drove)\s*(?:about |like |around )?(\d+(?:\.\d+)?)(?:\s*(?:or|-|to)\s*(\d+(?:\.\d+)?))?/);
+    if(shortfall){var want=+shortfall[1],got=shortfall[3]?(+shortfall[2]+ +shortfall[3])/2:+shortfall[2],ratio=got>0?want/got:0;var pick=ratio>2.1&&ratio<2.9?"push-2115":(ratio>0.4&&ratio<0.45?"push-2115":(Math.abs(ratio-1)>0.05?"push-off":null));
+      if(pick)ranked.forEach(function(r){if(r.d.kind==="fact"&&r.d.fact.id===pick)r.s+=80})}
     TRIGGERS.forEach(function(t){ if(t[0].test(s)){ var f=factById[t[1]]; ranked.forEach(function(r){ if(r.d.kind==="fact"&&r.d.fact===f)r.s+=(t[2]||25) }) } });
     ranked.sort(function(a,b){return b.s-a.s}); top=ranked[0];
 
@@ -1426,6 +1449,10 @@ ctd::Console.println("stall %s  asked %.1f  got %.1f in/s",
     }
 
     if(top.d.kind==="fact"){var f=top.d.fact;CTX.fact=f;CTX.snips=f.snipIds.slice();return {md:factAnswer(f,intent),rel:relatedQs(f.rel).concat(suggestionsFor(ranked.slice(1,6),f)).filter(function(v,i,a){return a.indexOf(v)===i}).slice(0,3)}}
+    if(top.d.kind==="snip"){
+      var near=ranked.slice(1,10).filter(function(r){return r.d.kind==="fact"&&r.d.fact.snipIds.indexOf(top.d.snip.id)>=0&&r.s>=top.s*0.5&&(intent==="fix"||!r.d.fact.fix)})[0];
+      if(near){var nf=near.d.fact;CTX.fact=nf;CTX.snips=nf.snipIds.slice();return {md:factAnswer(nf,intent),rel:relatedQs(nf.rel)}}
+    }
     if(top.d.kind==="snip"){var e=top.d.snip;CTX.fact=null;CTX.snips=[e.id];return {md:snipAnswer(e,intent),rel:suggestionsFor(ranked.slice(1,8),null)}}
     CTX.fact=null;CTX.snips=[];
     return {md:kbAnswer(top.d),rel:suggestionsFor(ranked.slice(1,8),null)};
