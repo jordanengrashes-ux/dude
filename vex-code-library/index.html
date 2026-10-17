@@ -1,0 +1,1133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}body{margin:0;font:14px system-ui,-apple-system,"Segoe UI",sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>V5 Unit 2 Code Library</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="ask-ai-endpoint" content="https://oayeirqalqxnolxbdlnq.supabase.co/functions/v1/ask-ai">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: reference manual. Sticky lesson index on the left, entries in one reading column. */
+:root{
+  --bg:#f6f7f9; --surface:#ffffff; --fg:#1b2129; --muted:#5b6573; --line:#dde1e7;
+  --accent:#b4232c; --code-bg:#f0f2f5; --code-fg:#1b2129;
+  --c-ns:#1d5fa8; --c-num:#8a4b00; --c-com:#5b6573; --c-str:#2f7a3a; --c-kw:#7a2d8f;
+  --warn-bg:#fff5e6; --warn-line:#e0a24a;
+  --on-accent:#ffffff; --shadow:rgba(20,26,34,.16); --ok:#2f7a3a; --flash:#fff1c2;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#13171c; --surface:#1a1f26; --fg:#e4e8ee; --muted:#9aa4b1; --line:#2c333d;
+  --accent:#ef6b70; --code-bg:#0f1317; --code-fg:#dfe4ea;
+  --c-ns:#7fb3f0; --c-num:#e7b26a; --c-com:#7f8a97; --c-str:#8fcf8f; --c-kw:#d39ae6;
+  --warn-bg:#2a2216; --warn-line:#a87a33; --on-accent:#1a0b0c; --shadow:rgba(0,0,0,.5); --ok:#8fcf8f; --flash:#3a3216; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#13171c; --surface:#1a1f26; --fg:#e4e8ee; --muted:#9aa4b1; --line:#2c333d;
+  --accent:#ef6b70; --code-bg:#0f1317; --code-fg:#dfe4ea;
+  --c-ns:#7fb3f0; --c-num:#e7b26a; --c-com:#7f8a97; --c-str:#8fcf8f; --c-kw:#d39ae6;
+  --warn-bg:#2a2216; --warn-line:#a87a33; --on-accent:#1a0b0c; --shadow:rgba(0,0,0,.5); --ok:#8fcf8f; --flash:#3a3216; color-scheme:dark}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:15px;line-height:1.6}
+.wrap{max-width:1120px;margin:0 auto;padding-block:32px 64px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;grid-template-columns:220px minmax(0,1fr);gap:40px}
+header.top{grid-column:1/-1;border-bottom:1px solid var(--line);padding-bottom:20px}
+.eyebrow{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);font-weight:600}
+h1{font-size:28px;line-height:1.2;margin:6px 0 8px;text-wrap:balance;font-weight:600}
+.lede{color:var(--muted);max-width:65ch;margin:0}
+nav{position:sticky;top:calc(env(safe-area-inset-top,0px) + 16px);align-self:start;font-size:14px}
+nav h2{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 8px;font-weight:600}
+nav ol{list-style:none;margin:0 0 20px;padding:0;display:grid;gap:2px}
+nav a{color:var(--fg);text-decoration:none;display:block;padding:3px 8px;border-radius:4px}
+nav a:hover,nav a:focus-visible{background:var(--surface);outline:none;color:var(--accent)}
+nav .pending{color:var(--muted);padding:3px 8px}
+.lesson{display:grid;gap:28px}
+.lesson>h2{font-size:22px;margin:0;font-weight:600;text-wrap:balance}
+.lesson>h2 small{display:block;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);font-weight:600}
+section.group{display:grid;gap:14px}
+section.group>h3{font-size:17px;margin:0;padding-top:12px;border-top:1px solid var(--line);font-weight:600}
+.entry{display:grid;gap:8px}
+.entry h4{font-size:15px;margin:0;font-weight:600}
+.meta{font-family:var(--mono);font-size:12.5px;color:var(--muted)}
+.entry p{margin:0;max-width:68ch}
+.code{position:relative;background:var(--code-bg);border:1px solid var(--line);border-radius:6px}
+.code pre{margin:0;padding:14px 64px 14px 16px;overflow-x:auto;font-family:var(--mono);font-size:13px;line-height:1.55;color:var(--code-fg)}
+.code button{position:absolute;top:6px;right:6px;font:500 12px var(--sans);color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:2px 8px;cursor:pointer}
+.code button:hover{color:var(--fg)}
+.code button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.tok-ns{color:var(--c-ns)} .tok-num{color:var(--c-num)} .tok-com{color:var(--c-com);font-style:italic} .tok-str{color:var(--c-str)} .tok-kw{color:var(--c-kw)}
+.note{background:var(--warn-bg);border-left:3px solid var(--warn-line);padding:8px 12px;border-radius:0 4px 4px 0;max-width:68ch}
+.wrong{color:var(--accent);font-weight:600}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:6px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;padding:7px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+th{font-weight:600;font-size:12.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);background:var(--code-bg)}
+td code,p code,li code{font-family:var(--mono);font-size:.88em;background:var(--code-bg);padding:1px 4px;border-radius:3px}
+td{font-variant-numeric:tabular-nums}
+.tools{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;margin-top:18px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:12px 14px;display:grid;gap:8px;align-content:start}
+.panel label,.panel .label{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.panel input{font:15px var(--sans);color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:8px 10px;width:100%;box-sizing:border-box}
+.panel p{margin:0;font-size:14px}
+input:focus-visible,textarea:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.btn{font:600 14px var(--sans);color:var(--on-accent);background:var(--accent);border:0;border-radius:4px;padding:7px 14px;cursor:pointer}
+.btn[disabled]{opacity:.6;cursor:default}
+.btn.ghost{color:var(--fg);background:transparent;border:1px solid var(--line)}
+.hint{font-size:13px;color:var(--muted)}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{font:13px var(--sans);color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:3px 10px;cursor:pointer;text-align:left}
+.chip:hover{border-color:var(--accent)}
+mark{background:#ffe08a;color:#1b2129;border-radius:2px}
+.noresults{color:var(--muted)}
+/* floating button */
+.fab{position:fixed;z-index:15;right:calc(16px + env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));font:600 15px var(--sans);color:var(--on-accent);background:var(--accent);border:0;border-radius:999px;padding:11px 18px;cursor:pointer;box-shadow:0 4px 14px var(--shadow)}
+.fab:hover{filter:brightness(1.08)}
+/* chat drawer */
+.drawer{position:fixed;z-index:20;top:0;right:0;bottom:0;width:min(460px,100%);box-sizing:border-box;background:var(--surface);border-left:1px solid var(--line);box-shadow:-8px 0 24px var(--shadow);display:grid;grid-template-rows:auto minmax(0,1fr) auto;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);padding-right:env(safe-area-inset-right,0px)}
+.dhead{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line)}
+.dhead h2{font-size:16px;margin:0;font-weight:600}
+.badge{font:500 11.5px var(--sans);letter-spacing:.04em;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:1px 8px;white-space:nowrap}
+.badge.on{color:var(--ok);border-color:var(--ok)}
+.dhead .sp{flex:1}
+.iconbtn{font:500 13px var(--sans);color:var(--muted);background:transparent;border:1px solid var(--line);border-radius:4px;padding:3px 9px;cursor:pointer}
+.iconbtn:hover{color:var(--fg)}
+.log{overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:12px;overscroll-behavior:contain}
+.msg{font-size:14.5px;line-height:1.55;min-width:0;max-width:100%}
+.msg.you{align-self:flex-end;background:var(--code-bg);border-radius:10px 10px 2px 10px;padding:8px 12px;max-width:85%;white-space:pre-wrap;overflow-wrap:anywhere}
+.msg.bot{align-self:stretch;display:grid;gap:8px}
+.msg.bot p,.msg.bot li{margin:0;overflow-wrap:anywhere}
+.msg.bot ul,.msg.bot ol{margin:0;padding-left:20px;display:grid;gap:3px}
+.msg.bot .h{font-weight:600}
+.msg.bot code{font-family:var(--mono);font-size:.88em;background:var(--code-bg);padding:1px 4px;border-radius:3px;overflow-wrap:anywhere}
+.msg.bot .code pre{font-size:12.5px;padding:10px 60px 10px 12px}
+.msg.bot .code pre code{background:none;padding:0;overflow-wrap:normal}
+.msg .where{font-size:12px;color:var(--muted);font-family:var(--mono)}
+.msg .meta-line{font-size:12.5px;color:var(--muted)}
+.msg .err{font-size:13px;color:var(--accent)}
+.snip{display:inline-flex;align-items:center;gap:4px;font:500 13px var(--sans);color:var(--accent);background:transparent;border:1px solid var(--line);border-radius:4px;padding:1px 7px;cursor:pointer;text-decoration:none;vertical-align:baseline}
+.snip:hover{border-color:var(--accent)}
+.thinking{color:var(--muted);font-size:14px}
+.thinking::after{content:"";display:inline-block;width:1.2em;text-align:left;animation:dots 1.2s steps(4,end) infinite}
+@keyframes dots{0%{content:""}25%{content:"."}50%{content:".."}75%{content:"..."}}
+.dfoot{border-top:1px solid var(--line);padding:10px 16px 12px;display:grid;gap:8px}
+.dfoot textarea{font:15px/1.45 var(--sans);color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px 10px;width:100%;box-sizing:border-box;resize:none;min-height:44px;max-height:160px}
+.entry.flash{animation:flash 1.6s ease-out}
+@keyframes flash{0%{background:var(--flash)}100%{background:transparent}}
+.lesson,section.group,.entry,.msg.bot{grid-template-columns:minmax(0,1fr)}
+.sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+@media (min-width:1100px){body.ai-open .wrap{margin-right:max(460px,env(safe-area-inset-right,0px));margin-left:max(0px,calc(100vw - 460px - 1120px))}}
+@media (max-width:760px){.tools{grid-template-columns:minmax(0,1fr)}.drawer{width:100%;border-left:0;padding-left:env(safe-area-inset-left,0px)}}
+@media (min-width:1100px) and (max-width:1379px){body.ai-open .wrap{grid-template-columns:minmax(0,1fr)}body.ai-open nav{display:none}}
+@media (max-width:760px){.wrap{grid-template-columns:minmax(0,1fr);gap:24px}nav{position:static}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top">
+  <div class="eyebrow">VEX V5 Foundation · Unit 2</div>
+  <h1>Code Library</h1>
+  <p class="lede">Every code snippet from Unit 2 in one place. Search it, press Ask AI for help, or copy straight into your project.</p>
+  <div class="tools">
+    <div class="panel">
+      <label for="q">Search the code</label>
+      <input id="q" type="search" placeholder="Try moveToPose, rumble, deadband, port…" autocomplete="off">
+      <div class="hint" id="qcount">Shows only the code snippets that match.</div>
+    </div>
+    <div class="panel">
+      <span class="label">Ask AI</span>
+      <p>Ask where code is, how something works, or for help writing a routine.</p>
+      <div class="row"><button class="btn" type="button" data-open-ai aria-controls="drawer" aria-expanded="false">Ask AI</button></div>
+      <div class="chips">
+        <button class="chip" type="button" data-ask>Where is the code to reverse a motor?</button>
+        <button class="chip" type="button" data-ask>How do I run the intake while driving?</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<nav aria-label="Lessons">
+  <h2>Lesson 1</h2>
+  <ol>
+    <li><a href="#libraries">Libraries &amp; reading a line</a></li>
+    
+    <li><a href="#modes">The four modes</a></li>
+    <li><a href="#ports">Drive ports</a></li>
+    <li><a href="#constants">Robot measurements</a></li>
+    <li><a href="#push">Push test</a></li>
+    <li><a href="#drive">Split-stick tuning</a></li>
+    
+  </ol>
+  <h2>Lesson 2</h2>
+  <ol>
+    <li><a href="#grid">The field grid</a></li>
+    <li><a href="#simple-moves">Four simple moves</a></li>
+    <li><a href="#point-pose">Point and pose</a></li>
+    <li><a href="#results">How a move ends</a></li>
+    <li><a href="#l2-example">Example routine</a></li>
+  </ol>
+  <h2>Lesson 3</h2>
+  <ol>
+    <li><a href="#budget">Plan and budget</a></li>
+    <li><a href="#add-routine">Add a routine</a></li>
+    <li><a href="#selector">The selector</a></li>
+    <li><a href="#init">Starting up right</a></li>
+    <li><a href="#measure">Constants and boot report</a></li>
+    <li><a href="#rumble">Tell the driver</a></li>
+  </ol>
+  <h2>Lesson 4</h2>
+  <ol>
+    <li><a href="#tasks">Two things at once</a></li>
+    <li><a href="#health">Health monitoring</a></li>
+    <li><a href="#logging">Logging</a></li>
+    <li><a href="#stalls">Reading the numbers</a></li>
+  </ol>
+</nav>
+
+<main class="lesson" id="lesson-1">
+<h2><small>Lesson 1</small>Software &amp; Code Structure</h2>
+
+<section class="group" id="libraries">
+  <h3>Libraries and how to read a line</h3>
+  <div class="entry">
+    <h4>Spot the library by its prefix</h4>
+    <p>The word before <code>::</code> tells you which library the line belongs to. There is no LemLib in this project, and there is no chassis object to build.</p>
+<div class="code"><pre><code>ctnav::driveDistance(24);       // CT Nav  — moving
+ctd::Console.println("go");     // CT Dash — the log
+ctguard::preflight();           // CT Guard — hardware check
+pros::delay(20);                // PROS    — the system underneath</code></pre></div>
+  </div>
+  
+  <div class="entry">
+    <h4>Library, action, value</h4>
+    <p>Read it out loud as "CT Nav, turn to heading, ninety." The number is the part you usually change.</p>
+<div class="code"><pre><code>ctnav::turnToHeading(90);
+// library  ::  action  ( value )</code></pre></div>
+  </div>
+</section>
+
+
+
+<section class="group" id="modes">
+  <h3>The four modes</h3>
+  
+  
+  
+  <div class="entry">
+    <h4>The opcontrol loop</h4>
+    <div class="meta">src/main.cpp · inside opcontrol()</div>
+    <p>Reads the controller about 50 times a second, forever.</p>
+<div class="code"><pre><code>while (true) {
+    driver::drive();   // sticks: read every time round
+    input::update();   // buttons: run an action only for the ones that just changed
+    pros::delay(20);   // let the other tasks have a turn
+}</code></pre></div>
+    
+  </div>
+</section>
+
+<section class="group" id="ports">
+  <h3>Drive ports</h3>
+  <div class="entry">
+    <h4>Two-motor drive</h4>
+    <div class="meta">src/robot_config.cpp</div>
+    <p>Builds the left and right sides from brain ports.</p>
+<div class="code"><pre><code>pros::MotorGroup left_motors({10}, DRIVE_GEARSET, pros::MotorUnits::degrees);
+pros::MotorGroup right_motors({-1}, DRIVE_GEARSET, pros::MotorUnits::degrees);</code></pre></div>
+  </div>
+  <div class="entry">
+    <h4>Four-motor drive</h4>
+    <div class="meta">src/robot_config.cpp</div>
+    <p>Same thing with two motors a side.</p>
+<div class="code"><pre><code>pros::MotorGroup left_motors({12, -13}, DRIVE_GEARSET, pros::MotorUnits::degrees);
+pros::MotorGroup right_motors({17, -18}, DRIVE_GEARSET, pros::MotorUnits::degrees);</code></pre></div>
+  </div>
+  <div class="entry">
+    <h4><span class="wrong">Wrong:</span> missing the units argument</h4>
+    <p>PROS leaves the units as whatever the last program set.</p>
+<div class="code"><pre><code>// WRONG — PROS leaves the units as whatever the last program set
+pros::MotorGroup left_motors({10}, DRIVE_GEARSET);</code></pre></div>
+  </div>
+  
+</section>
+
+<section class="group" id="constants">
+  <h3>Robot measurements</h3>
+  <div class="entry">
+    <h4>Physical drive constants</h4>
+    <div class="meta">include/robot_config.hpp</div>
+    <p>Tells the code the robot's shape and speed.</p>
+<div class="code"><pre><code>constexpr pros::MotorGears DRIVE_GEARSET = pros::MotorGears::green;  // 200 rpm
+constexpr float WHEEL_DIAMETER = 3.25F;   // inches
+constexpr float DRIVE_RPM      = 200;     // rpm at the WHEEL, not the cartridge
+constexpr float TRACK_WIDTH    = 11.0F;   // inches — measure this later</code></pre></div>
+    
+  </div>
+</section>
+
+<section class="group" id="push">
+  <h3>Push test</h3>
+  
+  <div class="entry">
+    <h4>Expected reading for 3.25 in wheels</h4>
+<div class="code"><pre><code>wheel circumference = π × 3.25 in            = 10.21 in
+turns for 24 in     = 24 ÷ 10.21             = 2.35 turns
+degrees             = 2.35 × 360             = 846 degrees</code></pre></div>
+  </div>
+  
+</section>
+
+<section class="group" id="drive">
+  <h3>Split-stick tuning</h3>
+  
+  <div class="entry">
+    <h4>Stage 1 · Deadband</h4>
+    <div class="meta">include/robot_config.hpp</div>
+    <p>Treats a nearly-centred stick as centred so a worn controller cannot creep the robot across the field.</p>
+<div class="code"><pre><code>constexpr float DRIVE_DEADBAND = 0.04F;   // about 5 counts of the controller's 127</code></pre></div>
+  </div>
+  <div class="entry">
+    <h4>Stage 2 · Curves</h4>
+    <div class="meta">include/robot_config.hpp</div>
+    <p>Output is stick<sup>curve</sup>, so half stick gives less than half power. The turn curve is gentler because the mix already scales turning by throttle.</p>
+<div class="code"><pre><code>constexpr float DRIVE_THROTTLE_CURVE = 3.0F;
+constexpr float DRIVE_TURN_CURVE     = 2.0F;</code></pre></div>
+    
+  </div>
+  <div class="entry">
+    <h4>Stage 3 · Low-speed steering cap</h4>
+    <div class="meta">include/robot_config.hpp</div>
+    <p>Below 30% throttle, steering authority stays flat at 0.30.</p>
+<div class="code"><pre><code>constexpr float DRIVE_STEER_FLOOR = 0.30F;   // the MOST steering you get at low speed
+
+// authority = max(|throttle|, DRIVE_STEER_FLOOR)</code></pre></div>
+  </div>
+  
+  
+</section>
+
+
+<div class="lesson" id="lesson-2" style="padding-top:28px;border-top:2px solid var(--fg)">
+<h2><small>Lesson 2</small>Field Coordinates &amp; Moving to a Spot</h2>
+
+
+<section class="group" id="grid">
+  <h3>The field grid</h3>
+  
+  
+  <div class="entry">
+    <h4>Set the starting pose</h4>
+    <p>"I am standing here, facing zero." Every move after this is measured from here.</p>
+<div class="code"><pre><code>ctnav::setPose(0, 0, 0);</code></pre></div>
+  </div>
+  <div class="entry">
+    <h4>Read the position back</h4>
+    <p>Prints where the robot thinks it is.</p>
+<div class="code"><pre><code>const ctnav::Pose p = ctnav::pose();
+ctd::Console.println("x %.1f  y %.1f  h %.1f", p.x, p.y, p.theta);</code></pre></div>
+  </div>
+</section>
+
+<section class="group" id="simple-moves">
+  <h3>The four simple moves</h3>
+  
+  <div class="entry">
+    <h4>Drive a distance</h4>
+<div class="code"><pre><code>ctnav::driveDistance(24);    // forward 24 inches
+ctnav::driveDistance(-12);   // backwards 12 inches</code></pre></div>
+  </div>
+  <div class="entry">
+    <h4>Turn by an angle</h4>
+    <p>Turns on the spot, relative to the current heading.</p>
+<div class="code"><pre><code>ctnav::turnAngle(90);    // 90 degrees to the RIGHT, from wherever it is pointing now
+ctnav::turnAngle(-45);   // 45 degrees to the left</code></pre></div>
+  </div>
+  <div class="entry">
+    <h4>Turn to a heading</h4>
+    <p>Turns to an absolute compass heading the shorter way.</p>
+<div class="code"><pre><code>ctnav::turnToHeading(90);   // end up facing 90, whichever way is shorter</code></pre></div>
+  </div>
+  <div class="entry">
+    <h4>Turn to face a point</h4>
+    <p>Works out the heading to a coordinate for you. Compass bearing is <code>atan2(dx, dy)</code>, not the textbook <code>atan2(dy, dx)</code>, so let this call do it.</p>
+<div class="code"><pre><code>ctnav::turnToPoint(48, 24);        // point the front at that spot
+ctnav::turnAwayFromPoint(48, 24);  // point the BACK at it, ready to reverse in</code></pre></div>
+  </div>
+</section>
+
+<section class="group" id="point-pose">
+  <h3>Point and pose</h3>
+  <div class="entry">
+    <h4>Go to a place</h4>
+    <p>Drives to that spot, steering to hold the line.</p>
+<div class="code"><pre><code>ctnav::moveToPoint(24, 24);</code></pre></div>
+  </div>
+  <div class="entry">
+    <h4>Go to a place and face a direction</h4>
+    <p>Drives a curve that ends at the spot facing 90°.</p>
+<div class="code"><pre><code>ctnav::moveToPose(24, 24, 90);</code></pre></div>
+  </div>
+  
+  <div class="entry">
+    <h4>Plan a move without driving it</h4>
+    <p>Checks whether the move is possible and how long it takes, and prints why not if it can't.</p>
+<div class="code"><pre><code>const ctnav::MovePlan plan = ctnav::planMoveToPose(24, 24, 90);
+ctd::Console.println("ok %d  %.0f in  %.1f s", plan.feasible, plan.length, plan.duration);
+if (!plan.feasible) ctd::Console.println("no: %s", plan.refusal);</code></pre></div>
+  </div>
+</section>
+
+<section class="group" id="results">
+  <h3>How a move ends</h3>
+  
+  <div class="entry">
+    <h4>Check a leg finished</h4>
+<div class="code"><pre><code>if (ctnav::driveDistance(24) != ctnav::MoveResult::DONE) {
+    ctd::Console.println("first leg did not finish");
+}</code></pre></div>
+  </div>
+  
+</section>
+
+<section class="group" id="l2-example">
+  <h3>Example routine</h3>
+  <div class="entry">
+    <h4>Out, across and home</h4>
+    <p>From the lesson's reading exercise.</p>
+<div class="code"><pre><code>ctnav::setPose(0, 0, 0);
+ctnav::moveToPoint(0, 48);
+ctnav::turnToHeading(90);
+ctnav::moveToPoint(24, 48);
+ctnav::moveToPoint(0, 0);</code></pre></div>
+  </div>
+</section>
+</div>
+<div class="lesson" id="lesson-3" style="padding-top:28px;border-top:2px solid var(--fg)">
+<h2><small>Lesson 3</small>Planning a Route &amp; Starting Up Right</h2>
+
+<section class="group" id="budget">
+  <h3>Plan and budget</h3>
+  
+  <div class="entry">
+    <h4>Estimate a leg's time</h4>
+    <p>Works out the deadline a move would get, without moving.</p>
+<div class="code"><pre><code>const int ms = ctnav::estimateDuration(ctnav::Move::moveToPoint(24, 48));
+ctd::Console.println("that leg would get %d ms", ms);</code></pre></div>
+  </div>
+</section>
+
+<section class="group" id="add-routine">
+  <h3>Add a routine in three steps</h3>
+  
+  <div class="entry">
+    <h4>1 · The routine file</h4>
+    <div class="meta">src/autons/my_routine.cpp</div>
+    <p>Say where you are, drive, then say it finished.</p>
+<div class="code"><pre><code>// 1. src/autons/my_routine.cpp
+void auton::my_routine() {
+    ctnav::setPose(0, 0, 0);
+    ctnav::driveDistance(24);
+    ctnav::turnAngle(90);
+    Brain.Screen.toast("my_routine done");
+}</code></pre></div>
+  </div>
+  <div class="entry">
+    <h4>2 and 3 · Declare it and add it to the menu</h4>
+    <div class="meta">include/autons.hpp · src/auton_selector.cpp</div>
+<div class="code"><pre><code>// 2. include/autons.hpp — one line, inside namespace auton
+void my_routine();
+
+// 3. src/auton_selector.cpp — one line, in the right list
+{"Mine", auton::my_routine},</code></pre></div>
+  </div>
+  <div class="entry">
+    <h4>Build up leg by leg</h4>
+    <div class="meta">src/autons/red_left.cpp</div>
+    <p>Runs two legs and prints the real pose after each one.</p>
+<div class="code"><pre><code>void auton::red_left() {
+    ctnav::setPose(0, 0, 0);
+
+    ctnav::moveToPoint(0, 24);
+    ctd::Console.println("leg 1 done at %.1f, %.1f", ctnav::pose().x, ctnav::pose().y);
+
+    ctnav::turnToHeading(90);
+    ctd::Console.println("leg 2 done at %.1f deg", ctnav::pose().theta);
+
+    Brain.Screen.toast("red_left done");
+}</code></pre></div>
+  </div>
+</section>
+
+<section class="group" id="selector">
+  <h3>The selector</h3>
+  <div class="entry">
+    <h4>Put routines on the Red tab</h4>
+    <div class="meta">src/auton_selector.cpp</div>
+    <p>Draws three buttons on the Red tab, in that order.</p>
+<div class="code"><pre><code>void auton::start() {
+    ctd::Dash.red({
+        {"Left",  auton::red_left},
+        {"Right", auton::red_right},
+        {"Solo",  auton::red_solo},
+    });
+}</code></pre></div>
+  </div>
+  
+  <div class="entry">
+    <h4>Run the armed routine</h4>
+    <div class="meta">src/main.cpp</div>
+    <p>Runs whichever routine is armed.</p>
+<div class="code"><pre><code>void autonomous() { auton::run(); }</code></pre></div>
+  </div>
+  <div class="entry">
+    <h4>Test with the B button</h4>
+    <div class="meta">include/robot_config.hpp</div>
+    <p>Lets B run the armed routine without a field controller.</p>
+<div class="code"><pre><code>constexpr bool AUTON_TEST_BUTTON = true;</code></pre></div>
+  </div>
+</section>
+
+<section class="group" id="init">
+  <h3>Starting up right</h3>
+  <div class="entry">
+    <h4>initialize() in order</h4>
+    <div class="meta">src/main.cpp</div>
+    <p>Builds the menu, calibrates, checks the hardware, and says it is ready. Keep the robot completely still for about two seconds while <code>ctnav::start()</code> runs.</p>
+<div class="code"><pre><code>void initialize() {
+    auton::start();                 // 1. build the menu FIRST
+    ctd::Dash.start();              // 2. draw it, so buttons show while the IMU settles
+
+    left_motors.set_brake_mode_all(pros::MotorBrake::brake);
+    right_motors.set_brake_mode_all(pros::MotorBrake::brake);   // 3. how the drive stops
+
+    ctnav::start({ /* motors, imu, limits, gains, geometry */ });  // 4. calibrate + track
+
+    ctguard::watch(left_motors,  "drive left",  "ctnav", config::DRIVE_GEARSET);
+    ctguard::watch(right_motors, "drive right", "ctnav", config::DRIVE_GEARSET);
+    ctguard::watchDevice(config::IMU_PORT, "inertial", pros::DeviceType::imu);
+    ctguard::preflight();           // 5. check it all, once, out loud
+    ctguard::start();               // 6. keep checking, in the background
+
+    Brain.Screen.toast("Ready");
+}</code></pre></div>
+  </div>
+  
+  
+</section>
+
+<section class="group" id="measure">
+  <h3>Measured constants and the boot report</h3>
+  
+  
+  
+  <div class="entry">
+    <h4>Boot report</h4>
+    <div class="meta">Console output at every boot</div>
+<div class="code"><pre><code>track_width MEASURED  kV UNSET  kA UNSET
+rung CLOSED
+heading from IMU</code></pre></div>
+    
+  </div>
+  
+  <div class="entry">
+    <h4>Demand the rung you tuned for</h4>
+    <p>Refuses to drive unless the robot can reach the rung you asked for.</p>
+<div class="code"><pre><code>if (!ctnav::requireStrategy(ctnav::Strategy::CLOSED)) {
+    ctd::Console.println("cannot reach CLOSED -- a constant is missing");
+}</code></pre></div>
+  </div>
+  <div class="entry">
+    <h4>Turn gains</h4>
+    <div class="meta">include/robot_config.hpp</div>
+    <p>Tunes turning separately from driving straight.</p>
+<div class="code"><pre><code>constexpr float NAV_KP_TURN = 6.0F;   // against a straight-line NAV_KP of 2.0
+constexpr float NAV_KD_TURN = 0.4F;</code></pre></div>
+    
+  </div>
+</section>
+
+<section class="group" id="rumble">
+  <h3>Tell the driver</h3>
+  <div class="entry">
+    <h4>Rumble patterns</h4>
+    <p>Dots are short buzzes, dashes are long, spaces are pauses.</p>
+<div class="code"><pre><code>controller.rumble("-");      // one long buzz
+controller.rumble("..");     // two short buzzes
+controller.rumble(". - .");  // short, long, short</code></pre></div>
+  </div>
+  
+  
+</section>
+</div>
+<div class="lesson" id="lesson-4" style="padding-top:28px;border-top:2px solid var(--fg)">
+<h2><small>Lesson 4</small>Tasks, Health &amp; Logging</h2>
+
+<section class="group" id="tasks">
+  <h3>Doing two things at once</h3>
+  <div class="entry">
+    <h4>A loop that shares the brain</h4>
+    <p>Runs about 50 times a second and gives the screen and hardware-watch tasks a turn.</p>
+<div class="code"><pre><code>while (true) {
+    driver::drive();
+    input::update();
+    pros::delay(20);   // let every other task have a turn
+}</code></pre></div>
+  </div>
+  <div class="entry">
+    <h4>Overlap a mechanism with a drive</h4>
+    <p>Starts the drive, runs the intake alongside it, then waits and asks how the drive ended. The starter has no intake motor, so swap in your own mechanism. Always check the result from <code>waitUntilDone()</code>.</p>
+<div class="code"><pre><code>ctnav::launch(ctnav::Move::driveDistance(48));   // returns immediately
+
+intake.move(127);                                // happens while the robot drives
+pros::delay(300);
+intake.move(0);
+
+const ctnav::MoveResult how = ctnav::waitUntilDone();</code></pre></div>
+    
+  </div>
+  <div class="entry">
+    <h4>Your own background task</h4>
+    <p>Starts a second loop that runs alongside everything else, forever.</p>
+<div class="code"><pre><code>pros::Task lift_task([] {
+    while (true) {
+        // read a sensor, decide, command the lift motor
+        pros::delay(20);
+    }
+}, "lift");</code></pre></div>
+  </div>
+  <div class="entry">
+    <h4>One motor, one owner</h4>
+    <p>Records who owns each motor group.</p>
+<div class="code"><pre><code>ctguard::watch(left_motors, "drive left", "ctnav", config::DRIVE_GEARSET);
+ctguard::watch(lift_motors, "lift",       "lift",  pros::MotorGears::red);</code></pre></div>
+  </div>
+</section>
+
+<section class="group" id="health">
+  <h3>Health monitoring</h3>
+  <div class="entry">
+    <h4>Register hardware with CT Guard</h4>
+    <div class="meta">src/main.cpp · inside initialize()</div>
+    <p>Registers the drive and the inertial.</p>
+<div class="code"><pre><code>ctguard::watch(left_motors,  "drive left",  "ctnav", config::DRIVE_GEARSET);
+ctguard::watch(right_motors, "drive right", "ctnav", config::DRIVE_GEARSET);
+ctguard::watchDevice(config::IMU_PORT, "inertial", pros::DeviceType::imu);</code></pre></div>
+  </div>
+  
+  
+  <div class="entry">
+    <h4>Health thresholds</h4>
+    <p>Sets what counts as wrong. Remember 25%: below it the brain cuts motor power and moves report <code>STALLED</code>, just like hitting a wall.</p>
+<div class="code"><pre><code>battery_fault_pct = 25;     // where a V5 starts cutting motor power under load
+battery_warn_pct  = 60;     // below this, a constant measured now will not hold on a full pack
+motor_warn_c      = 55.0;   // where V5 motors begin folding back power, silently
+motor_warn_ma     = 2200;   // near the stall current</code></pre></div>
+  </div>
+  <div class="entry">
+    <h4>Keep watching in the background</h4>
+    <p>Starts one background task that keeps checking through autonomous and driving.</p>
+<div class="code"><pre><code>ctguard::start();</code></pre></div>
+  </div>
+  <div class="entry">
+    <h4>Refuse to drive a broken robot</h4>
+    <div class="meta">src/main.cpp</div>
+    <p>Skips the routine if any fault is outstanding.</p>
+<div class="code"><pre><code>void autonomous() {
+    if (!ctguard::requireHealthy()) {
+        return;   // it has already said what is wrong
+    }
+    auton::run();
+}</code></pre></div>
+  </div>
+</section>
+
+<section class="group" id="logging">
+  <h3>Logging</h3>
+  
+  <div class="entry">
+    <h4>Toast and log</h4>
+    <p>One message for the person standing there, one for the record.</p>
+<div class="code"><pre><code>Brain.Screen.toast("red_left done");
+ctd::Console.println("leg 2 at %.1f, %.1f", ctnav::pose().x, ctnav::pose().y);</code></pre></div>
+  </div>
+  <div class="entry">
+    <h4>Read the log on your laptop</h4>
+    <div class="meta">Laptop terminal</div>
+    <p>Every console line is also sent down the cable.</p>
+<div class="code"><pre><code>pros terminal</code></pre></div>
+  </div>
+  <div class="entry">
+    <h4>Heartbeat</h4>
+    <p>Prints uptime and battery every <code>HEARTBEAT_MS</code>. <code>static</code> keeps <code>last_beat</code> from resetting each loop.</p>
+<div class="code"><pre><code>static unsigned long last_beat = 0;
+if (pros::millis() - last_beat &gt;= config::HEARTBEAT_MS) {
+    last_beat = pros::millis();
+    ctd::Console.println("alive %lus  batt %d%%", pros::millis() / 1000,
+                         static_cast&lt;int&gt;(pros::battery::get_capacity()));
+}</code></pre></div>
+  </div>
+  
+</section>
+
+<section class="group" id="stalls">
+  <h3>Reading the numbers</h3>
+  <div class="entry">
+    <h4>Why did the move stall?</h4>
+    <p>Prints the stall cause, plus the speed asked for against the speed actually reached.</p>
+<div class="code"><pre><code>const ctnav::Telemetry t = ctnav::telemetry();
+ctd::Console.println("stall %s  asked %.1f  got %.1f in/s",
+                     ctnav::stall_cause_name(t.stall_cause),
+                     t.stall_commanded_velocity, t.stall_ground_speed);</code></pre></div>
+  </div>
+  
+  
+</section>
+</div>
+</main>
+</div>
+
+<button class="fab" id="fab" type="button" data-open-ai aria-controls="drawer" aria-expanded="false">Ask AI</button>
+<aside class="drawer" id="drawer" hidden role="dialog" aria-labelledby="drawer-title">
+  <div class="dhead">
+    <h2 id="drawer-title">Ask AI</h2>
+    <span class="badge" id="mode">Connecting…</span>
+    <span class="sp"></span>
+    <button class="iconbtn" id="clear" type="button">New chat</button>
+    <button class="iconbtn" id="close" type="button" aria-label="Close Ask AI">Close</button>
+  </div>
+  <div class="log" id="log"></div>
+  <div class="sr" id="sr" role="status" aria-live="polite"></div>
+  <form class="dfoot" id="askform">
+    <label class="hint" for="ask">Ask about any code in this library. Enter sends, Shift+Enter adds a line.</label>
+    <textarea id="ask" rows="2" maxlength="2000" placeholder="Where is…  How do I…  Can you help me with…"></textarea>
+    <div class="row"><button class="btn" id="send" type="submit">Send</button><button class="btn ghost" id="stop" type="button" hidden>Stop</button><span class="hint" id="status"></span></div>
+  </form>
+</aside>
+<script type="application/json" id="kb">"LESSON 1\nSoftware & Code Structure\nLibraries and how to read a line\nSpot the library by its prefix\n\nThe word before :: tells you which library the line belongs to. There is no LemLib in this project, and there is no chassis object to build.\n\nPrefix | Library | Runs on | Job\nctnav:: | CT Nav | Brain | Moves the robot and tracks where it is\nctd:: | CT Dash | Brain | Buttons, printing and the log on the brain screen\nctguard:: | CT Guard | Brain | Watches the hardware and says what is wrong\npros:: | PROS 4.2.2 | Laptop + brain | Builds and uploads your code, and is the system underneath\nLibrary, action, value\n\nRead it out loud as \"CT Nav, turn to heading, ninety.\" The number is the part you usually change.\n\nWhich file?\n\nSix files are yours. Everything else in the starter is a library you leave alone.\n\nI want to\u2026 | Go to\nChange a port, or reverse a motor | src/robot_config.cpp\nChange a measurement or a tuning number | include/robot_config.hpp\nChange how the sticks or buttons feel | src/driver_control.cpp\nWrite or edit an autonomous routine | src/autons/<name>.cpp\nAdd a routine to the brain-screen menu | src/auton_selector.cpp\nChange what happens at start-up | src/main.cpp\n\nThe .cpp config holds hardware: which port and which direction. The .hpp config holds numbers: wheel size, curves and speeds.\n\nThe four modes\n\nThese functions live in src/main.cpp. The brain calls them, and you never call them yourself.\n\nFunction | Runs | Put here\ninitialize() | Once, at power on | Registering routines, calibrating, checking hardware\ncompetition_initialize() | Only with a field controller plugged in | Almost nothing\ndisabled() | While the field switches you off | Nothing that moves\nautonomous() | The 15-second autonomous period | auton::run(), one line\nopcontrol() | The driving period, loops forever | Reading sticks and buttons\n\nKeep initialize() short, because every other mode waits for it. Inertial calibration alone takes about two seconds. Do not move the routine menu into competition_initialize(), because it never runs on the bench.\n\nThe opcontrol loop\nsrc/main.cpp \u00b7 inside opcontrol()\n\nReads the controller about 50 times a second, forever.\n\nNever remove pros::delay(20). Without it the screen and hardware-watch tasks never get a turn, and the robot looks frozen.\n\nDrive ports\nTwo-motor drive\nsrc/robot_config.cpp\n\nBuilds the left and right sides from brain ports. A negative port means the motor spins the other way.\n\nFour-motor drive\nsrc/robot_config.cpp\n\nSame thing with two motors a side. Nothing else in the project changes.\n\nWrong: missing the units argument\n\nPROS leaves the units as whatever the last program set. A green cartridge then reports counts instead of degrees, so every distance reads 2.5 times too large. Nothing errors, so the bug is silent.\n\nFix a motor that spins the wrong way\n\nProp the robot up with the wheels off the ground and push the left stick forward.\n\nWhat you see | Meaning | Fix\nOne wheel spins the wrong way | That motor alone is wrong | Flip the sign on that port\nUp/down turns the robot, left/right drives it | The two sides are fighting | Flip both signs on one side\nAll wheels agree, robot drives backwards | Consistent, just inverted | Flip all the signs\nRobot measurements\nPhysical drive constants\ninclude/robot_config.hpp\n\nTells the code the robot's shape and speed. Get these right and everything downstream is right.\n\nDRIVE_RPM is wheel rpm, which is cartridge rpm \u00d7 driving teeth \u00f7 driven teeth. Direct drive on green is 200. Geared up 2:1 it is 400.\n\nPush test\n\nOn the brain, open Others \u2192 Encoders and tap Zero. Push the robot one field tile forward by hand in a straight line, then read the number.\n\nExpected reading for 3.25 in wheels\nReading | What it means\nAbout 846 | Correct. Move on.\nAbout 2115, 2.5\u00d7 too big | Encoder units. pros::MotorUnits::degrees is missing.\nSteady but about 15% off | WHEEL_DIAMETER is wrong. Measure the real wheel.\nCounts down as you push forward | That side's sign is inverted.\nZero, or wild | A cable, or the wrong port.\nSplit-stick tuning\n\nLeft stick up/down is throttle. Right stick left/right sets how tightly the robot curves. Stick input goes through four stages in order: deadband, curve, curvature mix with the steer floor, then desaturation.\n\nStage 1 \u00b7 Deadband\ninclude/robot_config.hpp\n\nTreats a nearly-centred stick as centred so a worn controller cannot creep the robot across the field.\n\nStage 2 \u00b7 Curves\ninclude/robot_config.hpp\n\nOutput is stick^curve (the stick value raised to the power of the curve), so half stick gives less than half power. The turn curve is gentler because the mix already scales turning by throttle.\n\nCurve | Half stick gives | Feels\n1.0 | 50% | Perfectly linear\n2.0 | 25% | Gentle\n3.0 | 12.5% | The default\n4.0 | 6.25% | Very fine at the bottom\nStage 3 \u00b7 Low-speed steering cap\ninclude/robot_config.hpp\n\nBelow 30% throttle, steering authority stays flat at 0.30. At a standstill that is about 106\u00b0/s instead of the 355\u00b0/s plain arcade gives. Setting it to 1.00 turns the drive back into plain arcade.\n\nStage 4 \u00b7 Desaturation\n\nWhen a side asks for more than 100%, both sides are divided by the larger of the two instead of being clipped. That gives up top speed but keeps the arc the driver asked for.\n\nTuning by symptom\n\nChange one number, rebuild, drive, decide. Then change the next.\n\nSymptom | Change\nRobot creeps with the sticks centred | Raise DRIVE_DEADBAND a little\nHard to make small, slow corrections | Raise DRIVE_THROTTLE_CURVE toward 4\nFeels sluggish and unresponsive | Lower DRIVE_THROTTLE_CURVE toward 2\nOver-rotates when lining up slowly | Lower DRIVE_STEER_FLOOR\nTakes forever to spin round at a standstill | Raise DRIVE_STEER_FLOOR\nTurn stick feels dead when creeping | Lower DRIVE_TURN_CURVE toward 1.5\nBring-up checklist\n\nDeploy the unchanged starter first. Then work down the list without skipping.\n\n# | Check\n1 | The unchanged starter builds and uploads with no errors\n2 | The brain boots and CT Dash appears, with tabs down the left\n3 | Every drive motor is in robot_config.cpp with the right port\n4 | Every MotorGroup line ends with pros::MotorUnits::degrees\n5 | DRIVE_GEARSET matches the cartridge colour in the motors\n6 | Wheels up: left stick forward spins all wheels the same way\n7 | Wheels down: the robot drives straight, not in a curve\n8 | WHEEL_DIAMETER matches the real wheel\n9 | The push test reads about 846 degrees per field tile\n10 | The encoders count up when the robot is pushed forward\n11 | The console prints no CT Guard faults at boot\n12 | The robot pivots on the spot at a speed the driver likes\n13 | The driver has picked their own throttle curve and steering floor\nLESSON 2\nField Coordinates & Moving to a Spot\n\nThis lesson needs the inertial sensor. Check that IMU_PORT in robot_config.hpp matches where it is plugged in.\n\nThe field grid\nRule | Meaning\nUnits | Distances are inches. Angles are degrees. Nothing else.\n0\u00b0 is +y | Straight ahead is zero, not along +x.\nClockwise is positive | A right turn is a bigger number, like a compass bearing.\nPlaces, not steps | (48, 72) is one fixed spot on the field.\n\nMaths class puts 0\u00b0 on +x and counts anticlockwise. Using maths angles makes every turn wrong.\n\nSet the starting pose\n\n\"I am standing here, facing zero.\" Every move after this is measured from here. Tape your start spot so it is the same every run.\n\nRead the position back\n\nPrints where the robot thinks it is. Put it after a move to compare what you asked for against what you got.\n\nThe four simple moves\n\nAll of these block: the line does not finish until the robot has. No timeout is needed, because CT Nav plans its own deadline.\n\nDrive a distance\nTurn by an angle\n\nTurns on the spot, relative to the current heading. Keep it under 180, because 270 looks the same as \u221290 and never reports done.\n\nTurn to a heading\n\nTurns to an absolute compass heading the shorter way. From 350, asking for 10 turns 20\u00b0 right.\n\nTurn to face a point\n\nWorks out the heading to a coordinate for you. Compass bearing is atan2(dx, dy), not the textbook atan2(dy, dx), so let this call do it.\n\nPoint and pose\nGo to a place\n\nDrives to that spot, steering to hold the line. Use it when you don't care which way the robot faces at the end.\n\nGo to a place and face a direction\n\nDrives a curve that ends at the spot facing 90\u00b0. Needs a measured track width and only drives forward.\n\n| moveToPoint(x, y) | moveToPose(x, y, \u03b8)\nYou get | A place | A place and a heading\nPath | Straight at the target | A curve ending tangent to the heading\nPath length | Shorter | Longer\nNeeds measured track width | No | Yes\nCan go backwards | Yes, it reverses if it must | No, a pose behind is refused\nUse it when | Collecting, or lining up roughly | You must arrive square on to something\nPlan a move without driving it\n\nChecks whether the move is possible and how long it takes, and prints why not if it can't.\n\nHow a move ends\nResult | What happened\nDONE | Reached the target\nTIMEOUT | Ran out of time. Motors stopped.\nREFUSED | Never started: impossible, or another move was already running\nSTALLED | Stopped making progress, and said so\nCheck a leg finished\nDebug in this order\n# | Question | Look for\n1 | Value | A typo like 240 for 24, or a wrong setPose\n2 | Direction | A sign, a maths angle, or a reversed motor\n3 | Tune | Drifting or stopping short. That is Lesson 3.\nExample routine\nOut, across and home\n\nFrom the lesson's reading exercise. Each target is a field coordinate, so the last line drives straight home.\n\nLESSON 3\nPlanning a Route & Starting Up Right\nPlan and budget\n\nWrite the route as numbered legs: one drive, turn or action each. Write the expected x, y and heading beside every leg. One leg becomes one line of code.\n\nEstimate a leg's time\n\nWorks out the deadline a move would get, without moving. Add up every leg and cut one if the total is over about 13 seconds.\n\nAdd a routine in three steps\n\nEach routine lives in its own file under src/autons/, named after itself. The build picks the folder up automatically.\n\n1 \u00b7 The routine file\nsrc/autons/my_routine.cpp\n\nSay where you are, drive, then say it finished. The closing toast tells \"it worked\" apart from \"it crashed\".\n\n2 and 3 \u00b7 Declare it and add it to the menu\ninclude/autons.hpp \u00b7 src/auton_selector.cpp\nBuild up leg by leg\nsrc/autons/red_left.cpp\n\nRuns two legs and prints the real pose after each one. Leave the prints in.\n\nThe selector\nPut routines on the Red tab\nsrc/auton_selector.cpp\n\nDraws three buttons on the Red tab, in that order. Each tab holds up to eight.\n\nNothing is armed at boot, and every upload reboots the brain. Re-arm the routine after every upload, or the robot sits still in autonomous.\n\nRun the armed routine\nsrc/main.cpp\n\nRuns whichever routine is armed. If none is, nothing happens.\n\nTest with the B button\ninclude/robot_config.hpp\n\nLets B run the armed routine without a field controller. It refuses while a field controller or competition switch is connected, so it is safe to leave on.\n\nStarting up right\ninitialize() in order\nsrc/main.cpp\n\nBuilds the menu, calibrates, checks the hardware, and says it is ready. Keep the robot completely still for about two seconds while ctnav::start() runs.\n\nStep | Why it is there\nMenu before Dash.start() | Buttons show while the inertial spends two seconds calibrating\nBrake modes before driving | brake stops the robot rolling on after the stick is centred\nctnav::start() before anything moves | It calibrates the inertial and zeroes the encoders\npreflight() after registering | It can only check hardware it has been told about\nctguard::start() last | The background watch catches a cable working loose mid-match\n\nUse brake, not hold. Hold fights to return when an opponent shoves the robot and burns current doing it.\n\nMeasured constants and the boot report\nCalibrates itself every boot | You measure once and commit\nThe inertial sensor's zero | TRACK_WIDTH\nThe drive encoders' zero | WHEEL_DIAMETER, DRIVE_RPM\n| The tuning gains\nOthers \u2192 Odometry wizard | You do | You get\nTrack width | Spin the robot 10 turns by hand | TRACK_WIDTH\nWheel offsets | Spin 10 turns by hand | Tracking wheel offsets\nIMU check | Spin 10 turns by hand | How far the inertial is off, in percent\n\nThe wizards write nothing for you. Copy each number into robot_config.hpp and commit it.\n\nBoot report\nConsole output at every boot\nLine | What to check\ntrack_width | UNSET means never supplied. SUSPECT means still the example value. You want MEASURED.\nrung | Which controller is driving. See the rungs below.\nheading from | Should say IMU. ENCODER_DIFFERENTIAL means the inertial failed and every turn will stop short. Check its port.\nRung | How a move is driven | You get here by\nVELOCITY | Constant planned speed, no correction | Having a wheel size and an rpm\nCLOSED | kP \u00d7 error, easing into the target | Setting NAV_KP\nPROFILED | A planned schedule turned into volts by a measured model | Measuring kV and kS\nDemand the rung you tuned for\n\nRefuses to drive unless the robot can reach the rung you asked for. Without this, a missing constant silently drops you a rung.\n\nTurn gains\ninclude/robot_config.hpp\n\nTunes turning separately from driving straight. This robot wants about three times the gain on turns. Judge a turn by its peak overshoot, not where it settles.\n\nWhat you see | Change\nDrifts wide and is slow to come back | Raise kP\nWeaves back and forth across the line | Lower kP, or add a little kD\nTell the driver\nRumble patterns\n\nDots are short buzzes, dashes are long, spaces are pauses. Rumble on an event, never inside the main loop.\n\nPattern | Means\n. | Routine armed\n.. | Autonomous finished cleanly\n- | Something failed. Look at the screen.\n. . . | Battery below the working threshold\n\nCT Guard already rumbles on a fault, like a dead port or low battery. It does not rumble on warnings.\n\nLESSON 4\nTasks, Health & Logging\nDoing two things at once\nA loop that shares the brain\n\nRuns about 50 times a second and gives the screen and hardware-watch tasks a turn. Every loop you write needs a delay.\n\nOverlap a mechanism with a drive\n\nStarts the drive, runs the intake alongside it, then waits and asks how the drive ended. The starter has no intake motor, so swap in your own mechanism. Always check the result from waitUntilDone().\n\nOnly one move runs at a time. Launching a second move while one is running returns REFUSED.\n\nYour own background task\n\nStarts a second loop that runs alongside everything else, forever. Use it for things like a lift holding a height.\n\nOne motor, one owner\n\nRecords who owns each motor group. A second owner claiming the same motors is refused at start-up with a message naming the current owner.\n\nHealth monitoring\nRegister hardware with CT Guard\nsrc/main.cpp \u00b7 inside initialize()\n\nRegisters the drive and the inertial. The name you give is what shows up in a fault message.\n\npreflight() asks | The failure it catches\nIs it there? | A registered device that is not plugged in\nIs it what you said? | The port answers with the wrong kind of device\nIs it geared as declared? | A green cartridge where the code says blue\nCan the battery do this? | Below the floor, motor power is cut and every move stalls\nLevel | Means | Rumbles?\nFAULT | The robot will not work correctly right now | Yes\nWARNING | It works, but something is degrading | No\nHealth thresholds\n\nSets what counts as wrong. Remember 25%: below it the brain cuts motor power and moves report STALLED, just like hitting a wall.\n\nKeep watching in the background\n\nStarts one background task that keeps checking through autonomous and driving. It reports a change once, not every tick.\n\nRefuse to drive a broken robot\nsrc/main.cpp\n\nSkips the routine if any fault is outstanding. It is opt-in, and CT Guard never fixes anything itself.\n\nLogging\nCall | Use it for | Where it goes\nBrain.Screen.toast(\"...\") | \"Did that work?\" | Flashes on screen, clears itself\nctd::Console.println(\"...\") | \"What happened during the run?\" | A scrolling log, last 100 lines\nToast and log\n\nOne message for the person standing there, one for the record.\n\nRead the log on your laptop\nLaptop terminal\n\nEvery console line is also sent down the cable. Leave this open while you test.\n\nHeartbeat\n\nPrints uptime and battery every HEARTBEAT_MS. static keeps last_beat from resetting each loop.\n\nLog this | Not this\nOne line per leg, with the pose | Anything inside the 20 ms loop\nThe result when a move is not DONE | A value that has not changed\nBattery, once in a while | Every sensor, every tick\nReading the numbers\nWhy did the move stall?\n\nPrints the stall cause, plus the speed asked for against the speed actually reached.\n\nStall cause | Motors | Robot | Do this\nBLOCKED | Not turning | Not moving | Something is in the way. Check the battery first.\nSLIPPING | Turning | Not moving | Wheels are spinning. Lower the acceleration.\nPLAN_EXHAUSTED | Turning | Moving | The plan ran out early. Re-measure, don't re-tune.\nField | Read it when\nt.ticks | Confirming the tracking task is alive\nt.nonfinite_ticks | Should be zero. Anything else is a wiring fault.\nt.stall_count | Frequent stalls mean a mechanical problem"</script>
+<script>
+(function(){
+  var KW=/\b(constexpr|float|while|true|false|int|void|auto)\b/;
+  function esc(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}
+  var re=/(\/\/[^\n]*)|("(?:[^"\\]|\\.)*")|\b([a-z_]+)(?=::)|\b(constexpr|float|while|true|false|const|if|void|bool|int|static|unsigned|long|return)\b|\b(\d+(?:\.\d+)?F?)\b/g;
+  document.querySelectorAll(".code pre code").forEach(function(el){
+    var src=el.textContent, out="", last=0, m;
+    while((m=re.exec(src))){
+      out+=esc(src.slice(last,m.index));
+      var cls=m[1]?"com":m[2]?"str":m[3]?"ns":m[4]?"kw":"num";
+      out+='<span class="tok-'+cls+'">'+esc(m[0])+"</span>";
+      last=re.lastIndex;
+    }
+    el.innerHTML=out+esc(src.slice(last));
+    var box=el.closest(".code"), b=document.createElement("button");
+    b.type="button"; b.textContent="Copy";
+    b.addEventListener("click",function(){
+      var done=function(){b.textContent="Copied";setTimeout(function(){b.textContent="Copy"},1400)};
+      try{navigator.clipboard.writeText(src).then(done,function(){sel(el)})}catch(e){sel(el)}
+    });
+    box.appendChild(b);
+  });
+  function sel(el){var r=document.createRange();r.selectNodeContents(el);var s=getSelection();s.removeAllRanges();s.addRange(r)}
+})();
+</script>
+<script>
+(function(){
+  "use strict";
+  var main=document.querySelector("main");
+  var reduceMotion=matchMedia("(prefers-reduced-motion: reduce)");
+
+  /* ---------- index every code snippet ---------- */
+  var entries=[].slice.call(main.querySelectorAll(".entry")).filter(function(e){return e.querySelector(".code")}).map(function(e,i){
+    var g=e.closest("section.group"), l=e.closest(".lesson");
+    if(!e.id)e.id="snip-"+i;
+    var pick=function(sel){var x=e.querySelector(sel);return x?x.textContent.trim():""};
+    var desc=[].slice.call(e.querySelectorAll(":scope > p")).map(function(p){var c=p.cloneNode(true);c.querySelectorAll("sup").forEach(function(x){x.textContent="^"+x.textContent});return c.textContent.trim()}).join(" ");
+    return {el:e,id:e.id,title:pick("h4"),file:pick(".meta"),desc:desc,code:e.querySelector("pre code").textContent,
+      section:g?g.querySelector("h3").textContent.trim():"",
+      lesson:l?(l.querySelector("h2 small").textContent.trim()+": "+l.querySelector("h2").lastChild.textContent.trim()):""};
+  });
+  var byId={}; entries.forEach(function(e){byId[e.id]=e});
+
+  /* ---------- search: code snippets only ---------- */
+  var q=document.getElementById("q"), count=document.getElementById("qcount");
+  var none=document.createElement("p"); none.className="noresults"; none.hidden=true; none.textContent="No code matches. Try a shorter word, or press Ask AI."; main.prepend(none);
+  function clearMarks(){main.querySelectorAll("mark").forEach(function(m){m.replaceWith(document.createTextNode(m.textContent))});main.normalize()}
+  function markIn(el,term){
+    var w=document.createTreeWalker(el,NodeFilter.SHOW_TEXT,{acceptNode:function(n){return n.parentNode.closest("button")?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT}}),ns=[],n;
+    while((n=w.nextNode()))ns.push(n);
+    ns.forEach(function(t){
+      var low=t.data.toLowerCase(), hits=[], i=low.indexOf(term);
+      while(i>=0){hits.push(i);i=low.indexOf(term,i+term.length)}
+      for(var k=hits.length-1;k>=0;k--){var r=document.createRange();r.setStart(t,hits[k]);r.setEnd(t,hits[k]+term.length);r.surroundContents(document.createElement("mark"))}
+    });
+  }
+  var l1h=main.querySelector(":scope > h2");
+  function runSearch(){
+    clearMarks(); var term=q.value.trim().toLowerCase(), hits=0;
+    if(!term){entries.forEach(function(e){e.el.hidden=false});
+      main.querySelectorAll("section.group,.lesson").forEach(function(x){x.hidden=false});if(l1h)l1h.hidden=false;none.hidden=true;
+      count.textContent="Shows only the code snippets that match.";return}
+    entries.forEach(function(e){var ok=(e.title+" "+e.code+" "+e.file+" "+e.desc+" "+e.section).toLowerCase().indexOf(term)>=0;e.el.hidden=!ok;if(ok){hits++;markIn(e.el,term)}});
+    main.querySelectorAll("section.group").forEach(function(g){g.hidden=!g.querySelector(".entry:not([hidden])")});
+    main.querySelectorAll(".lesson").forEach(function(l){l.hidden=!l.querySelector("section.group:not([hidden])")});
+    if(l1h)l1h.hidden=!main.querySelector(":scope > section.group:not([hidden])");
+    none.hidden=hits>0; count.textContent=hits?hits+" code "+(hits===1?"snippet":"snippets"):"No code matches";
+  }
+  var tm; q.addEventListener("input",function(){clearTimeout(tm);tm=setTimeout(runSearch,120)});
+
+  /* ---------- jump to a snippet ---------- */
+  function openSnippet(id){
+    var e=byId[id]; if(!e)return;
+    if(q.value){q.value="";runSearch()}
+    if(!drawer.hidden&&innerWidth<1100)closeDrawer(false);
+    e.el.scrollIntoView({behavior:reduceMotion.matches?"auto":"smooth",block:"start"});
+    e.el.classList.remove("flash"); void e.el.offsetWidth; e.el.classList.add("flash");
+    if(drawer.hidden){e.el.tabIndex=-1;e.el.focus({preventScroll:true})}
+  }
+  function snipButton(id,label){
+    var e=byId[id], b=document.createElement("button"); b.type="button"; b.className="snip";
+    b.textContent=label||("Open: "+(e?e.title:id)); b.addEventListener("click",function(){openSnippet(id)}); return b;
+  }
+
+  /* ---------- code highlighting + copy (same rules as the library) ---------- */
+  var HL=/(\/\/[^\n]*)|("(?:[^"\\\n]|\\.)*")|\b([a-z_]+)(?=::)|\b(constexpr|float|while|true|false|const|if|else|for|void|bool|int|static|unsigned|long|return|auto)\b|\b(\d+(?:\.\d+)?F?)\b/g;
+  function highlight(codeEl,src){
+    codeEl.textContent=""; var last=0,m; HL.lastIndex=0;
+    while((m=HL.exec(src))){
+      if(m.index>last)codeEl.appendChild(document.createTextNode(src.slice(last,m.index)));
+      var sp=document.createElement("span"); sp.className="tok-"+(m[1]?"com":m[2]?"str":m[3]?"ns":m[4]?"kw":"num"); sp.textContent=m[0]; codeEl.appendChild(sp);
+      last=HL.lastIndex;
+    }
+    if(last<src.length)codeEl.appendChild(document.createTextNode(src.slice(last)));
+  }
+  function codeBlock(src){
+    var box=document.createElement("div"); box.className="code";
+    var pre=document.createElement("pre"), code=document.createElement("code"); highlight(code,src); pre.appendChild(code); box.appendChild(pre);
+    var b=document.createElement("button"); b.type="button"; b.textContent="Copy";
+    b.addEventListener("click",function(){
+      var done=function(){b.textContent="Copied";setTimeout(function(){b.textContent="Copy"},1400)};
+      var fallback=function(){var r=document.createRange();r.selectNodeContents(code);var s=getSelection();s.removeAllRanges();s.addRange(r)};
+      try{navigator.clipboard.writeText(src).then(done,fallback)}catch(err){fallback()}
+    });
+    box.appendChild(b); return box;
+  }
+
+  /* ---------- safe Markdown-ish renderer (DOM only, never innerHTML) ---------- */
+  var TAG=/^\[{1,2}(snip-\d+)\]{1,2}$/;
+  function inline(parent,text){
+    var INLINE=/(`[^`\n]+`)|(\*\*[^*\n]+\*\*)|(\[{1,2}(snip-\d+)\]{1,2})/g, last=0, m, t;
+    while((m=INLINE.exec(text))){
+      if(m.index>last)parent.appendChild(document.createTextNode(text.slice(last,m.index)));
+      if(m[1]){ t=m[1].slice(1,-1).match(TAG);
+        if(t){ if(byId[t[1]])parent.appendChild(snipButton(t[1])) }
+        else{var c=document.createElement("code");c.textContent=m[1].slice(1,-1);parent.appendChild(c)} }
+      else if(m[2]){var s=document.createElement("strong");inline(s,m[2].slice(2,-2));parent.appendChild(s)}
+      else if(m[4]){ if(byId[m[4]])parent.appendChild(snipButton(m[4])); }
+      last=INLINE.lastIndex;
+    }
+    if(last<text.length)parent.appendChild(document.createTextNode(text.slice(last)));
+  }
+  function textBlocks(frag,text){
+    var lines=text.split("\n"), para=[], list=null, listType="";
+    function flushPara(){ if(para.length){var p=document.createElement("p");inline(p,para.join(" "));frag.appendChild(p);para=[]} }
+    function flushList(){ if(list){frag.appendChild(list);list=null;listType=""} }
+    lines.forEach(function(raw){
+      var line=raw.replace(/\s+$/,""), m;
+      if(!line.trim()){flushPara();flushList();return}
+      if((m=line.match(/^\s*#{1,6}\s+(.*)$/))){flushPara();flushList();var h=document.createElement("p");h.className="h";inline(h,m[1].replace(/\*\*/g,""));frag.appendChild(h);return}
+      var num=line.match(/^\s*(\d+)[.)]\s+(.*)$/), bul=line.match(/^\s*[-*•]\s+(.*)$/);
+      if(num||bul){
+        flushPara(); var t=num?"ol":"ul";
+        if(!list||listType!==t){flushList();list=document.createElement(t);listType=t;if(num&&num[1]!=="1")list.start=parseInt(num[1],10)}
+        var li=document.createElement("li");inline(li,num?num[2]:bul[1]);list.appendChild(li);return}
+      flushList(); para.push(line.trim());
+    });
+    flushPara(); flushList();
+  }
+  function render(target,text){
+    var frag=document.createDocumentFragment(), FENCE=/```[^\n`]*\n?([\s\S]*?)(?:```|$)/g, last=0, m;
+    while((m=FENCE.exec(text))){
+      if(m.index>last)textBlocks(frag,text.slice(last,m.index));
+      var src=m[1].replace(/\n$/,""); if(src.trim())frag.appendChild(codeBlock(src));
+      last=FENCE.lastIndex; if(m[0]==="")break;
+    }
+    if(last<text.length)textBlocks(frag,text.slice(last));
+    target.textContent=""; target.appendChild(frag);
+  }
+
+  /* ---------- offline helper: keyword matcher over the snippets ---------- */
+  var STOP="a an the i my me do does how what where why when is are to of in on it can could should would with and or for from this that be get make use using which you your please help write show find code".split(" ");
+  var SYN={
+    reverse:"sign negative motorgroup",backwards:"sign negative motorgroup",flip:"sign negative motorgroup",
+    port:"motorgroup left_motors right_motors",ports:"motorgroup left_motors",motor:"motorgroup",motors:"motorgroup",
+    buzz:"rumble",vibrate:"rumble",rumble:"rumble controller",
+    log:"println console",print:"println console",logging:"println console heartbeat",terminal:"pros terminal",
+    menu:"selector dash red",button:"selector dash test",arm:"selector",
+    auton:"autonomous routine",autonomous:"autonomous routine run",routine:"auton routine",add:"routine declaration selector",
+    intake:"launch waituntildone intake",together:"launch",same:"launch",while:"launch",parallel:"launch task",overlap:"launch",
+    stall:"stall telemetry",stalled:"stall telemetry",stuck:"stall telemetry",
+    battery:"battery heartbeat threshold",health:"ctguard watch preflight requirehealthy",fault:"ctguard requirehealthy threshold",
+    start:"initialize startup",startup:"initialize",boot:"initialize boot report",
+    spot:"movetopoint",place:"movetopoint",go:"movetopoint",point:"movetopoint turntopoint",face:"turntoheading turntopoint movetopose",facing:"movetopose turntoheading",
+    turn:"turnangle turntoheading turntopoint",heading:"turntoheading",drive:"drivedistance movetopoint",forward:"drivedistance",distance:"drivedistance",
+    where:"pose setpose",position:"pose setpose",origin:"setpose",
+    stick:"deadband curve steer",sticks:"deadband curve",creep:"deadband",curve:"curve throttle",steer:"steer floor",steering:"steer floor",
+    wheel:"wheel_diameter push",diameter:"wheel_diameter",gear:"drive_gearset rpm",cartridge:"drive_gearset",
+    time:"estimateduration",long:"estimateduration",seconds:"estimateduration",
+    task:"task delay",loop:"while delay opcontrol",frozen:"delay",freeze:"delay",
+    gain:"kp kd turn",kp:"nav_kp_turn",tune:"kp curve steer",units:"degrees motorunits",push:"push test degrees",
+    lift:"task lift owner",owner:"watch owner"
+  };
+  function words(t){return t.toLowerCase().replace(/[^a-z0-9_:\s]/g," ").split(/[\s:]+/).filter(function(w){return w&&STOP.indexOf(w)<0})}
+  function stem(w){return w.length>4?w.replace(/(ing|ed|es|s)$/,""):w}
+  entries.forEach(function(e){e.T=e.title.toLowerCase();e.C=e.code.toLowerCase();e.F=e.file.toLowerCase();e.D=(e.desc+" "+e.section).toLowerCase()});
+  function score(e,ws){var s=0;ws.forEach(function(w){var k=stem(w).replace(/[^a-z0-9_]/g,"");if(!k)return;
+    var re=new RegExp("(^|[^a-z])"+k);
+    if(re.test(e.T))s+=4; if(re.test(e.C))s+=3; if(re.test(e.F))s+=2; if(re.test(e.D))s+=1});return s}
+  function match(text){
+    var base=words(text), ws=base.slice();
+    base.forEach(function(w){if(SYN[w])ws=ws.concat(SYN[w].split(" "))});
+    return entries.map(function(e){return {e:e,s:score(e,base)*2+score(e,ws)}}).filter(function(r){return r.s>0}).sort(function(a,b){return b.s-a.s});
+  }
+  function offlineAnswer(bubble,text){
+    var r=match(text); bubble.textContent="";
+    if(!r.length){var p=document.createElement("p");p.textContent="I couldn't find code for that. Try a function name like moveToPoint, or words like port, rumble, battery or stall.";bubble.appendChild(p);return}
+    var e=r[0].e, w=document.createElement("div"); w.className="where"; w.textContent=e.lesson+" › "+e.section+(e.file?" · "+e.file:""); bubble.appendChild(w);
+    var t=document.createElement("p"); var st=document.createElement("strong"); st.textContent=e.title; t.appendChild(st); t.appendChild(document.createTextNode(" ")); t.appendChild(snipButton(e.id,"Open in library")); bubble.appendChild(t);
+    if(e.desc){var d=document.createElement("p");d.textContent=e.desc;bubble.appendChild(d)}
+    bubble.appendChild(codeBlock(e.code));
+    var more=r.slice(1,3).filter(function(x){return x.s>=r[0].s*0.5});
+    if(more.length){var m=document.createElement("p");m.className="meta-line";m.appendChild(document.createTextNode("Also see: "));more.forEach(function(x){m.appendChild(snipButton(x.e.id,x.e.title));m.appendChild(document.createTextNode(" "))});bubble.appendChild(m)}
+  }
+
+  /* ---------- the AI instructions (sent with every question) ---------- */
+  var KB=""; try{KB=JSON.parse(document.getElementById("kb").textContent)}catch(err){}
+  function catalog(){
+    return entries.map(function(e){
+      var lang=(/terminal|console output/i.test(e.file)||e.code.indexOf(";")<0)?"text":"cpp";
+      return "[["+e.id+"]] "+e.lesson+" › "+e.section+" › "+e.title+"\nFile: "+(e.file||"(not named)")+"\nWhat it does: "+(e.desc||"-")+"\n```"+lang+"\n"+e.code+"\n```";
+    }).join("\n\n");
+  }
+  var RULES=[
+    "You are \"Ask AI\", the helper built into the V5 Unit 2 Code Library: a page of C++ code snippets for a VEX V5 robot.",
+    "The robot uses PROS 4.2.2 plus three team libraries: CT Nav (ctnav::) moves the robot and tracks where it is, CT Dash (ctd::) is the brain-screen menu and log, CT Guard (ctguard::) checks the hardware. There is no LemLib and no chassis object.",
+    "The students are beginners. They read working code and change values in it; they do not write C++ from a blank file.",
+    "",
+    "Use ONLY the SNIPPETS and LESSON NOTES below. Do not use outside knowledge of VEX, PROS or other libraries.",
+    "",
+    "How to answer:",
+    "- \"Where is…\" questions: say the lesson, the section and the file to edit, then add the snippet tag. If a snippet's File is (not named), take the file from the \"Which file?\" table in the notes (moves and routines go in the routine file under src/autons/). If the notes don't say, say the lesson doesn't name a file. Never make up a path.",
+    "- \"How do I…\" or \"How does … work\": explain in 2 to 5 short, plain sentences, then show the relevant code copied exactly from the snippets. If it holds ports, names or numbers the student has their own versions of, add a comment such as // keep your own port numbers.",
+    "- \"Can you help me with…\" or a request to write code: build it ONLY from library calls that appear in the snippets. You may choose a new routine name the way the snippets do (auton::my_routine); a new routine needs all three steps: its own file under src/autons/, one line in include/autons.hpp, one line in src/auton_selector.cpp. Use one ```cpp block per file and say which file each goes in. Add a short // comment on any value the student must change (a port, a distance, a heading). Never invent library functions, arguments or constants. If something they need is not in the library (for example a flywheel, a tank drive, or reading controller buttons), say that plainly and offer the closest thing that is.",
+    "- If a request could mean two things (for example \"drive back\" = reverse, or return to the start), pick the likelier one, say which in one short line, and give the one-line alternative.",
+    "- Something is broken: point to the matching check in the notes (push test, motor direction table, boot report, stall cause, health thresholds) and say what to look at first.",
+    "- Cite every snippet you rely on by writing its tag as plain text with double square brackets, for example [[snip-3]], never inside `backticks`, **bold** or a code block. The page turns each tag into a button that opens the snippet. Only use tags that appear in the SNIPPETS list.",
+    "- Some snippets are not C++ (their fence says text): arithmetic, console output, or a laptop command. Never tell a student to paste those into a .cpp file.",
+    "- IMU_PORT, HEARTBEAT_MS, NAV_KP, kV and kS live in include/robot_config.hpp, but their lines are not in this library: say where they live, never write their definitions. Only ctd::Dash.red({...}) is shown. For another tab, add the line to that tab's list inside auton::start() in src/auton_selector.cpp, but say the lesson does not show that tab's call and never write one.",
+    "- If the question is not about this robot code, say in one sentence that you only help with this code library.",
+    "",
+    "Style: friendly and direct, like a patient team mentor. Keep it short: about 150 words plus code. Use plain Markdown only: short paragraphs, \"-\" bullets, `inline code`, ```cpp fences. No tables. No headings.",
+    "",
+    "SNIPPETS:",
+    catalog(),
+    "",
+    "LESSON NOTES (background for explaining; copy code only from SNIPPETS):",
+    KB
+  ].join("\n");
+
+  /* ---------- drawer ---------- */
+  var drawer=document.getElementById("drawer"), fab=document.getElementById("fab"), log=document.getElementById("log");
+  var ask=document.getElementById("ask"), form=document.getElementById("askform"), sendBtn=document.getElementById("send"), stopBtn=document.getElementById("stop");
+  var status=document.getElementById("status"), modeBadge=document.getElementById("mode"), opener=null;
+  var SUGGEST=["Where is the code to reverse a motor?","How does the steer floor work?","Help me write a routine that drives 24 in, turns right and drives back","My push test reads 2115. What's wrong?","How do I run the intake while driving?"];
+  function welcome(){
+    log.textContent="";
+    var w=document.createElement("div"); w.className="msg bot";
+    var p=document.createElement("p"); p.textContent="Hi! I know every snippet in this library. Ask me where something is, how it works, or to help you write code for your robot."; w.appendChild(p);
+    var chips=document.createElement("div"); chips.className="chips";
+    SUGGEST.forEach(function(s){var c=document.createElement("button");c.type="button";c.className="chip";c.textContent=s;c.addEventListener("click",function(){send(s)});chips.appendChild(c)});
+    w.appendChild(chips); log.appendChild(w);
+  }
+  var openers=[].slice.call(document.querySelectorAll("[data-open-ai]")), wrap=document.querySelector(".wrap");
+  var phoneMQ=matchMedia("(max-width:760px)"), ptrOut=false;
+  document.addEventListener("pointerdown",function(e){ptrOut=!drawer.contains(e.target)},true);
+  function setOpen(open){
+    drawer.hidden=!open; fab.hidden=open; document.body.classList.toggle("ai-open",open);
+    openers.forEach(function(b){b.setAttribute("aria-expanded",String(open))});
+    var phone=open&&phoneMQ.matches; wrap.inert=phone; if(phone)drawer.setAttribute("aria-modal","true"); else drawer.removeAttribute("aria-modal");
+  }
+  function openDrawer(from){
+    opener=from||document.activeElement; setOpen(true);
+    if(!log.childElementCount)welcome(); setTimeout(function(){ask.focus()},0);
+  }
+  function closeDrawer(restore){
+    setOpen(false);
+    if(restore!==false&&opener&&opener.focus&&!opener.hidden)opener.focus();
+  }
+  document.querySelectorAll("[data-open-ai]").forEach(function(b){b.addEventListener("click",function(){openDrawer(b)})});
+  document.querySelectorAll("[data-ask]").forEach(function(b){b.addEventListener("click",function(){openDrawer(b);send(b.textContent)})});
+  document.getElementById("close").addEventListener("click",function(){closeDrawer()});
+  document.addEventListener("keydown",function(ev){
+    if(ev.key!=="Escape"||ev.isComposing||drawer.hidden)return;
+    if(!phoneMQ.matches&&!drawer.contains(ev.target)&&(ev.target!==document.body||ptrOut))return;
+    closeDrawer();
+  });
+  var onMQ=function(){if(!drawer.hidden){setOpen(true);if(!drawer.contains(document.activeElement))ask.focus()}};
+  if(phoneMQ.addEventListener)phoneMQ.addEventListener("change",onMQ);else if(phoneMQ.addListener)phoneMQ.addListener(onMQ);
+  ask.addEventListener("input",function(){ask.style.height="auto";ask.style.height=Math.min(ask.scrollHeight,160)+"px"});
+  ask.addEventListener("keydown",function(ev){if(ev.key==="Enter"&&!ev.shiftKey&&!ev.isComposing){ev.preventDefault();form.requestSubmit?form.requestSubmit():send(ask.value)}});
+  form.addEventListener("submit",function(ev){ev.preventDefault();send(ask.value)});
+
+  /* ---------- AI mode ---------- */
+  var mode="pending", turns=[], ctl=null, busy=false, gen=0, sr=document.getElementById("sr");
+  function setMode(m,why,before){
+    mode=m;
+    if(m==="ai"){modeBadge.textContent="Claude";modeBadge.className="badge on";modeBadge.title="Answers written by Claude from this library"}
+    else{modeBadge.textContent="Offline helper";modeBadge.className="badge";modeBadge.title="Answers by matching your words to snippets"}
+    if(why)note(why,before);
+  }
+  function note(text,before){var d=document.createElement("div");d.className="msg bot";var p=document.createElement("p");p.className="meta-line";p.textContent=text;d.appendChild(p);if(before&&before.parentNode===log)log.insertBefore(d,before);else log.appendChild(d);scroll()}
+  /* Where answers come from:
+     - inside claude.ai: Claude through the viewer's own account (window.claude "sample");
+     - on your own website: the Supabase Edge Function named in <meta name="ask-ai-endpoint">;
+     - otherwise: the offline helper. */
+  var endpointMeta=document.querySelector('meta[name="ask-ai-endpoint"]');
+  var ENDPOINT=endpointMeta?String(endpointMeta.getAttribute("content")||"").trim():"";
+  var inClaude=!!(window.claude&&typeof window.claude.use==="function");
+  function askClaude(s){
+    return function(history,opts){
+      return s([{role:"user",content:RULES}].concat(history),{cache:false,signal:opts.signal,modelTier:"default",effort:"low",onText:opts.onText});
+    };
+  }
+  function fail(code,message,text){var e={code:code,message:message||code};if(text)e.text=text;return e}
+  async function askSupabase(history,opts){
+    var acc="", truncated=false, res;
+    var body=JSON.stringify({system:RULES,messages:history.map(function(t){return {role:t.role,content:String(t.content).slice(0,t.role==="user"?2000:12000)}})});
+    try{
+      res=await fetch(ENDPOINT,{method:"POST",headers:{"content-type":"application/json"},body:body,signal:opts.signal});
+    }catch(err){
+      if(opts.signal.aborted)throw fail("cancelled");
+      throw fail("upstream_error","network error");
+    }
+    if(!res.ok){
+      var info={}; try{info=(await res.json()).error||{}}catch(err){}
+      var c=info.code||"";
+      if(res.status===429)throw fail("rate_limited",info.message);
+      if(c==="not_configured"||c==="origin_not_allowed"||c==="prompt_mismatch")throw fail(c,info.message);
+      if(res.status===400||res.status===413)throw fail("invalid_request",info.message);
+      throw fail("upstream_error",info.message||("HTTP "+res.status));
+    }
+    var reader=res.body.getReader(), dec=new TextDecoder(), buf="";
+    function handle(line){
+      if(!line.trim())return;
+      var ev; try{ev=JSON.parse(line)}catch(err){return}
+      if(ev.type==="text"&&ev.text){acc+=ev.text;opts.onText({text:acc,delta:ev.text})}
+      else if(ev.type==="done"){truncated=!!ev.truncated}
+      else if(ev.type==="refused"){throw fail("refused")}
+      else if(ev.type==="error"){throw fail(ev.code==="rate_limited"?"rate_limited":"upstream_error",ev.message,acc)}
+    }
+    try{
+      for(;;){
+        var chunk=await reader.read(); if(chunk.done)break;
+        buf+=dec.decode(chunk.value,{stream:true});
+        var lines=buf.split("\n"); buf=lines.pop(); lines.forEach(handle);
+      }
+      buf+=dec.decode(); handle(buf);
+    }catch(err){
+      try{reader.cancel()}catch(e2){}
+      if(err&&err.code)throw err;
+      if(opts.signal.aborted)throw fail("cancelled","",acc);
+      throw fail("upstream_error","stream interrupted",acc);
+    }
+    if(opts.signal.aborted)throw fail("cancelled","",acc);
+    if(!acc.trim())throw fail("empty_completion");
+    return {text:acc,truncated:truncated};
+  }
+  var sampleP=inClaude
+    ?Promise.resolve(window.claude.use("sample")).catch(function(){return null}).then(function(s){return s?askClaude(s):null})
+    :Promise.resolve(ENDPOINT?askSupabase:null);
+  sampleP.then(function(s){ if(s){setMode("ai")} else if(mode==="pending"){setMode("offline")} });
+  function scroll(){log.scrollTop=log.scrollHeight}
+  function bubble(cls){var d=document.createElement("div");d.className="msg "+cls;log.appendChild(d);scroll();return d}
+  function setBusy(b){busy=b;sendBtn.disabled=b;stopBtn.hidden=!b;status.textContent=b?"Writing an answer…":""}
+  function announce(t){sr.textContent="";setTimeout(function(){sr.textContent=t},50)}
+  stopBtn.addEventListener("click",function(){if(ctl)ctl.abort()});
+  document.getElementById("clear").addEventListener("click",function(){gen++;if(ctl){ctl.abort();ctl=null;setBusy(false)}turns=[];welcome();ask.focus()});
+
+  var HIDE={not_granted:"Claude isn't allowed on this page, so I'm using the offline helper. It matches your words to snippets.",
+    sampling_disabled:"Claude isn't available on this account, so I'm using the offline helper.",
+    not_declared:"Claude isn't set up on this page, so I'm using the offline helper.",
+    capability_disabled:"Claude can't run in this view, so I'm using the offline helper.",
+    capability_removed:"Claude can't run in this view, so I'm using the offline helper.",
+    not_configured:"Ask AI isn't switched on for this website yet, so I'm using the offline helper.",
+    origin_not_allowed:"This website isn't on Ask AI's allowed list, so I'm using the offline helper.",
+    prompt_mismatch:"This copy of the library is newer than Ask AI's server settings, so I'm using the offline helper."};
+  var PAGEBUG={invalid_request:1,transform_error:1,queue_overflow:1};
+
+  async function send(raw){
+    var text=String(raw||"").trim();
+    if(!text)return;
+    if(busy){status.textContent="Wait for this answer, or press Stop.";return}
+    ask.value=""; ask.style.height="auto";
+    var myGen=gen, myCtl=new AbortController(); ctl=myCtl; setBusy(true);
+    var you=bubble("you"); you.textContent=text;
+    var out=bubble("bot"), stick=true, onScroll=function(){stick=log.scrollHeight-log.scrollTop-log.clientHeight<40};
+    log.addEventListener("scroll",onScroll);
+    var stale=function(){return myGen!==gen||myCtl.signal.aborted};
+    try{
+      if(mode==="pending"){
+        var w=document.createElement("p");w.className="thinking";w.textContent="Connecting";out.appendChild(w);
+        await Promise.race([sampleP,new Promise(function(r){myCtl.signal.addEventListener("abort",r,{once:true})})]);
+        if(mode==="pending"&&!myCtl.signal.aborted)setMode("offline");
+      }
+      if(stale()){ if(myGen===gen){out.textContent="";var sc=document.createElement("p");sc.className="meta-line";sc.textContent="Stopped.";out.appendChild(sc)} return }
+      var sample=mode==="ai"?await sampleP:null;
+      if(!sample){offlineAnswer(out,text);announce("Answer ready.");return}
+
+      turns.push({role:"user",content:text});
+      var history=turns.slice(-12); while(history.length&&history[0].role!=="user")history.shift();
+      out.textContent=""; var th=document.createElement("p"); th.className="thinking"; th.textContent="Thinking"; out.appendChild(th);
+      out.setAttribute("aria-busy","true");
+      try{
+        var res=await sample(history,{signal:myCtl.signal,
+          onText:function(u){if(myGen!==gen)return;render(out,u.text);if(stick)scroll()}});
+        if(myGen!==gen)return;
+        render(out,res.text);
+        turns.push({role:"assistant",content:res.text});
+        if(res.truncated){var tr=document.createElement("p");tr.className="meta-line";tr.textContent="That answer was cut short. Ask for a smaller piece at a time.";out.appendChild(tr)}
+        announce("Answer ready.");
+      }catch(e){
+        if(myGen!==gen)return;
+        var code=e&&e.code;
+        if(turns.length&&turns[turns.length-1].role==="user")turns.pop();
+        if(code==="cancelled"){
+          if(e.text)render(out,e.text); else out.textContent="";
+          var c=document.createElement("p");c.className="meta-line";c.textContent="Stopped.";out.appendChild(c);
+        }
+        else if(HIDE[code]){ setMode("offline",HIDE[code],you); out.textContent=""; offlineAnswer(out,text); announce(HIDE[code]+" Answer ready."); }
+        else if(PAGEBUG[code]){ out.textContent=""; offlineAnswer(out,text); var pb=document.createElement("p");pb.className="meta-line";pb.textContent="Claude couldn't take this question, so this answer comes from the offline helper.";out.appendChild(pb);announce("Answer ready.") }
+        else{
+          if(code==="refused"){out.textContent=""} else if(e&&e.text){render(out,e.text)} else {out.textContent=""}
+          var er=document.createElement("p"); er.className="err";
+          er.textContent=code==="rate_limited"?"Too many questions right now. Wait a minute, then ask again.":
+            code==="session_expired"?"Your Claude sign-in expired. Sign in again, then ask.":
+            code==="refused"?"Claude can't answer that one. Try asking it a different way.":
+            code==="prompt_too_large"?"This chat got too long. Press New chat and ask again.":
+            code==="empty_completion"?"Claude didn't write anything. Try asking it a different way.":
+            "The answer was interrupted. Ask again to retry.";
+          out.appendChild(er); announce(er.textContent);
+        }
+      }finally{ out.removeAttribute("aria-busy") }
+    }finally{
+      log.removeEventListener("scroll",onScroll);
+      if(ctl===myCtl){ctl=null;setBusy(false)}
+      if(stick)scroll();
+      var a=document.activeElement; if(!drawer.hidden&&(a===stopBtn||a===sendBtn||(a===document.body&&!ptrOut)))ask.focus();
+    }
+  }
+})();
+</script>
+</body>
+</html>
