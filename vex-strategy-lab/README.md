@@ -28,11 +28,10 @@ set **Root Directory** to `vex-strategy-lab`, and deploy (framework: Vite, outpu
 
 **GitHub Pages.** The repository's Pages site is `https://jordanengrashes-ux.github.io/dude/`,
 and the app lives at `/dude/strategy-lab/`. `npm run build:pages` builds into
-`dist-pages/` with every URL under that prefix (the `BASE_PATH` variable in
-`vite.config.ts`). Copy the contents of `dist-pages/` into `strategy-lab/` on the
-branch Pages publishes from and push. The branch already has `.nojekyll`. To serve from
-another path, build with `BASE_PATH=/<repo>/<folder>/ npx vite build` and keep both
-slashes.
+`dist-pages/` with every URL under that prefix (Vite's `--base`). Copy the contents
+of `dist-pages/` into `strategy-lab/` on the branch Pages publishes from and push. The
+branch already has `.nojekyll`. To serve from another path, build with
+`npx vite build --base /<repo>/<folder>/` and keep both slashes.
 
 Online team mode talks directly from the browser to Supabase Realtime, so there is no
 server to deploy. Supabase cannot host the app itself: it serves `.html` files as

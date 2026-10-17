@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "build:pages": "tsc --noEmit && BASE_PATH=/dude/strategy-lab/ vite build --outDir dist-pages",
+    "build:pages": "tsc --noEmit && vite build --base /dude/strategy-lab/ --outDir dist-pages",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
