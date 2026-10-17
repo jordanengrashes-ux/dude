@@ -1,7 +1,0 @@
-# Supabase CLI settings for the VEX code library's Ask AI backend.
-project_id = "vex-code-library"
-
-[functions.ask-ai]
-# The page calls this function without a Supabase key. The function protects
-# itself: an allowed-websites list, per-visitor and daily rate limits, and its own prompt.
-verify_jwt = false
