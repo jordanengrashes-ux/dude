@@ -32,7 +32,7 @@ export function upperBoundAdd(w: PlanWorld, s: PlanState): number {
   if (remaining <= 0) return 0;
   const vmax = w.perf.vFree * 1.15; // allow for performance uncertainty
   const reach = R.intake.holderOffsetIn * 2;
-  const minMech = R.intake.intakeTimeSec + R.intake.releaseTimeSec;
+  const minMech = R.intake.intakeTimeSec + R.intake.releaseTimeSec + Math.min(R.execution.pickOverheadSec, R.execution.loadOverheadSec) + R.execution.placeOverheadSec;
   const alliance = cfg.alliance;
   const opp: Alliance = alliance === 'red' ? 'blue' : 'red';
   const isSkills = cfg.matchType !== 'headToHead';
@@ -91,7 +91,7 @@ export function upperBoundAdd(w: PlanWorld, s: PlanState): number {
     const st = s.status[o.idx];
     if (st === ST_HELD) {
       cupsAvail++;
-      cupCycle = Math.min(cupCycle, R.intake.releaseTimeSec);
+      cupCycle = Math.min(cupCycle, R.intake.releaseTimeSec + R.execution.placeOverheadSec);
     } else if (st === ST_FIELD && o.startPos) {
       cupsAvail++;
       const dm = w.objDMinGoal[o.idx];
@@ -119,7 +119,7 @@ export function upperBoundAdd(w: PlanWorld, s: PlanState): number {
       pos = ls.reduce((a, b) => (dist(a.dispense, holder) < dist(b.dispense, holder) ? a : b)).dispense;
     } else if (st === ST_HELD) {
       pos = holder;
-      extra = -R.intake.intakeTimeSec;
+      extra = -(R.intake.intakeTimeSec + Math.min(R.execution.pickOverheadSec, R.execution.loadOverheadSec));
     } else continue;
     const h0 = halfVal(o.colors![0]);
     const h1 = halfVal(o.colors![1]);
@@ -167,7 +167,7 @@ export function upperBoundAdd(w: PlanWorld, s: PlanState): number {
 
   // Ownership upgrades of currently placed yellow halves. Toggles are judged both now
   // and after the remaining external events (an opponent flip could be answered).
-  const minToggle = R.toggleArm.actuateTimeSec;
+  const minToggle = R.toggleArm.actuateTimeSec + R.execution.toggleOverheadSec;
   const fin = s.eventsApplied < cfg.externalEvents.length ? w.finalize(s) : s;
   if (remaining >= minToggle && w.toggles.length) {
     for (let gi = 0; gi < w.goals.length; gi++) {

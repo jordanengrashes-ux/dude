@@ -92,6 +92,19 @@ export interface RobotConfig {
     actuateTimeSec: number;
     reachIn: number;
   };
+  /**
+   * Execution overheads (s) the physical controller adds beyond the planner's
+   * kinematic time model: final alignment, settling, backing off. Measured by
+   * sim/calibrate.ts from physics runs; re-run "Calibrate" after changing the robot.
+   */
+  execution: {
+    pickOverheadSec: number;
+    placeOverheadSec: number;
+    toggleOverheadSec: number;
+    loadOverheadSec: number;
+    parkOverheadSec: number;
+    calibratedFrom: string;
+  };
   start: {
     pos: Vec2;
     heading: number;
@@ -145,6 +158,14 @@ export const DEFAULT_ROBOT: RobotConfig = {
     placeToleranceIn: 0.6,
   },
   toggleArm: { actuateTimeSec: 0.6, reachIn: 1.5 },
+  execution: {
+    pickOverheadSec: 0.15,
+    placeOverheadSec: 1.3,
+    toggleOverheadSec: 0.55,
+    loadOverheadSec: 0.3,
+    parkOverheadSec: 0.2,
+    calibratedFrom: 'Default robot, Skills plan (beam w=24), physics median, 2026-10-17',
+  },
   start: { pos: { x: -61, y: -36 }, heading: 0 },
 };
 

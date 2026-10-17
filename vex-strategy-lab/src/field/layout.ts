@@ -22,14 +22,19 @@ export const PIN_COLORS: Record<PinType, [HalfColor, HalfColor]> = {
 };
 
 export type PinStart =
-  | { where: 'field'; pos: Vec2; upColor: HalfColor }
-  | { where: 'goal'; goalId: string; bottom: HalfColor; top: HalfColor }
+  | { where: 'field'; pos: Vec2; upColor: HalfColor; lying?: boolean }
+  | { where: 'goal'; goalId: string; bottom: HalfColor; top: HalfColor; index?: number }
   | { where: 'preload'; robotSlot: string; upColor: HalfColor }
-  | { where: 'matchload'; alliance: Alliance };
+  | { where: 'held'; robotSlot: string; upColor: HalfColor }
+  | { where: 'matchload'; alliance: Alliance }
+  | { where: 'unavailable' };
 
 export type CupStart =
-  | { where: 'field'; pos: Vec2; grayUp: boolean }
-  | { where: 'matchload'; alliance: Alliance };
+  | { where: 'field'; pos: Vec2; grayUp: boolean; lying?: boolean }
+  | { where: 'goal'; goalId: string; grayDown: boolean; index: number }
+  | { where: 'held'; robotSlot: string; grayUp: boolean }
+  | { where: 'matchload'; alliance: Alliance }
+  | { where: 'unavailable' };
 
 export interface PinSpec {
   id: string;
@@ -56,6 +61,8 @@ export interface FieldLayout {
   pins: PinSpec[];
   cups: CupSpec[];
   robots: RobotStart[];
+  /** Toggle positions by Toggle id (default yellow). */
+  toggles?: Record<string, 'red' | 'yellow' | 'blue'>;
   /** Human-readable provenance shown in the UI. */
   provenance: string;
 }

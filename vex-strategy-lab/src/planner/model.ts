@@ -49,7 +49,10 @@ export interface StaticObj {
   pinType?: PinType;
   colors?: [HalfColor, HalfColor];
   startPos?: Vec2;
-  startWhere: 'field' | 'goal' | 'preload' | 'matchload';
+  startWhere: 'field' | 'goal' | 'preload' | 'held' | 'matchload' | 'unavailable';
+  /** Stack position and orientation bit for objects starting in a Goal. */
+  startIndex?: number;
+  startBit?: number;
   matchloadAlliance?: Alliance;
   preloadSlot?: string;
   /** Initial orientation bit: pin → index of color facing up; cup → 1 if gray up. */
@@ -160,7 +163,7 @@ export interface PlanConfig {
   startPose?: { pos: Vec2; heading: number; holderH?: number };
 }
 
-const APPROACH = 8; // straight-in distance before pickup/placement (in)
+const APPROACH = 9; // straight-in distance before pickup/placement (in)
 
 export interface PoseExcept {
   goal?: string;
@@ -180,6 +183,7 @@ export class PlanWorld {
   readonly gridAuto: Grid;
   readonly gridDriver: Grid;
   readonly clearance: number;
+  readonly cornerClearance: number;
   readonly maxHolder: number;
   readonly legalHolder: { pre: number; end: number };
   private dfCache = new Map<string, DistanceField>();
@@ -196,6 +200,7 @@ export class PlanWorld {
     this.toggles = buildToggles().filter((t) => !cfg.toggleFilter || cfg.toggleFilter(t));
     this.loaders = buildLoaders();
     this.clearance = Math.max(cfg.robot.chassis.lengthIn, cfg.robot.chassis.widthIn) / 2 + 1.5;
+    this.cornerClearance = Math.hypot(cfg.robot.chassis.lengthIn, cfg.robot.chassis.widthIn) / 2 + 0.7;
     if (shared) {
       // Geometry depends only on robot footprint, alliance and match type — share it.
       const f = shared.from;
@@ -206,8 +211,8 @@ export class PlanWorld {
       this.approachCache = f.approachCache;
       this.dfCache = f.dfCache;
     } else {
-      this.gridAuto = new Grid({ clearance: this.clearance, alliance: cfg.alliance, forbidOpposingSide: cfg.matchType === 'headToHead' });
-      this.gridDriver = new Grid({ clearance: this.clearance, alliance: cfg.alliance, forbidOpposingLoadZones: cfg.matchType === 'headToHead' });
+      this.gridAuto = new Grid({ clearance: this.clearance, cornerClearance: this.cornerClearance, alliance: cfg.alliance, forbidOpposingSide: cfg.matchType === 'headToHead' });
+      this.gridDriver = new Grid({ clearance: this.clearance, cornerClearance: this.cornerClearance, alliance: cfg.alliance, forbidOpposingLoadZones: cfg.matchType === 'headToHead' });
     }
     this.maxHolder = maxHolderHeight(cfg.robot);
     const vmax = cfg.params.robot.verticalMaxIn;
@@ -227,17 +232,34 @@ export class PlanWorld {
         startWhere: s.where,
         startUp: s.where === 'field' || s.where === 'preload' ? (colors[1] === s.upColor ? 1 : 0) : 1,
       };
+      if (s.where === 'held') o.startUp = colors[1] === s.upColor ? 1 : 0;
       if (s.where === 'field') o.startPos = s.pos;
       if (s.where === 'matchload') o.matchloadAlliance = s.alliance;
-      if (s.where === 'preload') o.preloadSlot = s.robotSlot;
-      if (s.where === 'goal') o.startGoal = s.goalId;
+      if (s.where === 'preload' || s.where === 'held') o.preloadSlot = s.robotSlot;
+      if (s.where === 'goal') {
+        o.startGoal = s.goalId;
+        o.startIndex = s.index ?? 0;
+        o.startBit = colors[0] === s.bottom ? 0 : 1;
+      }
       this.objs.push(o);
     }
     for (const c of L.cups) {
       const s = c.start;
-      const o: StaticObj = { idx: this.objs.length, id: c.id, kind: 'cup', startWhere: s.where, startUp: s.where === 'field' ? (s.grayUp ? 1 : 0) : 1 };
+      const o: StaticObj = {
+        idx: this.objs.length,
+        id: c.id,
+        kind: 'cup',
+        startWhere: s.where,
+        startUp: s.where === 'field' ? (s.grayUp ? 1 : 0) : s.where === 'held' ? (s.grayUp ? 1 : 0) : 1,
+      };
       if (s.where === 'field') o.startPos = s.pos;
       if (s.where === 'matchload') o.matchloadAlliance = s.alliance;
+      if (s.where === 'held') o.preloadSlot = s.robotSlot;
+      if (s.where === 'goal') {
+        o.startGoal = s.goalId;
+        o.startIndex = s.index;
+        o.startBit = s.grayDown ? 1 : 0;
+      }
       this.objs.push(o);
     }
   }
@@ -261,7 +283,9 @@ export class PlanWorld {
     const status = new Uint8Array(N);
     const up = new Uint8Array(N);
     const stacks: number[][] = this.goals.map(() => []);
+    const stackEntries: { gi: number; index: number; code: number }[] = [];
     let heldPin = -1;
+    let heldCup = -1;
     const slot = cfg.robotId;
     for (const o of this.objs) {
       up[o.idx] = o.startUp;
@@ -276,20 +300,27 @@ export class PlanWorld {
         case 'goal': {
           status[o.idx] = ST_PLACED;
           const gi = this.goals.findIndex((g) => g.id === o.startGoal);
-          if (gi >= 0) stacks[gi].push(o.idx * 2 + 0);
+          if (gi >= 0) stackEntries.push({ gi, index: o.startIndex ?? 0, code: o.idx * 2 + (o.startBit ?? 0) });
           break;
         }
         case 'preload':
+        case 'held':
           if (o.preloadSlot === slot) {
             status[o.idx] = ST_HELD;
-            heldPin = o.idx;
+            if (o.kind === 'pin') heldPin = o.idx;
+            else heldCup = o.idx;
           } else status[o.idx] = ST_UNAVAILABLE;
           break;
         case 'matchload':
-          status[o.idx] = o.matchloadAlliance === cfg.alliance ? ST_MATCHLOAD : ST_UNAVAILABLE;
+          status[o.idx] = o.matchloadAlliance === cfg.alliance || (cfg.matchType !== 'headToHead' && o.matchloadAlliance) ? ST_MATCHLOAD : ST_UNAVAILABLE;
+          break;
+        case 'unavailable':
+          status[o.idx] = ST_UNAVAILABLE;
           break;
       }
     }
+    stackEntries.sort((a, b) => a.gi - b.gi || a.index - b.index);
+    for (const e of stackEntries) stacks[e.gi].push(e.code);
     const rs = cfg.layout.robots.find((r) => r.slot === slot) ?? cfg.layout.robots[0];
     const sp = cfg.startPose ?? { pos: rs.pos, heading: rs.heading };
     const s: PlanState = {
@@ -298,11 +329,11 @@ export class PlanWorld {
       heading: sp.heading,
       holderH: cfg.startPose?.holderH ?? cfg.robot.rack.holderMinHeightIn,
       heldPin,
-      heldCup: -1,
+      heldCup,
       status,
       up,
       stacks,
-      toggles: this.toggles.map(() => 'yellow' as TogglePosition),
+      toggles: this.toggles.map((t) => (cfg.layout.toggles?.[t.id] ?? 'yellow') as TogglePosition),
       loaderFreeAt: this.loaders.map(() => cfg.tStart),
       parked: false,
       eventsApplied: 0,
@@ -417,7 +448,8 @@ export class PlanWorld {
    * Candidate approaches that put the holder axis on `target`, facing `heading`.
    * Returns the pre-approach point (reached by path planning) and the final pose.
    */
-  approaches(target: Vec2, key: string, except: PoseExcept = {}, onlyHeading?: number): { pre: Vec2; center: Vec2; heading: number }[] {
+  approaches(target: Vec2, key0: string, except: PoseExcept = {}, onlyHeading?: number): { pre: Vec2; center: Vec2; heading: number }[] {
+    const key = `${key0}@${target.x.toFixed(2)},${target.y.toFixed(2)}|${onlyHeading ?? '*'}|${except.goal ?? ''}${except.loader ?? ''}${except.toggle ?? ''}`;
     const cached = this.approachCache.get(key);
     if (cached) return cached;
     const out: { pre: Vec2; center: Vec2; heading: number }[] = [];
@@ -825,7 +857,7 @@ export class PlanWorld {
         const o = this.objs[a.obj];
         if (s.status[a.obj] !== ST_FIELD || !o.startPos || !this.canHold(s, o.kind)) return null;
         if (!moveTo(o.startPos, `o${a.obj}`, {}, minH)) return null;
-        mechT = R.intake.intakeTimeSec + (R.intake.capacity === 'pinAndCup' && (s.heldPin >= 0 || s.heldCup >= 0) ? R.intake.indexTimeSec : 0);
+        mechT = R.intake.intakeTimeSec + R.execution.pickOverheadSec + (R.intake.capacity === 'pinAndCup' && (s.heldPin >= 0 || s.heldCup >= 0) ? R.intake.indexTimeSec : 0);
         s.status[a.obj] = ST_HELD;
         if (o.kind === 'pin') s.heldPin = a.obj;
         else s.heldCup = a.obj;
@@ -845,7 +877,7 @@ export class PlanWorld {
         const earliest = cfg.matchType === 'headToHead' && !cfg.params.matchLoads.allowedInAutonomous ? (this.clock.autonomousEnd ?? 0) : cfg.tStart;
         const ready = Math.max(s.loaderFreeAt[a.loader], earliest) + cfg.params.matchLoads.humanLoadSec;
         waitT = Math.max(0, ready - arrive);
-        mechT = R.intake.intakeTimeSec + (R.intake.capacity === 'pinAndCup' && (s.heldPin >= 0 || s.heldCup >= 0) ? R.intake.indexTimeSec : 0);
+        mechT = R.intake.intakeTimeSec + R.execution.loadOverheadSec + (R.intake.capacity === 'pinAndCup' && (s.heldPin >= 0 || s.heldCup >= 0) ? R.intake.indexTimeSec : 0);
         s.status[a.obj] = ST_HELD;
         s.up[a.obj] = 1; // drive team loads it with the preferred side up (default yellow / gray up)
         if (o.kind === 'pin') s.heldPin = a.obj;
@@ -870,7 +902,7 @@ export class PlanWorld {
         if (!moveTo(g.pos, `g${a.goal}`, { goal: g.id }, req)) return null;
         const reorient = a.bit !== this.naturalBit(s, oi);
         if (reorient && !R.intake.canReorient) return null;
-        mechT = R.intake.releaseTimeSec + (reorient ? R.intake.reorientTimeSec : 0);
+        mechT = R.intake.releaseTimeSec + R.execution.placeOverheadSec + (reorient ? R.intake.reorientTimeSec : 0);
         if (R.intake.capacity === 'pinAndCup' && s.heldPin >= 0 && s.heldCup >= 0) mechT += R.intake.indexTimeSec;
         s.stacks[a.goal].push(oi * 2 + a.bit);
         s.status[oi] = ST_PLACED;
@@ -891,7 +923,7 @@ export class PlanWorld {
         const target = add(tg.pos, scale(tg.normal, R.chassis.lengthIn / 2 + R.toggleArm.reachIn - R.intake.holderOffsetIn));
         const th = Math.atan2(-tg.normal.y, -tg.normal.x);
         if (!moveTo(target, `t${a.toggle}`, { toggle: tg.id }, s.holderH, th)) return null;
-        mechT = R.toggleArm.actuateTimeSec + straightTime(p, 4); // actuate + back off (SC4 no contact)
+        mechT = R.toggleArm.actuateTimeSec + R.execution.toggleOverheadSec + straightTime(p, 4); // actuate + back off (SC4 no contact)
         s.pos = sub(s.pos, fromAngle(s.heading, 4));
         s.toggles[a.toggle] = want;
         risk = 0.05;
@@ -926,6 +958,7 @@ export class PlanWorld {
         travelTime = bestT;
         travelDist = bestD;
         path = bestPath;
+        mechT = R.execution.parkOverheadSec;
         s.pos = bestC.pos;
         s.heading = bestC.heading;
         if (!footprintInMidfield(s.pos, s.heading, R.chassis.lengthIn, R.chassis.widthIn)) return null;

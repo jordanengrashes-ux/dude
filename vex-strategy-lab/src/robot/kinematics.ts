@@ -11,6 +11,12 @@ import { groupFreeSpeed, groupTorque } from './motor';
  * All outputs are in inches / seconds / radians.
  */
 
+/**
+ * Fraction of the traction-limited deceleration the path controller plans with
+ * (sim/drive.ts uses the same value), so model and execution brake identically.
+ */
+export const BRAKE_FRACTION = 0.6;
+
 export interface DrivePerf {
   massKg: number;
   /** Free (no-load) linear speed at full command, in/s. */
@@ -160,7 +166,7 @@ export function polylineTime(p: DrivePerf, pts: Vec2[], lookahead = 12): number 
     const a = accelAt(p, v[i - 1]);
     v[i] = Math.min(vmax[i], Math.sqrt(v[i - 1] * v[i - 1] + 2 * a * step));
   }
-  for (let i = n - 1; i >= 0; i--) v[i] = Math.min(v[i], Math.sqrt(v[i + 1] * v[i + 1] + 2 * p.aBrake * step));
+  for (let i = n - 1; i >= 0; i--) v[i] = Math.min(v[i], Math.sqrt(v[i + 1] * v[i + 1] + 2 * p.aBrake * BRAKE_FRACTION * step));
   let t = 0;
   for (let i = 1; i <= n; i++) {
     const vm = (v[i] + v[i - 1]) / 2;

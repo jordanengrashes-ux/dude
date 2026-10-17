@@ -15,8 +15,13 @@ import type { Alliance } from '../rules/ruleset';
  */
 
 export interface GridOptions {
-  /** Robot clearance radius used to inflate obstacles (inches). */
+  /** Robot clearance from walls (≈ half-width + margin), inches. */
   clearance: number;
+  /**
+   * Clearance from posts / Loaders / Toggles. A square robot's corners sweep out to
+   * its half-diagonal, so point obstacles are inflated by this (defaults to clearance).
+   */
+  cornerClearance?: number;
   /** Grid cell size (inches). */
   cell?: number;
   alliance?: Alliance;
@@ -51,10 +56,12 @@ export class Grid {
     this.n = Math.ceil((2 * HALF) / this.cell);
     this.origin = -HALF;
     const c = opts.clearance;
+    const cc = opts.cornerClearance ?? c;
     this.bound = HALF - c;
-    for (const g of buildGoals()) this.circles.push({ x: g.pos.x, y: g.pos.y, r2: (g.baseRadius + c - 1.5) ** 2 });
-    for (const l of buildLoaders()) this.circles.push({ x: l.corner.x, y: l.corner.y, r2: (l.footprint * Math.SQRT2 + c) ** 2 });
-    for (const t of buildToggles()) this.circles.push({ x: t.pos.x, y: t.pos.y, r2: (3 + c) ** 2 });
+    // The chassis clears the low Goal base disc; the post is the obstacle.
+    for (const g of buildGoals()) this.circles.push({ x: g.pos.x, y: g.pos.y, r2: (g.postRadius + cc) ** 2 });
+    for (const l of buildLoaders()) this.circles.push({ x: l.corner.x, y: l.corner.y, r2: (l.footprint * Math.SQRT2 + cc) ** 2 });
+    for (const t of buildToggles()) this.circles.push({ x: t.pos.x, y: t.pos.y, r2: (2.5 + cc) ** 2 });
     for (const o of opts.extraObstacles ?? []) this.circles.push({ x: o.pos.x, y: o.pos.y, r2: (o.r + c) ** 2 });
     if (opts.alliance && opts.forbidOpposingLoadZones) {
       for (const z of loadZones()) {
