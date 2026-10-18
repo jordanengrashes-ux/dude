@@ -1,10 +1,10 @@
 {
   "meta": {
     "Ruleset": "V5RC Override 2026-2027, manual v2.1",
-    "Code version": "git d4e4565 (plus any uncommitted changes)",
+    "Code version": "git e99738d (plus any uncommitted changes)",
     "Optimizer settings": "deterministic, seed 1, beam widths 1/16/64, MCTS 1200 iterations, evolution 30 generations, B&B 20000 expansions, model Monte Carlo 100 trials",
     "Physics uncertainty": "motor SD 5%, traction SD 8%, battery 12.2–12.9 V, object placement SD 0.5 in",
-    "Run time": "423 s on linux/x64, Node v22.22.0"
+    "Run time": "662 s on linux/x64, Node v22.22.0"
   },
   "sections": [
     {
@@ -68,7 +68,7 @@
           "method": "beam(w=1, α=0.3)",
           "expansions": 2,
           "evaluations": 7,
-          "ms": 35.75004200000001,
+          "ms": 27.729453000000035,
           "stoppedBy": "completed",
           "best": 0
         },
@@ -76,7 +76,7 @@
           "method": "beam(w=16, α=0.3)",
           "expansions": 2,
           "evaluations": 12,
-          "ms": 1.2970299999999497,
+          "ms": 1.0909209999999803,
           "stoppedBy": "completed",
           "best": 0
         },
@@ -84,7 +84,7 @@
           "method": "beam(w=64, α=0.3)",
           "expansions": 2,
           "evaluations": 17,
-          "ms": 0.6644370000000208,
+          "ms": 0.4283030000000281,
           "stoppedBy": "completed",
           "best": 0
         },
@@ -92,7 +92,7 @@
           "method": "mcts(1200 iterations in slices of 400)",
           "expansions": 1203,
           "evaluations": 23,
-          "ms": 26.26132799999982,
+          "ms": 21.016256999999996,
           "stoppedBy": "completed",
           "best": 0
         },
@@ -100,7 +100,7 @@
           "method": "evolutionary(30 generations)",
           "expansions": 726,
           "evaluations": 1256,
-          "ms": 69.33381500000007,
+          "ms": 64.34850099999994,
           "stoppedBy": "completed",
           "best": 0
         },
@@ -108,7 +108,7 @@
           "method": "branch&bound",
           "expansions": 2,
           "evaluations": 1258,
-          "ms": 0.5716170000000602,
+          "ms": 0.43828399999995327,
           "stoppedBy": "completed",
           "best": 0,
           "proven": true,
@@ -241,10 +241,10 @@
       "title": "Driver Skills — full field (60 s)",
       "optimality": {
         "status": "best-found",
-        "bestValue": 58,
+        "bestValue": 43,
         "upperBound": 342.9379027473376,
-        "gap": 284.9379027473376,
-        "explanation": "Best found within the budget. The admissible bound says no plan in this model can exceed 342.9; the true optimum lies in [58, 342.9]."
+        "gap": 299.9379027473376,
+        "explanation": "Best found within the budget. The admissible bound says no plan in this model can exceed 342.9; the true optimum lies in [43, 342.9]."
       },
       "exhaustiveValue": null,
       "settings": {
@@ -297,50 +297,50 @@
         {
           "method": "beam(w=1, α=0.3)",
           "expansions": 20,
-          "evaluations": 355,
-          "ms": 116.07058399999994,
+          "evaluations": 334,
+          "ms": 139.23866299999997,
           "stoppedBy": "completed",
           "best": 43
         },
         {
           "method": "beam(w=16, α=0.3)",
-          "expansions": 305,
-          "evaluations": 2996,
-          "ms": 302.213749,
+          "expansions": 302,
+          "evaluations": 2835,
+          "ms": 307.52196000000004,
           "stoppedBy": "completed",
-          "best": 58
+          "best": 43
         },
         {
           "method": "beam(w=64, α=0.3)",
-          "expansions": 1184,
-          "evaluations": 12870,
-          "ms": 755.0174099999999,
+          "expansions": 1157,
+          "evaluations": 11815,
+          "ms": 945.923898,
           "stoppedBy": "completed",
-          "best": 58
+          "best": 43
         },
         {
           "method": "mcts(1200 iterations in slices of 400)",
-          "expansions": 19720,
-          "evaluations": 119421,
-          "ms": 3684.890085,
+          "expansions": 18610,
+          "evaluations": 108804,
+          "ms": 3894.1408170000004,
           "stoppedBy": "completed",
-          "best": 58
+          "best": 43
         },
         {
           "method": "evolutionary(30 generations)",
           "expansions": 744,
-          "evaluations": 120337,
-          "ms": 247.85840499999995,
+          "evaluations": 109718,
+          "ms": 227.66308600000048,
           "stoppedBy": "completed",
-          "best": 58
+          "best": 43
         },
         {
           "method": "branch&bound",
           "expansions": 20224,
-          "evaluations": 153751,
-          "ms": 2388.364493,
+          "evaluations": 138732,
+          "ms": 2961.7452459999995,
           "stoppedBy": "expansions",
-          "best": 58,
+          "best": 43,
           "proven": false,
           "rootBound": 342.9379027473376,
           "notes": "Budget exhausted; bound reported from open nodes."
@@ -349,298 +349,336 @@
       "recommended": "best",
       "plan": [
         {
-          "label": "Place P33-RY on G-R1a (yellow down)",
+          "label": "Place P33-RY on G-R1n (red down)",
           "tStart": 0,
-          "tEnd": 3.922718961098905,
+          "tEnd": 3.183737771598391,
           "valueAfter": 5,
           "risk": 0.1353352832366127
         },
         {
           "label": "Set T-R1 → red",
-          "tStart": 3.922718961098905,
-          "tEnd": 7.778991948392706,
+          "tStart": 3.183737771598391,
+          "tEnd": 7.292568980394055,
           "valueAfter": 15,
           "risk": 0.05
         },
         {
-          "label": "Pick C10",
-          "tStart": 7.778991948392706,
-          "tEnd": 10.09519940816134,
+          "label": "Pick C09",
+          "tStart": 7.292568980394055,
+          "tEnd": 10.021161889979641,
           "valueAfter": 15,
           "risk": 0.02
         },
         {
-          "label": "Place C10 with P22-YY in it on G-R1a (gray down)",
-          "tStart": 10.09519940816134,
-          "tEnd": 13.48404900883859,
-          "valueAfter": 30,
+          "label": "Place C09 with P21-YY in it on G-R1n (gray down)",
+          "tStart": 10.021161889979641,
+          "tEnd": 14.413486512772824,
+          "valueAfter": 25,
           "risk": 0.0038659201394728076
         },
         {
-          "label": "Pick C09",
-          "tStart": 13.48404900883859,
-          "tEnd": 15.713310626577297,
-          "valueAfter": 30,
-          "risk": 0.02
-        },
-        {
-          "label": "Place C09 with P21-YY in it on G-R1a (gray down)",
-          "tStart": 15.713310626577297,
-          "tEnd": 19.102160227254544,
-          "valueAfter": 40,
-          "risk": 0.0038659201394728076
-        },
-        {
-          "label": "Pick C08",
-          "tStart": 19.102160227254544,
-          "tEnd": 22.130509588716322,
-          "valueAfter": 40,
+          "label": "Pick C01",
+          "tStart": 14.413486512772824,
+          "tEnd": 16.860961669933054,
+          "valueAfter": 25,
           "risk": 0.02
         },
         {
           "label": "Pick C11",
-          "tStart": 22.130509588716322,
-          "tEnd": 24.329897850543343,
-          "valueAfter": 40,
+          "tStart": 16.860961669933054,
+          "tEnd": 20.308297340072052,
+          "valueAfter": 25,
           "risk": 0.02
         },
         {
-          "label": "Place C11 with P23-YY in it on G-R1a (gray down)",
-          "tStart": 24.329897850543343,
-          "tEnd": 28.795751883488325,
-          "valueAfter": 50,
+          "label": "Place C11 with P23-YY in it on G-R1n (gray down)",
+          "tStart": 20.308297340072052,
+          "tEnd": 24.521202353852242,
+          "valueAfter": 35,
           "risk": 0.0038659201394728076
         },
         {
           "label": "Park in Midfield",
-          "tStart": 28.795751883488325,
-          "tEnd": 30.961816652257863,
-          "valueAfter": 58,
+          "tStart": 24.521202353852242,
+          "tEnd": 26.644916213462377,
+          "valueAfter": 43,
           "risk": 0
         }
       ],
       "robustness": {
         "trials": 100,
         "seed": 18,
-        "mean": 57,
-        "median": 58,
-        "best": 58,
+        "mean": 38.8,
+        "median": 43,
+        "best": 43,
         "worst": 8,
-        "sd": 7,
-        "variance": 49,
+        "sd": 11.373653766490337,
+        "variance": 129.35999999999984,
         "target": null,
         "pTarget": null,
         "samples": [
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
+          43,
+          43,
+          43,
+          43,
           8,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
           8,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58,
-          58
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          8,
+          8,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          8,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          8,
+          43,
+          8,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          8,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          8,
+          8,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          8,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          8,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43,
+          43
         ],
         "failurePoints": [
           {
             "stepIndex": 0,
-            "label": "Place P33-RY on G-R1a (yellow down)",
-            "failures": 18,
-            "losses": 2
+            "label": "Place P33-RY on G-R1n (red down)",
+            "failures": 33,
+            "losses": 12
+          },
+          {
+            "stepIndex": 6,
+            "label": "Place C11 with P23-YY in it on G-R1n (gray down)",
+            "failures": 3,
+            "losses": 0
           },
           {
             "stepIndex": 1,
             "label": "Set T-R1 → red",
-            "failures": 5,
-            "losses": 0
-          },
-          {
-            "stepIndex": 4,
-            "label": "Pick C09",
-            "failures": 3,
+            "failures": 2,
             "losses": 0
           },
           {
             "stepIndex": 3,
-            "label": "Place C10 with P22-YY in it on G-R1a (gray down)",
-            "failures": 3,
-            "losses": 0
-          },
-          {
-            "stepIndex": 8,
-            "label": "Place C11 with P23-YY in it on G-R1a (gray down)",
-            "failures": 3,
-            "losses": 0
-          },
-          {
-            "stepIndex": 5,
-            "label": "Place C09 with P21-YY in it on G-R1a (gray down)",
-            "failures": 2,
-            "losses": 0
-          },
-          {
-            "stepIndex": 6,
-            "label": "Pick C08",
-            "failures": 2,
-            "losses": 0
-          },
-          {
-            "stepIndex": 7,
-            "label": "Pick C11",
-            "failures": 2,
+            "label": "Place C09 with P21-YY in it on G-R1n (gray down)",
+            "failures": 1,
             "losses": 0
           },
           {
             "stepIndex": 2,
-            "label": "Pick C10",
-            "failures": 2,
+            "label": "Pick C09",
+            "failures": 1,
+            "losses": 0
+          },
+          {
+            "stepIndex": 5,
+            "label": "Pick C11",
+            "failures": 1,
+            "losses": 0
+          },
+          {
+            "stepIndex": 4,
+            "label": "Pick C01",
+            "failures": 1,
             "losses": 0
           }
         ],
-        "meanFinishTime": 32.21735427434961
+        "meanFinishTime": 27.20382214912022
       },
       "physics": {
         "trials": 8,
         "scores": [
-          48,
-          18,
-          18,
-          48,
-          48,
-          18,
-          48,
-          48
+          23,
+          23,
+          13,
+          13,
+          13,
+          23,
+          23,
+          13
         ],
         "margins": [
-          48,
-          18,
-          18,
-          48,
-          48,
-          18,
-          48,
-          48
+          23,
+          23,
+          13,
+          13,
+          13,
+          23,
+          23,
+          13
         ],
-        "mean": 36.75,
-        "median": 48,
-        "best": 48,
-        "worst": 18,
-        "sd": 14.523687548277813,
+        "mean": 18,
+        "median": 13,
+        "best": 23,
+        "worst": 13,
+        "sd": 5,
+        "pTarget": null,
+        "failures": [
+          {
+            "label": "Place on G-R1n",
+            "count": 5
+          },
+          {
+            "label": "Pick C09",
+            "count": 2
+          },
+          {
+            "label": "Pick P24-YY",
+            "count": 1
+          },
+          {
+            "label": "Pick P20-RB",
+            "count": 1
+          },
+          {
+            "label": "Pick C06",
+            "count": 1
+          },
+          {
+            "label": "Pick C11",
+            "count": 1
+          },
+          {
+            "label": "Set T-R1 → red",
+            "count": 1
+          },
+          {
+            "label": "Pick C08",
+            "count": 1
+          }
+        ],
+        "violations": [],
+        "meanReplans": 3.75
+      },
+      "physicsAlt": {
+        "trials": 8,
+        "scores": [
+          23,
+          23,
+          23,
+          13,
+          23,
+          13,
+          13,
+          23
+        ],
+        "margins": [
+          23,
+          23,
+          23,
+          13,
+          23,
+          13,
+          13,
+          23
+        ],
+        "mean": 19.25,
+        "median": 23,
+        "best": 23,
+        "worst": 13,
+        "sd": 4.841229182759271,
         "pTarget": null,
         "failures": [
           {
             "label": "Place on G-R1a",
-            "count": 5
+            "count": 8
           },
           {
-            "label": "Pick C11",
-            "count": 3
+            "label": "Pick P21-YY",
+            "count": 2
           }
         ],
         "violations": [],
-        "meanReplans": 1.75
-      },
-      "physicsAlt": null
+        "meanReplans": 4
+      }
     },
     {
       "title": "Head-to-Head — red-1 with a Midfield partner vs. an optimized robot and a Toggle patrol (2 min)",
       "optimality": {
         "status": "best-found",
-        "bestValue": 172,
+        "bestValue": 161,
         "upperBound": 508,
-        "gap": 336,
-        "explanation": "Best found within the budget. The admissible bound says no plan in this model can exceed 508.0; the true optimum lies in [172, 508.0]."
+        "gap": 347,
+        "explanation": "Best found within the budget. The admissible bound says no plan in this model can exceed 508.0; the true optimum lies in [161, 508.0]."
       },
       "exhaustiveValue": null,
       "settings": {
@@ -687,56 +725,56 @@
         "objective": "own",
         "awpWeight": 0,
         "includeAutonBonus": true,
-        "externalEvents": 46
+        "externalEvents": 40
       },
       "methods": [
         {
           "method": "beam(w=1, α=0.3)",
           "expansions": 33,
-          "evaluations": 587,
-          "ms": 152.9422990000021,
+          "evaluations": 677,
+          "ms": 228.4535620000097,
           "stoppedBy": "completed",
-          "best": 127
+          "best": 97
         },
         {
           "method": "beam(w=16, α=0.3)",
-          "expansions": 545,
-          "evaluations": 5195,
-          "ms": 879.7435839999962,
+          "expansions": 521,
+          "evaluations": 5715,
+          "ms": 763.2429890000203,
           "stoppedBy": "completed",
-          "best": 167
+          "best": 112
         },
         {
           "method": "beam(w=64, α=0.3)",
-          "expansions": 2187,
-          "evaluations": 23887,
-          "ms": 1763.8772029999964,
+          "expansions": 2087,
+          "evaluations": 23443,
+          "ms": 2177.7511809999996,
           "stoppedBy": "completed",
-          "best": 162
+          "best": 142
         },
         {
           "method": "mcts(1200 iterations in slices of 400)",
-          "expansions": 36328,
-          "evaluations": 241658,
-          "ms": 11389.202325000006,
+          "expansions": 37181,
+          "evaluations": 265179,
+          "ms": 16260.783765999979,
           "stoppedBy": "completed",
-          "best": 161
+          "best": 151
         },
         {
           "method": "evolutionary(30 generations)",
           "expansions": 744,
-          "evaluations": 242574,
-          "ms": 1176.3033530000102,
+          "evaluations": 266095,
+          "ms": 1279.101102000015,
           "stoppedBy": "completed",
-          "best": 172
+          "best": 161
         },
         {
           "method": "branch&bound",
           "expansions": 20224,
-          "evaluations": 271656,
-          "ms": 2590.2103260000004,
+          "evaluations": 294833,
+          "ms": 3493.0370469999907,
           "stoppedBy": "expansions",
-          "best": 172,
+          "best": 161,
           "proven": false,
           "rootBound": 508,
           "notes": "Budget exhausted; bound reported from open nodes."
@@ -745,511 +783,491 @@
       "recommended": "best",
       "plan": [
         {
-          "label": "Place P38-RY on G-R1a (red down)",
+          "label": "Pick C09",
           "tStart": 0,
-          "tEnd": 3.5227189610989047,
-          "valueAfter": 13,
-          "risk": 0.1353352832366127
+          "tEnd": 3.232034959686903,
+          "valueAfter": 8,
+          "risk": 0.02
         },
         {
-          "label": "Set T-R2 → red",
-          "tStart": 3.5227189610989047,
-          "tEnd": 8.093069863050744,
-          "valueAfter": 13,
-          "risk": 0.05
+          "label": "Pick C10",
+          "tStart": 3.232034959686903,
+          "tEnd": 6.053004776828575,
+          "valueAfter": 8,
+          "risk": 0.02
+        },
+        {
+          "label": "Pick C05",
+          "tStart": 6.053004776828575,
+          "tEnd": 8.153422273187577,
+          "valueAfter": 8,
+          "risk": 0.02
         },
         {
           "label": "Pick C06",
-          "tStart": 8.093069863050744,
-          "tEnd": 10.295771509054333,
+          "tStart": 8.153422273187577,
+          "tEnd": 10.898132203764227,
+          "valueAfter": 8,
+          "risk": 0.02
+        },
+        {
+          "label": "Wait until 15.0 s",
+          "tStart": 10.898132203764227,
+          "tEnd": 15,
+          "valueAfter": 8,
+          "risk": 0
+        },
+        {
+          "label": "Place C06 with P18-RB in it on G-R1n (gray down)",
+          "tStart": 15,
+          "tEnd": 19.17485436049043,
+          "valueAfter": 13,
+          "risk": 0.0038659201394728076
+        },
+        {
+          "label": "Pick C01",
+          "tStart": 19.17485436049043,
+          "tEnd": 21.62232951765066,
           "valueAfter": 13,
           "risk": 0.02
         },
         {
-          "label": "Set T-R1 → red",
-          "tStart": 10.295771509054333,
-          "tEnd": 14.21588726347808,
-          "valueAfter": 19,
-          "risk": 0.05
-        },
-        {
-          "label": "Wait until 15.0 s",
-          "tStart": 14.21588726347808,
-          "tEnd": 15,
-          "valueAfter": 19,
-          "risk": 0
-        },
-        {
-          "label": "Pick C02",
-          "tStart": 15,
-          "tEnd": 17.980034579113603,
-          "valueAfter": 19,
-          "risk": 0.02
-        },
-        {
-          "label": "Place C02 on G-MID (gray up)",
-          "tStart": 17.980034579113603,
-          "tEnd": 21.68916090714409,
-          "valueAfter": 24,
+          "label": "Place C01 on G-R2n (gray down)",
+          "tStart": 21.62232951765066,
+          "tEnd": 26.609050988881613,
+          "valueAfter": 13,
           "risk": 0.0038659201394728076
         },
         {
-          "label": "Pick C07",
-          "tStart": 21.68916090714409,
-          "tEnd": 24.25413863777246,
-          "valueAfter": 24,
-          "risk": 0.02
-        },
-        {
           "label": "Pick C03",
-          "tStart": 24.25413863777246,
-          "tEnd": 26.45352689959948,
-          "valueAfter": 24,
+          "tStart": 26.609050988881613,
+          "tEnd": 29.101825481327165,
+          "valueAfter": 13,
           "risk": 0.02
         },
         {
-          "label": "Place C03 on G-R2n (gray up)",
-          "tStart": 26.45352689959948,
-          "tEnd": 29.59619018912176,
-          "valueAfter": 24,
+          "label": "Pick P20-RB",
+          "tStart": 29.101825481327165,
+          "tEnd": 31.698961743625233,
+          "valueAfter": 13,
+          "risk": 0.02
+        },
+        {
+          "label": "Place P20-RB on G-R1a (red down)",
+          "tStart": 31.698961743625233,
+          "tEnd": 35.668175963471555,
+          "valueAfter": 18,
+          "risk": 0.1353352832366127
+        },
+        {
+          "label": "Pick C02",
+          "tStart": 35.668175963471555,
+          "tEnd": 38.33626324390504,
+          "valueAfter": 18,
+          "risk": 0.02
+        },
+        {
+          "label": "Pick P23-YY",
+          "tStart": 38.33626324390504,
+          "tEnd": 40.89208603399098,
+          "valueAfter": 18,
+          "risk": 0.02
+        },
+        {
+          "label": "Place P23-YY on G-R2a (yellow down)",
+          "tStart": 40.89208603399098,
+          "tEnd": 45.193939420188485,
+          "valueAfter": 18,
+          "risk": 0.1353352832366127
+        },
+        {
+          "label": "Pick C07",
+          "tStart": 45.193939420188485,
+          "tEnd": 48.12777222022458,
+          "valueAfter": 18,
+          "risk": 0.02
+        },
+        {
+          "label": "Place C07 with P19-RB in it on G-B1n (gray down)",
+          "tStart": 48.12777222022458,
+          "tEnd": 51.55680868193578,
+          "valueAfter": 23,
           "risk": 0.0038659201394728076
         },
         {
           "label": "Pick C04",
-          "tStart": 29.59619018912176,
-          "tEnd": 31.825451806860467,
-          "valueAfter": 24,
+          "tStart": 51.55680868193578,
+          "tEnd": 54.004283839096004,
+          "valueAfter": 23,
           "risk": 0.02
         },
         {
-          "label": "Pick P22-YY",
-          "tStart": 31.825451806860467,
-          "tEnd": 35.324691510412336,
-          "valueAfter": 24,
-          "risk": 0.02
-        },
-        {
-          "label": "Place P22-YY on G-R2a (yellow down)",
-          "tStart": 35.324691510412336,
-          "tEnd": 38.45919032826096,
-          "valueAfter": 24,
-          "risk": 0.1353352832366127
-        },
-        {
-          "label": "Pick P21-YY",
-          "tStart": 38.45919032826096,
-          "tEnd": 40.68845194599967,
-          "valueAfter": 24,
-          "risk": 0.02
-        },
-        {
-          "label": "Set T-R1 → red",
-          "tStart": 40.68845194599967,
-          "tEnd": 45.0335734533642,
-          "valueAfter": 24,
+          "label": "Set T-R2 → red",
+          "tStart": 54.004283839096004,
+          "tEnd": 58.34940534646053,
+          "valueAfter": 23,
           "risk": 0.05
         },
         {
-          "label": "Pick C01",
-          "tStart": 45.0335734533642,
-          "tEnd": 48.44650153904511,
-          "valueAfter": 24,
-          "risk": 0.02
+          "label": "Set T-R1 → red",
+          "tStart": 58.34940534646053,
+          "tEnd": 62.97705297278344,
+          "valueAfter": 23,
+          "risk": 0.05
         },
         {
-          "label": "Place C01 on G-B2n (gray up)",
-          "tStart": 48.44650153904511,
-          "tEnd": 52.098941442396544,
-          "valueAfter": 24,
+          "label": "Place C04 on G-B1n (gray down)",
+          "tStart": 62.97705297278344,
+          "tEnd": 67.79345820273863,
+          "valueAfter": 23,
           "risk": 0.0038659201394728076
         },
         {
-          "label": "Pick P23-YY",
-          "tStart": 52.098941442396544,
-          "tEnd": 54.98948881811252,
-          "valueAfter": 24,
-          "risk": 0.02
-        },
-        {
-          "label": "Set T-B1 → red",
-          "tStart": 54.98948881811252,
-          "tEnd": 58.438730018234324,
-          "valueAfter": 24,
-          "risk": 0.05
-        },
-        {
-          "label": "Place P23-YY on G-B1n (yellow down)",
-          "tStart": 58.438730018234324,
-          "tEnd": 61.893446350141055,
-          "valueAfter": 24,
-          "risk": 0.1353352832366127
-        },
-        {
-          "label": "Pick P20-RB",
-          "tStart": 61.893446350141055,
-          "tEnd": 64.62591324719465,
-          "valueAfter": 24,
-          "risk": 0.02
-        },
-        {
-          "label": "Set T-B2 → red",
-          "tStart": 64.62591324719465,
-          "tEnd": 68.02966779379916,
-          "valueAfter": 24,
-          "risk": 0.05
-        },
-        {
           "label": "Pick P24-YY",
-          "tStart": 68.02966779379916,
-          "tEnd": 71.41168203789168,
-          "valueAfter": 24,
+          "tStart": 67.79345820273863,
+          "tEnd": 70.79518115201222,
+          "valueAfter": 23,
           "risk": 0.02
         },
         {
-          "label": "Place P24-YY on G-B2n (yellow down)",
-          "tStart": 71.41168203789168,
-          "tEnd": 76.20400666068487,
-          "valueAfter": 24,
+          "label": "Set T-B1 → red",
+          "tStart": 70.79518115201222,
+          "tEnd": 75.20364293288466,
+          "valueAfter": 23,
+          "risk": 0.05
+        },
+        {
+          "label": "Set T-R2 → red",
+          "tStart": 75.20364293288466,
+          "tEnd": 79.83129055920757,
+          "valueAfter": 23,
+          "risk": 0.05
+        },
+        {
+          "label": "Place P24-YY on G-B1n (yellow down)",
+          "tStart": 79.83129055920757,
+          "tEnd": 83.99847781464557,
+          "valueAfter": 23,
           "risk": 0.1353352832366127
         },
         {
-          "label": "Set T-B1 → red",
-          "tStart": 76.20400666068487,
-          "tEnd": 81.28530631750527,
-          "valueAfter": 24,
-          "risk": 0.05
-        },
-        {
-          "label": "Set T-R2 → red",
-          "tStart": 81.28530631750527,
-          "tEnd": 85.91295394382819,
-          "valueAfter": 24,
-          "risk": 0.05
-        },
-        {
-          "label": "Set T-R2 → red",
-          "tStart": 85.91295394382819,
-          "tEnd": 89.76466631864511,
-          "valueAfter": 24,
-          "risk": 0.05
-        },
-        {
           "label": "Set T-B2 → red",
-          "tStart": 89.76466631864511,
-          "tEnd": 94.9599828798977,
-          "valueAfter": 24,
-          "risk": 0.05
-        },
-        {
-          "label": "Set T-B2 → red",
-          "tStart": 94.9599828798977,
-          "tEnd": 98.81169525471462,
-          "valueAfter": 24,
+          "tStart": 83.99847781464557,
+          "tEnd": 88.87937522011546,
+          "valueAfter": 23,
           "risk": 0.05
         },
         {
           "label": "Set T-R1 → red",
-          "tStart": 98.81169525471462,
-          "tEnd": 103.40031878727518,
-          "valueAfter": 24,
-          "risk": 0.05
-        },
-        {
-          "label": "Set T-R2 → red",
-          "tStart": 103.40031878727518,
-          "tEnd": 108.0279664135981,
-          "valueAfter": 74,
+          "tStart": 88.87937522011546,
+          "tEnd": 93.50702284643837,
+          "valueAfter": 23,
           "risk": 0.05
         },
         {
           "label": "Set T-B1 → red",
-          "tStart": 108.0279664135981,
-          "tEnd": 112.655614039921,
-          "valueAfter": 104,
+          "tStart": 93.50702284643837,
+          "tEnd": 98.65023379337875,
+          "valueAfter": 23,
           "risk": 0.05
         },
         {
           "label": "Set T-B2 → red",
-          "tStart": 112.655614039921,
-          "tEnd": 117.28326166624392,
-          "valueAfter": 144,
+          "tStart": 98.65023379337875,
+          "tEnd": 103.29678190185578,
+          "valueAfter": 23,
+          "risk": 0.05
+        },
+        {
+          "label": "Set T-R2 → red",
+          "tStart": 103.29678190185578,
+          "tEnd": 108.43999284879615,
+          "valueAfter": 73,
+          "risk": 0.05
+        },
+        {
+          "label": "Set T-B1 → red",
+          "tStart": 108.43999284879615,
+          "tEnd": 113.08654095727319,
+          "valueAfter": 113,
+          "risk": 0.05
+        },
+        {
+          "label": "Set T-B2 → red",
+          "tStart": 113.08654095727319,
+          "tEnd": 117.7141885835961,
+          "valueAfter": 133,
           "risk": 0.05
         },
         {
           "label": "Park in Midfield",
-          "tStart": 117.28326166624392,
-          "tEnd": 119.16194863039573,
-          "valueAfter": 172,
+          "tStart": 117.7141885835961,
+          "tEnd": 119.59287554774791,
+          "valueAfter": 161,
           "risk": 0
         }
       ],
       "robustness": {
         "trials": 100,
         "seed": 18,
-        "mean": 77.45,
-        "median": 52,
-        "best": 172,
-        "worst": 41,
-        "sd": 36.79521028612282,
-        "variance": 1353.8874999999985,
+        "mean": 109.23,
+        "median": 107,
+        "best": 161,
+        "worst": 51,
+        "sd": 27.374752966921918,
+        "variance": 749.3771000000004,
         "target": null,
         "pTarget": null,
         "samples": [
-          52,
-          52,
-          52,
-          46,
-          52,
-          46,
-          52,
-          52,
-          96,
-          128,
-          126,
-          52,
-          52,
-          131,
-          52,
-          52,
-          172,
-          52,
-          88,
-          41,
-          132,
-          52,
-          102,
-          126,
-          52,
-          52,
-          102,
-          54,
-          102,
-          126,
-          46,
-          52,
-          52,
-          52,
-          102,
-          52,
-          126,
-          46,
-          82,
-          52,
-          104,
-          132,
-          124,
-          52,
-          132,
-          52,
-          41,
-          122,
-          74,
-          52,
-          138,
-          136,
-          46,
-          46,
-          52,
-          46,
-          104,
-          52,
-          41,
-          52,
-          46,
-          142,
-          46,
-          136,
-          144,
-          52,
-          52,
-          52,
-          52,
-          52,
-          102,
-          52,
-          46,
-          136,
-          52,
-          52,
-          41,
-          142,
-          46,
-          172,
-          61,
-          52,
-          71,
-          46,
-          46,
-          52,
-          114,
-          54,
-          46,
-          102,
+          133,
+          161,
+          63,
           121,
-          41,
-          92,
-          52,
-          131,
-          52,
-          52,
-          126,
+          101,
+          121,
+          133,
           91,
-          122
+          101,
+          51,
+          73,
+          101,
+          101,
+          133,
+          121,
+          113,
+          141,
+          96,
+          141,
+          113,
+          141,
+          101,
+          101,
+          113,
+          101,
+          91,
+          101,
+          121,
+          113,
+          73,
+          91,
+          141,
+          141,
+          101,
+          141,
+          63,
+          133,
+          101,
+          51,
+          113,
+          51,
+          133,
+          81,
+          101,
+          101,
+          121,
+          101,
+          141,
+          91,
+          91,
+          101,
+          133,
+          141,
+          101,
+          141,
+          113,
+          91,
+          141,
+          91,
+          101,
+          83,
+          121,
+          91,
+          133,
+          101,
+          73,
+          51,
+          141,
+          121,
+          141,
+          141,
+          113,
+          51,
+          101,
+          141,
+          133,
+          161,
+          113,
+          51,
+          73,
+          101,
+          101,
+          93,
+          141,
+          83,
+          93,
+          141,
+          141,
+          141,
+          141,
+          141,
+          91,
+          133,
+          113,
+          51,
+          136,
+          96,
+          121,
+          83,
+          141
         ],
         "failurePoints": [
           {
-            "stepIndex": 0,
-            "label": "Place P38-RY on G-R1a (red down)",
-            "failures": 32,
-            "losses": 11
-          },
-          {
-            "stepIndex": 12,
-            "label": "Place P22-YY on G-R2a (yellow down)",
-            "failures": 31,
-            "losses": 8
-          },
-          {
-            "stepIndex": 19,
-            "label": "Place P23-YY on G-B1n (yellow down)",
-            "failures": 28,
-            "losses": 9
+            "stepIndex": 13,
+            "label": "Place P23-YY on G-R2a (yellow down)",
+            "failures": 21,
+            "losses": 6
           },
           {
             "stepIndex": 23,
-            "label": "Place P24-YY on G-B2n (yellow down)",
-            "failures": 23,
-            "losses": 9
+            "label": "Place P24-YY on G-B1n (yellow down)",
+            "failures": 20,
+            "losses": 5
           },
           {
-            "stepIndex": 31,
-            "label": "Set T-B1 → red",
-            "failures": 8,
-            "losses": 2
-          },
-          {
-            "stepIndex": 5,
-            "label": "Pick C02",
-            "failures": 5,
-            "losses": 0
-          },
-          {
-            "stepIndex": 21,
-            "label": "Set T-B2 → red",
-            "failures": 5,
-            "losses": 0
-          },
-          {
-            "stepIndex": 32,
-            "label": "Set T-B2 → red",
-            "failures": 4,
-            "losses": 2
-          },
-          {
-            "stepIndex": 3,
-            "label": "Set T-R1 → red",
-            "failures": 3,
+            "stepIndex": 10,
+            "label": "Place P20-RB on G-R1a (red down)",
+            "failures": 18,
             "losses": 3
           },
           {
-            "stepIndex": 6,
-            "label": "Place C02 on G-MID (gray up)",
-            "failures": 3,
+            "stepIndex": 15,
+            "label": "Place C07 with P19-RB in it on G-B1n (gray down)",
+            "failures": 5,
+            "losses": 0
+          },
+          {
+            "stepIndex": 18,
+            "label": "Set T-R1 → red",
+            "failures": 4,
             "losses": 0
           },
           {
             "stepIndex": 9,
-            "label": "Place C03 on G-R2n (gray up)",
+            "label": "Pick P20-RB",
+            "failures": 4,
+            "losses": 0
+          },
+          {
+            "stepIndex": 25,
+            "label": "Set T-R1 → red",
+            "failures": 4,
+            "losses": 1
+          },
+          {
+            "stepIndex": 3,
+            "label": "Pick C06",
+            "failures": 4,
+            "losses": 0
+          },
+          {
+            "stepIndex": 11,
+            "label": "Pick C02",
             "failures": 3,
             "losses": 0
           },
           {
-            "stepIndex": 24,
+            "stepIndex": 17,
+            "label": "Set T-R2 → red",
+            "failures": 3,
+            "losses": 0
+          },
+          {
+            "stepIndex": 26,
             "label": "Set T-B1 → red",
             "failures": 3,
             "losses": 0
           },
           {
-            "stepIndex": 11,
-            "label": "Pick P22-YY",
-            "failures": 2,
-            "losses": 0
-          },
-          {
-            "stepIndex": 30,
+            "stepIndex": 22,
             "label": "Set T-R2 → red",
-            "failures": 2,
+            "failures": 3,
             "losses": 0
           },
           {
-            "stepIndex": 1,
-            "label": "Set T-R2 → red",
-            "failures": 2,
+            "stepIndex": 12,
+            "label": "Pick P23-YY",
+            "failures": 3,
             "losses": 0
           },
           {
-            "stepIndex": 10,
-            "label": "Pick C04",
-            "failures": 2,
+            "stepIndex": 29,
+            "label": "Set T-B1 → red",
+            "failures": 3,
             "losses": 0
           },
           {
-            "stepIndex": 25,
+            "stepIndex": 21,
+            "label": "Set T-B1 → red",
+            "failures": 3,
+            "losses": 0
+          },
+          {
+            "stepIndex": 28,
             "label": "Set T-R2 → red",
             "failures": 2,
             "losses": 0
           },
           {
             "stepIndex": 7,
-            "label": "Pick C07",
+            "label": "Place C01 on G-R2n (gray down)",
             "failures": 2,
             "losses": 0
           },
           {
-            "stepIndex": 18,
-            "label": "Set T-B1 → red",
+            "stepIndex": 20,
+            "label": "Pick P24-YY",
             "failures": 2,
             "losses": 0
           },
           {
-            "stepIndex": 29,
-            "label": "Set T-R1 → red",
+            "stepIndex": 0,
+            "label": "Pick C09",
             "failures": 2,
             "losses": 0
           },
           {
             "stepIndex": 16,
-            "label": "Place C01 on G-B2n (gray up)",
+            "label": "Pick C04",
             "failures": 2,
             "losses": 0
           },
           {
-            "stepIndex": 15,
-            "label": "Pick C01",
+            "stepIndex": 19,
+            "label": "Place C04 on G-B1n (gray down)",
             "failures": 2,
             "losses": 0
           },
           {
-            "stepIndex": 17,
-            "label": "Pick P23-YY",
+            "stepIndex": 1,
+            "label": "Pick C10",
             "failures": 2,
             "losses": 0
           },
           {
-            "stepIndex": 14,
-            "label": "Set T-R1 → red",
+            "stepIndex": 5,
+            "label": "Place C06 with P18-RB in it on G-R1n (gray down)",
             "failures": 2,
             "losses": 0
           },
           {
-            "stepIndex": 28,
+            "stepIndex": 24,
             "label": "Set T-B2 → red",
-            "failures": 1,
+            "failures": 2,
             "losses": 0
           },
           {
-            "stepIndex": 2,
-            "label": "Pick C06",
+            "stepIndex": 27,
+            "label": "Set T-B2 → red",
             "failures": 1,
             "losses": 0
           },
@@ -1260,93 +1278,117 @@
             "losses": 0
           },
           {
-            "stepIndex": 27,
-            "label": "Set T-B2 → red",
+            "stepIndex": 6,
+            "label": "Pick C01",
             "failures": 1,
             "losses": 0
           },
           {
-            "stepIndex": 22,
-            "label": "Pick P24-YY",
+            "stepIndex": 14,
+            "label": "Pick C07",
             "failures": 1,
             "losses": 0
           },
           {
-            "stepIndex": 13,
-            "label": "Pick P21-YY",
+            "stepIndex": 2,
+            "label": "Pick C05",
             "failures": 1,
             "losses": 0
           }
         ],
-        "meanFinishTime": 111.55459175064189
+        "meanFinishTime": 116.92796090780034
       },
       "physics": {
         "trials": 4,
         "scores": [
-          57,
-          73,
-          101,
-          61
+          28,
+          36,
+          66,
+          0
         ],
         "margins": [
-          -22,
-          -20,
-          26,
-          -18
+          -57,
+          -61,
+          9,
+          -125
         ],
-        "mean": 73,
-        "median": 61,
-        "best": 101,
-        "worst": 57,
-        "sd": 17.204650534085253,
+        "mean": 32.5,
+        "median": 28,
+        "best": 66,
+        "worst": 0,
+        "sd": 23.510635891017493,
         "pTarget": null,
         "failures": [
           {
-            "label": "Set T-R2 → red",
-            "count": 6
-          },
-          {
-            "label": "Pick C06",
-            "count": 4
-          },
-          {
-            "label": "Set T-R1 → red",
-            "count": 4
-          },
-          {
-            "label": "Pick C09",
-            "count": 3
-          },
-          {
-            "label": "Pick P21-YY",
-            "count": 2
-          },
-          {
-            "label": "Pick C04",
-            "count": 2
-          },
-          {
-            "label": "Pick C01",
-            "count": 2
-          },
-          {
-            "label": "Place on G-MID",
-            "count": 2
-          },
-          {
-            "label": "Place on G-R1a",
-            "count": 2
-          },
-          {
-            "label": "Pick C07",
-            "count": 1
+            "label": "Place on G-B1n",
+            "count": 344
           },
           {
             "label": "Place on G-B2n",
-            "count": 1
+            "count": 85
+          },
+          {
+            "label": "Pick C09",
+            "count": 4
+          },
+          {
+            "label": "Pick C10",
+            "count": 3
+          },
+          {
+            "label": "Place on G-MID",
+            "count": 3
+          },
+          {
+            "label": "Pick C05",
+            "count": 3
+          },
+          {
+            "label": "Set T-R2 → red",
+            "count": 3
           },
           {
             "label": "Set T-B2 → red",
+            "count": 3
+          },
+          {
+            "label": "Pick C02",
+            "count": 2
+          },
+          {
+            "label": "Pick P24-YY",
+            "count": 2
+          },
+          {
+            "label": "Set T-R1 → red",
+            "count": 2
+          },
+          {
+            "label": "Set T-B1 → red",
+            "count": 2
+          },
+          {
+            "label": "Pick C12",
+            "count": 1
+          },
+          {
+            "label": "Place on G-R1n",
+            "count": 1
+          },
+          {
+            "label": "Pick P17-RB",
+            "count": 1
+          },
+          {
+            "label": "Pick P20-RB",
+            "count": 1
+          },
+          {
+            "label": "Pick C08",
+            "count": 1
+          },
+          {
+            "label": "Place on G-R2n",
             "count": 1
           },
           {
@@ -1354,94 +1396,113 @@
             "count": 1
           },
           {
-            "label": "Pick C05",
+            "label": "Pick C01",
             "count": 1
           }
         ],
-        "violations": [
-          {
-            "ruleId": "Load Zones",
-            "count": 1
-          }
-        ],
-        "meanReplans": 8.75
+        "violations": [],
+        "meanReplans": 116
       },
       "physicsAlt": {
         "trials": 4,
         "scores": [
-          80,
-          41,
-          78,
-          88
+          33,
+          8,
+          20,
+          28
         ],
         "margins": [
-          22,
-          -64,
-          -4,
-          18
+          -37,
+          -87,
+          -75,
+          -47
         ],
-        "mean": 71.75,
-        "median": 78,
-        "best": 88,
-        "worst": 41,
-        "sd": 18.14352501582865,
+        "mean": 22.25,
+        "median": 20,
+        "best": 33,
+        "worst": 8,
+        "sd": 9.443913383762052,
         "pTarget": null,
         "failures": [
+          {
+            "label": "Place on G-B2n",
+            "count": 380
+          },
           {
             "label": "Set T-R2 → red",
             "count": 6
           },
           {
-            "label": "Pick C10",
+            "label": "Set T-B1 → red",
+            "count": 5
+          },
+          {
+            "label": "Pick C09",
             "count": 4
           },
           {
-            "label": "Place on G-R2n",
+            "label": "Pick C02",
+            "count": 4
+          },
+          {
+            "label": "Pick C08",
             "count": 3
           },
           {
-            "label": "Set T-B1 → red",
+            "label": "Pick C06",
             "count": 3
           },
           {
-            "label": "Place on G-B1n",
+            "label": "Pick C10",
             "count": 2
           },
           {
-            "label": "Park in Midfield",
+            "label": "Place on G-MID",
             "count": 2
           },
           {
-            "label": "Set T-R1 → red",
+            "label": "Set T-B2 → red",
             "count": 2
+          },
+          {
+            "label": "Pick C03",
+            "count": 1
           },
           {
             "label": "Pick C04",
             "count": 1
           },
           {
-            "label": "Set T-B2 → red",
+            "label": "Pick C11",
             "count": 1
           },
           {
-            "label": "Pick C02",
+            "label": "Pick C07",
             "count": 1
           },
           {
-            "label": "Place on G-MID",
+            "label": "Set T-R1 → red",
             "count": 1
           },
           {
-            "label": "Pick C01",
+            "label": "Place on G-R2n",
             "count": 1
           },
           {
-            "label": "Pick C14",
+            "label": "Pick C12",
+            "count": 1
+          },
+          {
+            "label": "Pick P17-RB",
+            "count": 1
+          },
+          {
+            "label": "Pick C05",
             "count": 1
           }
         ],
         "violations": [],
-        "meanReplans": 8.5
+        "meanReplans": 106.25
       }
     }
   ]
