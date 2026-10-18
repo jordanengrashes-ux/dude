@@ -88,6 +88,23 @@ function Hud() {
 /** What the player can do right now, the claw's state, and the aligner. */
 function DriveHint({ period, t }: { period: string; t: number }) {
   const tm = useTeam();
+  // the toggles and key names show at once, also while the match is paused
+  const [, tick] = useState(0);
+  useEffect(() => {
+    let easy = localInput.state.easy;
+    let still = localInput.state.noMomentum;
+    const offInput = localInput.subscribe((inp) => {
+      if (inp.easy === easy && inp.noMomentum === still) return;
+      easy = inp.easy;
+      still = inp.noMomentum;
+      tick((x) => x + 1);
+    });
+    const offBindings = localInput.onBindings(() => tick((x) => x + 1));
+    return () => {
+      offInput();
+      offBindings();
+    };
+  }, []);
   const guest = tm.role === 'guest';
   const mine = guest ? (team.session?.mySlot() ?? null) : runner.localSlot;
   // the first key bound to each action (all of them are in the Controls table)
@@ -121,10 +138,26 @@ function DriveHint({ period, t }: { period: string; t: number }) {
         </span>
         {align && <span className={`align-chip s${a!.state}`}>{align}</span>}
         <label className="easy" title={`The claw grabs whatever you drive into, and Goals catch your drops more easily (${k('easy')})`}>
-          <input type="checkbox" checked={localInput.state.easy} onChange={(e) => localInput.setEasy(e.target.checked)} /> Easy claw
+          <input
+            type="checkbox"
+            checked={localInput.state.easy}
+            onChange={(e) => {
+              localInput.setEasy(e.target.checked);
+              e.target.blur(); // keys go back to driving
+            }}
+          />{' '}
+          Easy claw
         </label>
         <label className="easy" title={`The robot goes exactly as fast as you steer and stops the moment you let go (${k('momentum')})`}>
-          <input type="checkbox" checked={localInput.state.noMomentum} onChange={(e) => localInput.setNoMomentum(e.target.checked)} /> No momentum
+          <input
+            type="checkbox"
+            checked={localInput.state.noMomentum}
+            onChange={(e) => {
+              localInput.setNoMomentum(e.target.checked);
+              e.target.blur();
+            }}
+          />{' '}
+          No momentum
         </label>
       </div>
     </div>

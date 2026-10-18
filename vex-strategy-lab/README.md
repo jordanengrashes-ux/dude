@@ -94,26 +94,30 @@ browser; **Reset to defaults** brings these back:
 | Action | Keyboard / mouse | Controller |
 |---|---|---|
 | Drive / turn (arcade) | W/S, A/D or arrows | left stick Y / right stick X (split) |
-| Arm up / down (DR4B) | Space / Shift (also R / F) | RT / LT (analog) |
+| Arm up / down (DR4B) | Space / Shift (also R / F) | R1 / R2 (R2 analog) |
 | Arm presets: floor, Alliance Goal, short Goal, tall Goal | 1 2 3 4 | D-pad ↓ ← → ↑ |
-| Claw: each press closes it (grabs what is between the jaws) or opens it (lets go) | left click or C | A |
+| Claw: each press closes it (grabs what is between the jaws) or opens it (lets go) | left click or C | L1 |
 | Open the claw (drop) | E | B |
 | Look around / zoom (all the way in: first person) | drag / mouse wheel | right stick (one-stick layout) |
 | First / third person | B | L3 |
 | Camera back behind the robot | V | R3 |
 | Easy claw on / off | G | Back |
-| No momentum on / off | M | — |
+| No momentum on / off | M | A |
 | Toggle arm (hold) | T | X |
-| Swap pockets (two-pocket holder only) | Q | LB |
+| Swap pockets (two-pocket holder only) | Q | — |
 | Flip the held object | X | Y |
-| Request a Match Load | L | RB |
+| Request a Match Load | L | L2 |
 | Play / pause (host or offline) | P | Start |
 
 Controllers use the standard mapping (Xbox / PlayStation / most USB pads; press a
-button once so the browser sees it). **Split** sticks: left stick drives, right
-stick turns. **One stick**: the left stick drives and turns and the right stick
-moves the camera. The triggers raise and lower the arm in proportion to how far
-they are pressed.
+button once so the browser sees it); buttons are named as on a VEX controller (L1,
+R1, L2, R2 are the bumpers and triggers). **Split** sticks: left stick drives,
+right stick turns. **One stick**: the left stick drives and turns and the right
+stick moves the camera. A trigger bound to the arm moves it in proportion to how
+far it is pressed.
+
+The Easy claw and No momentum checkboxes in the HUD take clicks (the rest of the
+HUD lets clicks through to the field); after a click, the keys drive again.
 
 Turning works at speed: when forward + turn would exceed full power, both sides
 scale down together so the turn is kept, and the turn grows with speed (in place it

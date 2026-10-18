@@ -6,9 +6,10 @@ import { LIFT_PRESETS, zeroInput, type DriverInput } from '../sim/driver';
  * this browser. The mouse is fixed: left click opens / closes the claw, drag looks
  * around (3rd / 1st person), the wheel zooms (all the way in: first person).
  *
- * Controller (standard mapping): split arcade by default — left stick drives, right
- * stick turns — or one stick (left stick drives and turns; the right stick moves the
- * camera). Analog triggers raise / lower the arm proportionally.
+ * Controller (standard mapping, VEX-style names): R1 raises the arm, R2 lowers it
+ * (in proportion to how far it is pressed), L1 opens / closes the claw. Sticks: split
+ * arcade by default — left stick drives, right stick turns — or one stick (left stick
+ * drives and turns; the right stick moves the camera).
  */
 
 export type ActionId =
@@ -56,7 +57,7 @@ export const ACTIONS: ActionDef[] = [
   { id: 'preset4', label: 'Arm to the tall Goal', hold: false },
   { id: 'toggleArm', label: 'Toggle arm (hold)', hold: true },
   { id: 'flip', label: 'Flip the held piece', hold: false },
-  { id: 'swap', label: 'Swap pockets (two-pocket holder)', hold: false },
+  { id: 'swap', label: 'Swap pockets (two-pocket holder only)', hold: false },
   { id: 'load', label: 'Request a Match Load', hold: false },
   { id: 'easy', label: 'Easy claw on / off', hold: false },
   { id: 'momentum', label: 'No momentum on / off', hold: false },
@@ -104,23 +105,23 @@ export const DEFAULT_BINDINGS: Bindings = {
     back: null,
     left: null,
     right: null,
-    armUp: 7,
-    armDown: 6,
-    claw: 0,
-    drop: 1,
+    armUp: 5, // R1
+    armDown: 7, // R2
+    claw: 4, // L1
+    drop: 1, // B
     preset1: 13,
     preset2: 14,
     preset3: 15,
     preset4: 12,
-    toggleArm: 2,
-    flip: 3,
-    swap: 4,
-    load: 5,
-    easy: 8,
-    momentum: null,
-    firstPerson: 10,
-    viewReset: 11,
-    playPause: 9,
+    toggleArm: 2, // X
+    flip: 3, // Y
+    swap: null,
+    load: 6, // L2
+    easy: 8, // Back / Select
+    momentum: 0, // A
+    firstPerson: 10, // L3
+    viewReset: 11, // R3
+    playPause: 9, // Start
   },
   padLayout: 'split',
 };
@@ -129,20 +130,24 @@ const KEY_NAMES: Record<string, string> = { ' ': 'Space', arrowup: '↑', arrowd
 /** How a key is shown ("Space", "↑", "W"). */
 export const keyName = (k: string | null) => (k === null ? '—' : (KEY_NAMES[k] ?? (k.length === 1 ? k.toUpperCase() : k[0].toUpperCase() + k.slice(1))));
 
-const PAD_NAMES = ['A', 'B', 'X', 'Y', 'LB', 'RB', 'LT', 'RT', 'Back', 'Start', 'L3', 'R3', 'D-pad ↑', 'D-pad ↓', 'D-pad ←', 'D-pad →', 'Home'];
+const PAD_NAMES = ['A', 'B', 'X', 'Y', 'L1', 'R1', 'L2', 'R2', 'Back', 'Start', 'L3', 'R3', 'D-pad ↑', 'D-pad ↓', 'D-pad ←', 'D-pad →', 'Home'];
 /** How a controller button is shown (standard mapping). */
 export const padName = (b: number | null) => (b === null ? '—' : (PAD_NAMES[b] ?? `Button ${b}`));
 
 const clone = (b: Bindings): Bindings => ({ keys: Object.fromEntries(Object.entries(b.keys).map(([k, v]) => [k, [...v]])) as Bindings['keys'], pad: { ...b.pad }, padLayout: b.padLayout });
 
+/** Saved bindings carry this; older saves keep their keys but take the current controller defaults. */
+const BINDINGS_VERSION = 2;
+
 function loadBindings(): Bindings {
   const b = clone(DEFAULT_BINDINGS);
   try {
-    const saved = JSON.parse(localStorage.getItem('vsl-bindings') ?? 'null') as Partial<Bindings> | null;
+    const saved = JSON.parse(localStorage.getItem('vsl-bindings') ?? 'null') as (Partial<Bindings> & { v?: number }) | null;
     if (saved) {
+      const padCurrent = saved.v === BINDINGS_VERSION;
       for (const a of ACTIONS) {
         if (saved.keys?.[a.id]) b.keys[a.id] = [saved.keys[a.id][0] ?? null, saved.keys[a.id][1] ?? null];
-        if (saved.pad && a.id in saved.pad) b.pad[a.id] = saved.pad[a.id] ?? null;
+        if (padCurrent && saved.pad && a.id in saved.pad) b.pad[a.id] = saved.pad[a.id] ?? null;
       }
       if (saved.padLayout === 'single' || saved.padLayout === 'split') b.padLayout = saved.padLayout;
     }
@@ -153,6 +158,16 @@ function loadBindings(): Bindings {
 }
 
 type Listener = (inp: DriverInput) => void;
+
+/** Typing into a field (keys go to it, not the robot). A focused checkbox or button is not typing. */
+function typing(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null;
+  if (!el?.tagName) return false;
+  if (el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable) return true;
+  if (el.tagName !== 'INPUT') return false;
+  const type = (el as HTMLInputElement).type;
+  return type !== 'checkbox' && type !== 'radio' && type !== 'button' && type !== 'range';
+}
 type Capture = { kind: 'key'; action: ActionId; slot: 0 | 1 } | { kind: 'pad'; action: ActionId };
 
 class LocalInput {
@@ -196,7 +211,7 @@ class LocalInput {
 
   private bindingsChanged() {
     try {
-      localStorage.setItem('vsl-bindings', JSON.stringify(this.bindings));
+      localStorage.setItem('vsl-bindings', JSON.stringify({ ...this.bindings, v: BINDINGS_VERSION }));
     } catch {
       /* storage unavailable */
     }
@@ -367,8 +382,7 @@ class LocalInput {
   /** Attach keyboard listeners; returns a detach function. */
   attachKeyboard(): () => void {
     const down = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+      if (typing(e.target)) return;
       const k = e.key.toLowerCase();
       const c = this.capture;
       if (c) {
@@ -391,8 +405,7 @@ class LocalInput {
     };
     const up = (e: KeyboardEvent) => {
       const k = e.key.toLowerCase();
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag !== 'INPUT' && tag !== 'SELECT' && tag !== 'TEXTAREA' && this.actionsForKey(k).length) e.preventDefault(); // Space must not click a focused button
+      if (!typing(e.target) && this.actionsForKey(k).length) e.preventDefault(); // Space must not click a focused button / checkbox
       this.keys.delete(k);
       if (this.merge()) this.changed();
     };

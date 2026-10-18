@@ -666,6 +666,8 @@ button.bind.waiting { border-color: #f5c542; color: #f5c542; }
   gap: 4px;
   align-items: center;
   cursor: pointer;
+  /* the HUD lets clicks through to the field (claw, camera drag); these take them */
+  pointer-events: auto;
 }
 
 .segmented {
