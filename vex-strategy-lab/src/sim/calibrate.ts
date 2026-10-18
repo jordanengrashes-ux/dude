@@ -48,7 +48,7 @@ export async function calibrateExecution(robot: RobotConfig, params: OverridePar
   let score = 0;
   for (let k = 0; k < runs; k++) {
     const ex = new PlanExecutor(cfg, plan.best.actions, { enabled: false, periodicSec: 0, beamWidth: 8, candidateK: 5, maxExpansions: 1000 }, w);
-    const sim = await MatchSim.create({ params, layout, robots: [{ id: 'red-1', alliance: 'red', config: robot, controller: ex, start: robot.start }], seed: seed + k, objectJitterSd: k === 0 ? 0 : 0.3 });
+    const sim = await MatchSim.create({ params, layout, robots: [{ id: 'red-1', alliance: 'red', config: robot, controller: ex }], seed: seed + k, objectJitterSd: k === 0 ? 0 : 0.3 });
     sim.runUntil(seconds);
     let s = w.initialState();
     for (let i = 0; i < ex.history.length && i < plan.best.actions.length; i++) {

@@ -77,11 +77,8 @@ export function buildField(R: Rapier, world: World): FieldBodies {
   }
   const loaders: Collider[] = [];
   for (const l of buildLoaders()) {
-    const F = l.footprint;
-    const cx = l.corner.x - Math.sign(l.corner.x) * (F / 2);
-    const cy = l.corner.y - Math.sign(l.corner.y) * (F / 2);
-    const p = toWorld(cx, cy, 0);
-    loaders.push(world.createCollider(R.ColliderDesc.cuboid((F / 2) * IN, 6 * IN, (F / 2) * IN).setTranslation(p.x, 6 * IN, p.z).setCollisionGroups(CG.field), fixed));
+    const p = toWorld(l.pos.x, l.pos.y, 0);
+    loaders.push(world.createCollider(R.ColliderDesc.cuboid(l.halfSize.x * IN, (l.height / 2) * IN, l.halfSize.y * IN).setTranslation(p.x, (l.height / 2) * IN, p.z).setCollisionGroups(CG.field), fixed));
   }
   const toggles: ToggleBody[] = buildToggles().map((tg) => buildToggle(R, world, fixed, tg));
   return { floor, walls, goalColliders, loaders, toggles, goals };

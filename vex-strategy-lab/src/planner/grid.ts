@@ -1,6 +1,6 @@
 import type { Vec2 } from '../core/vec';
 import { dist } from '../core/vec';
-import { buildGoals, buildLoaders, HALF, loadZones, MIDFIELD_INNER_HALF } from '../field/geometry';
+import { buildGoals, buildLoaders, HALF, inMidfieldPoint, loadZones } from '../field/geometry';
 import type { Alliance } from '../rules/ruleset';
 
 /**
@@ -60,7 +60,7 @@ export class Grid {
     this.bound = HALF - c;
     // The chassis clears the low Goal base disc; the post is the obstacle.
     for (const g of buildGoals()) this.circles.push({ x: g.pos.x, y: g.pos.y, r2: (g.postRadius + cc) ** 2 });
-    for (const l of buildLoaders()) this.circles.push({ x: l.corner.x, y: l.corner.y, r2: (l.footprint * Math.SQRT2 + cc) ** 2 });
+    for (const l of buildLoaders()) this.circles.push({ x: l.pos.x, y: l.pos.y, r2: (Math.hypot(l.halfSize.x, l.halfSize.y) + cc) ** 2 });
     // Toggles sit on top of the walls, above the chassis: not an obstacle.
     for (const o of opts.extraObstacles ?? []) this.circles.push({ x: o.pos.x, y: o.pos.y, r2: (o.r + c) ** 2 });
     if (opts.alliance && opts.forbidOpposingLoadZones) {
@@ -101,7 +101,7 @@ export class Grid {
     return -(this.opts.cornerClearance ?? this.opts.clearance) * Math.SQRT2;
   }
   private inMidCenter(p: Vec2): boolean {
-    return Math.abs(p.x) <= MIDFIELD_INNER_HALF && Math.abs(p.y) <= MIDFIELD_INNER_HALF;
+    return inMidfieldPoint(p);
   }
 
   /** Exact analytic segment test against every primitive (no sampling). */
@@ -119,7 +119,7 @@ export class Grid {
     }
     for (const bx of this.boxes) if (segBox(a, b, bx)) return false;
     if (this.opp) {
-      // interval of the segment on the opposing side (half-plane), must lie in the Midfield square
+      // interval of the segment on the opposing side (half-plane), must lie in the Midfield (convex)
       const sa = this.oppSum(a) - this.sideLimit;
       const sb = this.oppSum(b) - this.sideLimit;
       if (sa > 0 || sb > 0) {

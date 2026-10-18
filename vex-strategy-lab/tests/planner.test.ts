@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Rng } from '../src/core/rng';
 import { dist, distToSegment } from '../src/core/vec';
+import { onAutonLine } from '../src/field/geometry';
 import { buildLayout, type FieldLayout } from '../src/field/layout';
 import { cloneRobot, DEFAULT_ROBOT } from '../src/robot/config';
 import { OVERRIDE_DEFAULTS } from '../src/rules/ruleset';
@@ -140,8 +141,7 @@ describe('Model legality and physical feasibility', () => {
     for (const a of w.legalActions(s)) {
       if (a.type === 'pick') {
         const p = w.objs[a.obj].startPos!;
-        const mid = Math.abs(p.x) < 22.4 && Math.abs(p.y) < 22.4;
-        expect(p.x + p.y < 0 || mid).toBe(true);
+        expect(p.x + p.y < 0 || onAutonLine(p, 3.3)).toBe(true); // SG7b: objects on the Autonomous Line are shared
       }
       if (a.type === 'place') expect(w.goals[a.goal].type === 'midfield' || w.goals[a.goal].pos.x + w.goals[a.goal].pos.y < 0).toBe(true);
     }
@@ -169,12 +169,37 @@ describe('Model legality and physical feasibility', () => {
     const s = w.initialState();
     const pin = s.heldPin;
     expect(pin).toBeGreaterThanOrEqual(0); // preload
-    const pick = w.legalActions(s).find((a) => a.type === 'pick' && w.objs[a.obj].kind === 'cup')!;
+    // a lone Cup (not one with a Pin standing in it)
+    const pick = w.legalActions(s).find((a) => a.type === 'pick' && w.objs[a.obj].kind === 'cup' && w.objs[a.obj].nest === undefined)!;
     const r = w.apply(s, pick, true)!;
     expect(r.s.heldPin).toBe(-1);
     expect(r.s.heldCup).toBe((pick as { obj: number }).obj);
     expect(r.s.status[pin]).toBe(ST_UNAVAILABLE); // left on the tiles
     expect(r.step.notes.join(' ')).toMatch(/dropped/);
+  });
+
+  it('a Pin standing in a Cup comes along with it and goes onto a Goal with it', () => {
+    const w = new PlanWorld(baseCfg());
+    let s = w.initialState();
+    const ga = w.goals.findIndex((g) => g.id === 'G-R1a');
+    s = w.apply(s, { type: 'place', goal: ga, bit: w.naturalBit(s, s.heldPin) })!.s; // the preload starts the stack
+    // the nested Pin can't be picked by itself; its Cup takes both
+    const acts = w.legalActions(s);
+    expect(acts.some((a) => a.type === 'pick' && w.objs[a.obj].kind === 'pin' && w.objs[a.obj].nest !== undefined)).toBe(false);
+    const pick = acts.find((a) => a.type === 'pick' && w.objs[a.obj].nest !== undefined)!;
+    expect(pick).toBeTruthy();
+    const r = w.apply(s, pick, true)!;
+    const cup = (pick as { obj: number }).obj;
+    expect(r.s.heldCup).toBe(cup);
+    expect(r.s.heldPin).toBe(w.objs[cup].nest);
+    // only Goals topped by a Pin take the pair; it goes down as Cup + Pin
+    const places = w.legalActions(r.s).filter((a) => a.type === 'place');
+    expect(places.length).toBeGreaterThan(0);
+    for (const a of places) if (a.type === 'place') expect(w.nextKind(r.s, a.goal)).toBe('cup');
+    const placed = w.apply(r.s, places.find((a) => a.type === 'place' && a.goal === ga)!)!;
+    expect(placed.s.stacks[ga].map((c) => w.objs[c >> 1].kind)).toEqual(['pin', 'cup', 'pin']);
+    expect(placed.s.heldCup).toBe(-1);
+    expect(placed.s.heldPin).toBe(-1);
   });
 });
 
@@ -259,7 +284,7 @@ describe('Strategy quality', () => {
     const L = h2hLayout;
     const robot = L.robots.find((r) => r.slot === 'red-1')!;
     const yy = L.pins
-      .filter((p) => p.type === 'YY' && p.start.where === 'field')
+      .filter((p) => p.type === 'YY' && p.start.where === 'field' && Math.abs(p.start.pos.x) < 60 && Math.abs(p.start.pos.y) < 60)
       .sort((a, b) => dist((a.start as any).pos, robot.pos) - dist((b.start as any).pos, robot.pos))[0];
     const cfg = baseCfg({
       matchType: 'headToHead',

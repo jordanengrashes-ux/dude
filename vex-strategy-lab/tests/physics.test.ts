@@ -337,7 +337,7 @@ describe('Mechanisms, seating and scoring', () => {
           r.body.cmd = { left: -1, right: -1 };
         }
       }),
-      { robot: tall, start: { pos: { x: -40, y: 40 }, heading: 0 } },
+      { robot: tall, start: { pos: { x: -40, y: -36 }, heading: 0 } },
     );
     let maxTilt = 0;
     sim.runUntil(2.5, () => {
@@ -345,7 +345,7 @@ describe('Mechanisms, seating and scoring', () => {
     });
     const normal = await simWith(
       fn((s, r) => (r.body.cmd = s.t < 0.9 ? { left: 1, right: 1 } : { left: -1, right: -1 })),
-      { start: { pos: { x: -40, y: 40 }, heading: 0 } },
+      { start: { pos: { x: -40, y: -36 }, heading: 0 } },
     );
     let normalTilt = 0;
     normal.runUntil(2.5, () => {

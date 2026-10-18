@@ -1,6 +1,6 @@
 import type { Vec2 } from '../core/vec';
 import { dist } from '../core/vec';
-import { HALF, MIDFIELD_INNER_HALF } from '../field/geometry';
+import { HALF, MIDFIELD_REACH } from '../field/geometry';
 import type { Grid } from './grid';
 
 /**
@@ -42,8 +42,9 @@ export class VisGraph {
       add({ x: b[0] - e, y: b[3] + e });
       add({ x: b[2] + e, y: b[3] + e });
     }
-    const M = MIDFIELD_INNER_HALF - 0.5;
-    for (const sx of [-1, 1]) for (const sy of [-1, 1]) add({ x: sx * M, y: sy * M });
+    // Midfield corners and edge midpoints: shared ground in Autonomous (SG8)
+    const M = MIDFIELD_REACH - 0.7;
+    for (const [x, y] of [[1, 0], [0, 1], [-1, 0], [0, -1], [0.5, 0.5], [-0.5, 0.5], [-0.5, -0.5], [0.5, -0.5]]) add({ x: x * M, y: y * M });
     for (let x = -60; x <= 60; x += 12) for (let y = -60; y <= 60; y += 12) add({ x, y });
 
     const n = (this.n = this.nodes.length);

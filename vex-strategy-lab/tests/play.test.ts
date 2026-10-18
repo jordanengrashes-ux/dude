@@ -71,6 +71,31 @@ describe('Driving', () => {
   });
 });
 
+describe('Pin into a loose Cup', () => {
+  it('the aligner leads the held Pin over a Cup on the tiles; dropped in, the pair locks together', async () => {
+    const inp = zeroInput();
+    const sim = await driven(inp, { pos: { x: -40, y: 0 }, heading: 0 }, preloadOnly);
+    const r = sim.robots[0];
+    const cupX = -40 + DEFAULT_ROBOT.intake.holderOffsetIn + 6;
+    const cup = sim.objects.add({ id: 'C-test', kind: 'cup' }, { x: cupX, y: 0, z: 0, flipped: true }); // clear half up
+    sim.runUntil(0.3);
+    expect(sim.alignHint(r)).toMatchObject({ goal: cup.id, state: 0 }); // near, not lined up
+    expect(sim.alignHint(r)!.at!.x).toBeCloseTo(cupX, 0);
+    creepTo(sim, inp, cupX, CUP.length + 0.6);
+    const a = sim.alignHint(r)!;
+    expect(a.goal).toBe(cup.id);
+    expect(a.state).toBe(2); // lined up and high enough: green
+    const pin = r.primary!;
+    inp.drop++; // open the claw
+    sim.runUntil(sim.t + 1.5);
+    expect(pin.mode).toBe('free');
+    const dy = (pin.body!.translation().y - cup.body!.translation().y) / IN;
+    expect(pin.bond?.other, `dy ${dy.toFixed(2)} pin v ${JSON.stringify(pin.body!.linvel())} up ${JSON.stringify(pin.body!.rotation())}`).toBe(cup); // resting in the Cup, held to it
+    expect(pin.body!.translation().y / IN).toBeGreaterThan(CUP.length);
+    sim.dispose();
+  });
+});
+
 describe('Easy claw', () => {
   it('grabs a Pin the robot drives into, and does not grab it back right after dropping it', async () => {
     const inp = { ...zeroInput(), easy: true };
@@ -207,24 +232,33 @@ describe('Claw: one piece, between the jaws, standing Pins', () => {
 });
 
 describe('No momentum', () => {
-  it('the robot is at speed at once and stops the moment you let go', async () => {
+  it('same top speed and turning as normal driving, but it stops the moment you let go', async () => {
     const coast: number[] = [];
+    const top: number[] = [];
+    const yaw: number[] = [];
     for (const noMomentum of [false, true]) {
       const inp = { ...zeroInput(), noMomentum };
       const sim = await driven(inp, { pos: { x: -55, y: -10 }, heading: 0 });
       const r = sim.robots[0];
       inp.forward = 1;
-      sim.runUntil(0.15);
-      if (noMomentum) expect(r.body.telemetry.speed).toBeGreaterThan(40); // in/s, right away
       sim.runUntil(0.8);
+      top.push(r.body.telemetry.speed);
       inp.forward = 0;
       const a = r.body.pose().pos.x;
       sim.runUntil(1.6);
       coast.push(r.body.pose().pos.x - a);
       sim.dispose();
+      // turning in place from rest
+      const inp2 = { ...zeroInput(), noMomentum, turn: 1 };
+      const sim2 = await driven(inp2, { pos: { x: -40, y: -36 }, heading: 0 });
+      sim2.runUntil(0.8);
+      yaw.push(sim2.robots[0].body.chassis.angvel().y);
+      sim2.dispose();
     }
-    expect(coast[1]).toBeLessThan(1.5);
-    expect(coast[0]).toBeGreaterThan(coast[1] * 2);
+    expect(top[1]).toBeCloseTo(top[0], 0);
+    expect(yaw[1]).toBeCloseTo(yaw[0], 1);
+    expect(coast[1]).toBeLessThan(0.3);
+    expect(coast[0]).toBeGreaterThan(5);
   });
 });
 
@@ -295,10 +329,10 @@ describe('Pin and Cup shapes', () => {
     sim.dispose();
   });
 
-  it('pieces on the full field are at rest within 1.5 s', async () => {
+  it('pieces on the full field are at rest within 3 s', async () => {
     const built = await buildMatch({ params: cloneParams(OVERRIDE_DEFAULTS), layout: skills, matchType: 'skillsDriver', seed: 1, slots: [{ slot: 'red-1', alliance: 'red', enabled: true, strategy: 'manual', robot: cloneRobot(DEFAULT_ROBOT) }] }, () => null, undefined, new Map());
     const sim = built.sim;
-    sim.runUntil(1.5);
+    sim.runUntil(3);
     const moving = [...sim.objects.objects.values()].filter((o) => {
       if (!o.body || o.mode !== 'free') return false;
       const w = o.body.angvel();

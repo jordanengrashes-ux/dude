@@ -202,7 +202,7 @@ export const DEFAULT_ROBOT: RobotConfig = {
     calibratedFrom:
       'Default DR4B robot, Skills plans, 4 jittered physics runs × 4 refinement passes (22–33 actions each): place 1.55–1.84 s, toggle 0.6–1.9 s (few toggle samples), pick ≈ 0.08 s; 2026-10-17',
   },
-  start: { pos: { x: -61, y: -36 }, heading: 0 },
+  start: { pos: { x: -62.205, y: 6 }, heading: 0 },
 };
 
 /** Config paths that are user-given (everything else is an assumption). */

@@ -622,6 +622,7 @@ button.bind.waiting { border-color: #f5c542; color: #f5c542; }
 .controls-foot { gap: 12px; align-items: center; flex-wrap: wrap; margin: 0.4rem 0; }
 .controls-foot select { max-width: 100%; }
 .error { color: #ff8a80; }
+.warn { color: #ffb74d; }
 .card.drivers { margin-top: 0.75rem; }
 .card.drivers h4 { margin: 0 0 0.4rem; }
 

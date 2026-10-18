@@ -38,28 +38,39 @@ export interface RouteOptions {
   alliance: Alliance;
   /** Match autonomous: stay on this alliance's side of the Autonomous Line (SG7). */
   ownSideOnly: boolean;
+  /** Pins and Cups on the tiles to drive around rather than knock over (center, footprint radius). */
+  pieces?: { pos: Vec2; r: number }[];
 }
 
 const grids = new Map<string, Grid>();
-function gridFor(robot: RobotConfig, o: RouteOptions): Grid {
+function gridFor(robot: RobotConfig, o: RouteOptions, withPieces = true): Grid {
   const c = Math.max(robot.chassis.lengthIn, robot.chassis.widthIn) / 2 + 1;
   const cc = Math.hypot(robot.chassis.lengthIn / 2, robot.chassis.widthIn / 2) + 0.5;
-  const key = `${c}|${cc}|${o.alliance}|${o.ownSideOnly}`;
+  const pieces = withPieces ? (o.pieces ?? []) : [];
+  const key = `${c}|${cc}|${o.alliance}|${o.ownSideOnly}|${pieces.map((p) => `${p.pos.x.toFixed(1)},${p.pos.y.toFixed(1)},${p.r.toFixed(1)}`).join(';')}`;
   let g = grids.get(key);
   if (!g) {
-    g = new Grid({ clearance: c, cornerClearance: cc, alliance: o.alliance, forbidOpposingSide: o.ownSideOnly });
+    // a piece counts as hit when the robot overlaps it by more than about an inch
+    g = new Grid({ clearance: c, cornerClearance: cc, alliance: o.alliance, forbidOpposingSide: o.ownSideOnly, extraObstacles: pieces.map((p) => ({ pos: p.pos, r: p.r - 1.5 })) });
+    if (grids.size > 40) grids.clear();
     grids.set(key, g);
   }
   return g;
 }
 
-/** Waypoints between `from` and `to` around Goal posts and Loaders (empty when the straight line is clear). */
+/**
+ * Waypoints between `from` and `to` around Goal posts, Loaders and the pieces on the
+ * tiles (empty when the straight line is clear). When no way around the pieces
+ * exists, only the field elements count.
+ */
 export function routeVia(from: Vec2, to: Vec2, robot: RobotConfig, o: RouteOptions): Vec2[] {
-  const grid = gridFor(robot, o);
-  if (grid.segmentClear(from, to)) return [];
-  const res = astar(grid, from, to);
-  if (!res) return [];
-  return res.points.slice(1, -1).filter((p) => dist(p, from) > 2 && dist(p, to) > 2);
+  for (const withPieces of o.pieces?.length ? [true, false] : [false]) {
+    const grid = gridFor(robot, o, withPieces);
+    if (grid.segmentClear(from, to)) return [];
+    const res = astar(grid, from, to);
+    if (res) return res.points.slice(1, -1).filter((p) => dist(p, from) > 2 && dist(p, to) > 2);
+  }
+  return [];
 }
 
 /** Where the robot center goes so its claw is over `target`, coming from `from`. */
@@ -84,7 +95,15 @@ function shortOf(from: Vec2, target: Vec2, back: number): Vec2 {
  */
 function approach(frame: OdomFrame, from: Vec2, target: Vec2, standoff: number, robot: RobotConfig, o?: RouteOptions): { steps: AutonStep[]; at: Vec2 } {
   if (!o) return { steps: [], at: from };
-  const grid = gridFor(robot, o);
+  // around the pieces if possible, else around the field elements only
+  if (o.pieces?.length) {
+    const r = approachOn(gridFor(robot, o), frame, from, target, standoff);
+    if (r) return r;
+  }
+  return approachOn(gridFor(robot, o, false), frame, from, target, standoff) ?? { steps: [], at: from };
+}
+
+function approachOn(grid: Grid, frame: OdomFrame, from: Vec2, target: Vec2, standoff: number): { steps: AutonStep[]; at: Vec2 } | null {
   const straight = shortOf(from, target, standoff);
   if (dist(from, target) <= standoff || (!grid.isBlockedAt(straight) && grid.segmentClear(from, straight))) return { steps: [], at: from };
   const base = Math.atan2(from.y - target.y, from.x - target.x);
@@ -99,7 +118,7 @@ function approach(frame: OdomFrame, from: Vec2, target: Vec2, standoff: number, 
     for (let i = 1; i < path.length; i++) len += dist(path[i - 1], path[i]);
     if (!best || len < best.len) best = { pre, path, len };
   }
-  if (!best) return { steps: [], at: from };
+  if (!best) return null;
   const way = best.path.slice(1).filter((p, i, all) => i === all.length - 1 || dist(p, from) > 2);
   return { steps: way.map((p) => moveStep(frame, p, true, DEFAULT_SPEED)), at: best.pre };
 }

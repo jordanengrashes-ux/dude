@@ -139,12 +139,13 @@ export function robotModel(id: string, alliance: 'red' | 'blue', cfg: RobotConfi
   towerHole.alphaTest = 0.5;
   towerHole.side = THREE.DoubleSide;
 
-  // ---- drivetrain sides: outer + inner C-channel, wheels between, two motors per side
+  // ---- drivetrain sides: outer + inner C-channel, wheels and motors between. Each side
+  // module spans from the claw slot to the outside, the block physics collides with
   const rw = d.wheelDiameterIn / 2;
   const axleY = rw;
   const sideRails = (sign: 1 | -1) => {
     const zOuter = sign * (W / 2 - 0.25);
-    const zInner = sign * (d.trackWidthIn / 2 - 0.9);
+    const zInner = sign * (c.slotWidthIn / 2 + 0.25);
     const h = 2;
     for (const [z, dir] of [
       [zOuter, -sign],
@@ -160,7 +161,7 @@ export function robotModel(id: string, alliance: 'red' | 'blue', cfg: RobotConfi
       wh.position.set(x * IN, axleY * IN, ((sign * d.trackWidthIn) / 2) * IN);
       chassis.add(wh);
       const m = motor(mats, d.left.cartridgeRpm);
-      m.position.set(x * 0.55 * IN, (axleY + 0.1) * IN, (zInner - sign * 0.9) * IN);
+      m.position.set(x * 0.55 * IN, (axleY + 0.1) * IN, (zInner + sign * 0.9) * IN);
       if (sign < 0) m.rotation.y = Math.PI;
       chassis.add(m);
     }

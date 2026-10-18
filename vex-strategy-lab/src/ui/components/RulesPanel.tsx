@@ -12,7 +12,7 @@ export function RulesPanel() {
         Ruleset: {params.name} {params.season}, manual v{params.manualVersion}
       </h3>
       <p className="small">
-        Last checked {LAST_CHECKED}. The official manual and Q&amp;A sites could not be opened directly from the build environment, so the text was taken from search-engine extracts of those official pages. Every rule is tagged with how it was verified. Values marked “Assumption” or “Sources conflict” are editable under Setup → Rule interpretation switches. Re-verify against the current manual before relying on them.
+        Last checked {LAST_CHECKED}. The official manual and Q&amp;A sites could not be opened directly from the build environment, so most rule text was taken from search-engine extracts of those official pages; the field dimensions and the starting layout were measured on the Appendix A drawings of the v1.1 manual PDF. Every rule is tagged with how it was verified. Values marked “Assumption” or “Sources conflict” are editable under Setup → Rule interpretation switches. Re-verify against the current manual before relying on them.
       </p>
       <table className="table rules">
         <thead>

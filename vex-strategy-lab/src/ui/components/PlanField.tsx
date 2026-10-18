@@ -1,6 +1,6 @@
 import { useRef, type ReactNode } from 'react';
 import type { Vec2 } from '../../core/vec';
-import { buildGoals, buildLoaders, buildToggles, HALF, loadZones, TAPE_WIDTH, TILE } from '../../field/geometry';
+import { buildGoals, buildLoaders, buildToggles, HALF, loadZones, PIN, TAPE_WIDTH, tapeStrips, TILE } from '../../field/geometry';
 import { PIN_COLORS, type FieldLayout } from '../../field/layout';
 
 /**
@@ -67,12 +67,13 @@ export function PlanField({ layout, children, pointer, cursor = 'crosshair', hig
         {loadZones().map((z, i) => (
           <rect key={i} x={z.aabb[0]} y={z.aabb[1]} width={z.aabb[2] - z.aabb[0]} height={z.aabb[3] - z.aabb[1]} fill={z.alliance === 'red' ? FIELD_COLORS.red : FIELD_COLORS.blue} opacity={0.22} />
         ))}
-        {/* Autonomous Line and Midfield tape */}
-        <line x1={-HALF} y1={HALF} x2={HALF} y2={-HALF} stroke={FIELD_COLORS.white} strokeWidth={TAPE_WIDTH} opacity={0.85} />
-        <rect x={-TILE} y={-TILE} width={2 * TILE} height={2 * TILE} fill="none" stroke={FIELD_COLORS.white} strokeWidth={TAPE_WIDTH} opacity={0.85} />
+        {/* tape: the Autonomous Line's two strips, the Midfield diamond, the Quadrant diagonal, Load Zone L's */}
+        {tapeStrips().map((t, i) => (
+          <line key={i} x1={t.a.x} y1={t.a.y} x2={t.b.x} y2={t.b.y} stroke={t.color === 'white' ? FIELD_COLORS.white : t.color === 'red' ? FIELD_COLORS.red : FIELD_COLORS.blue} strokeWidth={TAPE_WIDTH} strokeLinecap="square" opacity={0.85} />
+        ))}
         {loaders.map((l) => (
           <g key={l.id}>
-            <rect x={Math.min(l.corner.x, l.corner.x - Math.sign(l.corner.x) * l.footprint)} y={Math.min(l.corner.y, l.corner.y - Math.sign(l.corner.y) * l.footprint)} width={l.footprint} height={l.footprint} fill={l.alliance === 'red' ? FIELD_COLORS.red : FIELD_COLORS.blue} opacity={0.75} />
+            <rect x={l.pos.x - l.halfSize.x} y={l.pos.y - l.halfSize.y} width={2 * l.halfSize.x} height={2 * l.halfSize.y} fill={l.alliance === 'red' ? FIELD_COLORS.red : FIELD_COLORS.blue} opacity={0.85} />
             <circle cx={l.dispense.x} cy={l.dispense.y} r={1} fill="none" stroke={FIELD_COLORS.white} strokeWidth={0.4} strokeDasharray="0.8 0.6" />
           </g>
         ))}
@@ -92,11 +93,22 @@ export function PlanField({ layout, children, pointer, cursor = 'crosshair', hig
           c.start.where === 'field' ? <circle key={c.id} cx={c.start.pos.x} cy={c.start.pos.y} r={1.6} fill={c.start.grayUp ? '#8c8f94' : '#d9dde3'} fillOpacity={c.start.grayUp ? 1 : 0.55} stroke="#2a2a2a" strokeWidth={0.3} /> : null,
         )}
         {layout.pins.map((p) => {
-          if (p.start.where !== 'field') return null;
+          const s = p.start;
+          if (s.where !== 'field') return null;
           const [c0, c1] = PIN_COLORS[p.type];
-          const top = p.start.upColor;
+          const top = s.upColor;
           const bottom = top === c1 ? c0 : c1;
-          return <circle key={p.id} cx={p.start.pos.x} cy={p.start.pos.y} r={1.5} fill={halfColor(top)} stroke={halfColor(bottom)} strokeWidth={0.7} />;
+          if (s.lying) {
+            // lying down: the `upColor` end points along `axis`
+            const d = { x: Math.cos(s.axis ?? 0) * PIN.half, y: Math.sin(s.axis ?? 0) * PIN.half };
+            return (
+              <g key={p.id} strokeWidth={2.2} strokeLinecap="round">
+                <line x1={s.pos.x} y1={s.pos.y} x2={s.pos.x + d.x * 0.85} y2={s.pos.y + d.y * 0.85} stroke={halfColor(top)} />
+                <line x1={s.pos.x} y1={s.pos.y} x2={s.pos.x - d.x * 0.85} y2={s.pos.y - d.y * 0.85} stroke={halfColor(bottom)} />
+              </g>
+            );
+          }
+          return <circle key={p.id} cx={s.pos.x} cy={s.pos.y} r={1.5} fill={halfColor(top)} stroke={halfColor(bottom)} strokeWidth={0.7} />;
         })}
         {layout.robots.map((r) => (
           <rect

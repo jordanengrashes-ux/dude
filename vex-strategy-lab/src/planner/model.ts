@@ -1,6 +1,6 @@
 import { clamp, wrapAngle } from '../core/units';
 import type { Vec2 } from '../core/vec';
-import { add, dist, fromAngle, obbCorners, scale, sub, distPointToPolygon } from '../core/vec';
+import { add, dist, fromAngle, obbCorners, scale, sub, distPointToPolygon, polyIntersectsAabb } from '../core/vec';
 import {
   buildGoals,
   buildLoaders,
@@ -9,7 +9,9 @@ import {
   footprintInMidfield,
   footprintOnOpposingSide,
   HALF,
-  MIDFIELD_INNER_HALF,
+  loaderAabb,
+  MIDFIELD_REACH,
+  onAutonLine,
   PIN,
   CUP,
   quadrantOf,
@@ -19,14 +21,14 @@ import {
   type ToggleGeom,
 } from '../field/geometry';
 import type { FieldLayout, PinType } from '../field/layout';
-import { PIN_COLORS } from '../field/layout';
+import { fitStartToWall, PIN_COLORS } from '../field/layout';
 import type { RobotConfig } from '../robot/config';
 import { derivePerf, liftTime, maxHolderHeight, polylineTime, robotTopHeight, straightTime, turnTime, type DrivePerf } from '../robot/kinematics';
 import type { FieldState, QuadrantId, RobotStatus, StackElement, TogglePosition } from '../rules/fieldState';
 import type { Alliance, HalfColor, MatchType, OverrideParams } from '../rules/ruleset';
 import { computeScore, evaluateAwp, type ScoreReport } from '../rules/scoring';
 import { buildClock, type MatchClock } from '../rules/timing';
-import { DistanceField } from './astar';
+import { astar, DistanceField } from './astar';
 import { Grid } from './grid';
 import { VisGraph } from './visgraph';
 
@@ -34,7 +36,8 @@ import { VisGraph } from './visgraph';
  * Abstract game model for planning.
  *
  * A PlanState captures everything that matters for scoring decisions: robot pose,
- * lift height, held objects (≤ 1 Pin + 1 Cup), every object's status, Goal stacks,
+ * lift height, held objects (≤ 1 Pin + 1 Cup; a one-piece claw holds one piece or a
+ * Pin nested in a Cup, picked up and placed together), every object's status, Goal stacks,
  * Toggle positions, Match Load usage and the clock. Actions are macro-actions
  * (pick / load / place / toggle / park / wait) whose durations come from the robot
  * performance model (robot/kinematics.ts) and grid path planning (A* / Dijkstra).
@@ -60,6 +63,10 @@ export interface StaticObj {
   /** Initial orientation bit: pin → index of color facing up; cup → 1 if gray up. */
   startUp: number;
   startGoal?: string;
+  /** Starts lying on its side (a claw closes only around a standing Pin). */
+  lying?: boolean;
+  /** The other piece of the nested pair it starts in (a Pin standing in a Cup): picked up together. */
+  nest?: number;
 }
 
 export const ST_FIELD = 0;
@@ -256,7 +263,10 @@ export class PlanWorld {
         startUp: s.where === 'field' || s.where === 'preload' ? (colors[1] === s.upColor ? 1 : 0) : 1,
       };
       if (s.where === 'held') o.startUp = colors[1] === s.upColor ? 1 : 0;
-      if (s.where === 'field') o.startPos = s.pos;
+      if (s.where === 'field') {
+        o.startPos = s.pos;
+        if (s.lying) o.lying = true;
+      }
       if (s.where === 'matchload') o.matchloadAlliance = s.alliance;
       if (s.where === 'preload' || s.where === 'held') o.preloadSlot = s.robotSlot;
       if (s.where === 'goal') {
@@ -284,6 +294,15 @@ export class PlanWorld {
         o.startBit = s.grayDown ? 1 : 0;
       }
       this.objs.push(o);
+    }
+    for (const p of L.pins) {
+      if (p.start.where !== 'field' || !p.start.inCup) continue;
+      const pin = this.objs.find((o) => o.id === p.id)!;
+      const cup = this.objs.find((o) => o.kind === 'cup' && o.id === (p.start as { inCup: string }).inCup);
+      if (cup && cup.startWhere === 'field') {
+        pin.nest = cup.idx;
+        cup.nest = pin.idx;
+      }
     }
   }
 
@@ -345,7 +364,7 @@ export class PlanWorld {
     stackEntries.sort((a, b) => a.gi - b.gi || a.index - b.index);
     for (const e of stackEntries) stacks[e.gi].push(e.code);
     const rs = cfg.layout.robots.find((r) => r.slot === slot) ?? cfg.layout.robots[0];
-    const sp = cfg.startPose ?? { pos: rs.pos, heading: rs.heading };
+    const sp = cfg.startPose ?? fitStartToWall(rs, cfg.robot.chassis.lengthIn, cfg.robot.chassis.widthIn);
     const s: PlanState = {
       t: cfg.tStart,
       pos: { ...sp.pos },
@@ -457,7 +476,8 @@ export class PlanWorld {
     }
     for (const l of this.loaders) {
       if (l.id === except.loader) continue;
-      if (distPointToPolygon(l.corner, poly) < l.footprint * Math.SQRT2 + 0.5) return false;
+      const [x0, y0, x1, y1] = loaderAabb(l);
+      if (polyIntersectsAabb(poly, x0 - 0.5, y0 - 0.5, x1 + 0.5, y1 + 0.5)) return false;
     }
     // Toggles sit on top of the walls, above the chassis: not an obstacle.
     return true;
@@ -509,6 +529,8 @@ export class PlanWorld {
       const pre = sub(center, scale(u, APPROACH));
       if (!this.poseClear(center, h, except)) continue;
       if (!this.poseClear(pre, h, except)) continue;
+      // the robot lines up (turns in place) at the pre-point: keep its corners off the walls there
+      if (Math.max(Math.abs(pre.x), Math.abs(pre.y)) > HALF - this.cornerClearance + 0.5) continue;
       // intermediate pose halfway along the straight-in
       if (!this.poseClear(sub(center, scale(u, APPROACH / 2)), h, except)) continue;
       out.push({ pre, center, heading: h });
@@ -583,7 +605,11 @@ export class PlanWorld {
     if (cached === undefined) {
       let pts: Vec2[] | null;
       if (dist(startPt, ap.pre) < 0.5 || grid.lineFree(startPt, ap.pre)) pts = [startPt, ap.pre];
-      else pts = this.visGraph(grid).path(startPt, grid.pointBlocked(ap.pre) ? grid.nearestFree(ap.pre) ?? ap.pre : ap.pre);
+      else {
+        const goal = grid.pointBlocked(ap.pre) ? grid.nearestFree(ap.pre) ?? ap.pre : ap.pre;
+        // a pocket no graph node can see (between a wall and a Goal): the grid finds the way out
+        pts = this.visGraph(grid).path(startPt, goal) ?? astar(grid, startPt, goal)?.points ?? null;
+      }
       if (pts && dist(pts[pts.length - 1], ap.pre) > 1e-6) pts = [...pts, ap.pre];
       cached = pts ? { pts, len: pts.reduce((acc, q, i) => (i ? acc + dist(pts![i - 1], q) : 0), 0) } : null;
       if (this.pathCache.size > 200000) this.pathCache.clear();
@@ -615,10 +641,12 @@ export class PlanWorld {
     const hit = this.escapeCache.get(key);
     if (hit !== undefined) return hit;
     let best: Escape | null = null;
+    // out of the inflated region and far enough off the walls to turn in place there
+    const roomy = (q: Vec2) => !grid.pointBlocked(q) && Math.max(Math.abs(q.x), Math.abs(q.y)) <= HALF - this.cornerClearance + 0.5;
     const back = fromAngle(heading + Math.PI);
     for (let k = 1; k <= 14; k++) {
       const q = add(pos, scale(back, k));
-      if (!grid.pointBlocked(q)) {
+      if (roomy(q)) {
         best = { pt: q, dist: k, heading, rot: 0, reverse: true };
         break;
       }
@@ -643,7 +671,7 @@ export class PlanWorld {
         for (let d = 1; d <= 18; d++) {
           const q = add(pos, scale(u, d));
           if (!clear(q, h)) break;
-          if (!grid.pointBlocked(q)) {
+          if (roomy(q)) {
             const t = this.turnCost(Math.abs(turn)) + straightTime(this.perf, d);
             if (t < bestT) {
               bestT = t;
@@ -654,9 +682,46 @@ export class PlanWorld {
         }
       }
     }
+    // pushed into a pocket the planning margins seal off (between a wall, a Goal and a
+    // Load Zone): drive straight out to a spot that connects to the rest of the field
+    if (best && !this.connected(grid, best.pt)) {
+      const clear = (q: Vec2, h: number) => this.poseClear(q, h, {}, -0.5);
+      let bestT = Infinity;
+      let far: Escape | null = null;
+      for (let k = 0; k < 16; k++) {
+        const dir = (k / 16) * 2 * Math.PI;
+        const u = fromAngle(dir);
+        const dRev = wrapAngle(dir + Math.PI - heading);
+        const dFwd = wrapAngle(dir - heading);
+        const reverse = Math.abs(dRev) < Math.abs(dFwd);
+        const turn = reverse ? dRev : dFwd;
+        const h = heading + turn;
+        let ok = true;
+        for (let j = 1; j <= 4 && ok; j++) ok = clear(pos, heading + (turn * j) / 4);
+        if (!ok) continue;
+        for (let d = 2; d <= 30; d += 2) {
+          const q = add(pos, scale(u, d));
+          if (!clear(q, h)) break;
+          if (!roomy(q) || !this.connected(grid, q)) continue;
+          const t = this.turnCost(Math.abs(turn)) + straightTime(this.perf, d);
+          if (t < bestT) {
+            bestT = t;
+            far = { pt: q, dist: d, heading: h, rot: Math.abs(turn), reverse };
+          }
+          break;
+        }
+      }
+      if (far) best = far;
+    }
     if (this.escapeCache.size > 50000) this.escapeCache.clear();
     this.escapeCache.set(key, best);
     return best;
+  }
+
+  /** Whether the planning graph reaches the open field from `q` (not shut in a pocket). */
+  private connected(grid: Grid, q: Vec2): boolean {
+    const vg = this.visGraph(grid);
+    return [{ x: -35, y: -35 }, { x: 35, y: 35 }, { x: -35, y: 35 }, { x: 35, y: -35 }].some((r) => !grid.pointBlocked(r) && vg.path(q, r) !== null);
   }
 
   /** Turn cost for a heading change; small changes are absorbed by path following. */
@@ -805,11 +870,31 @@ export class PlanWorld {
    * other colors).
    */
   private canTake(s: PlanState, o: StaticObj): boolean {
-    if (this.cfg.robot.intake.capacity !== 'single') return o.kind === 'pin' ? s.heldPin < 0 : s.heldCup < 0;
+    const pair = this.rider(s, o) >= 0;
+    if (this.cfg.robot.intake.capacity !== 'single') return pair ? s.heldPin < 0 && s.heldCup < 0 : o.kind === 'pin' ? s.heldPin < 0 : s.heldCup < 0;
     const hi = s.heldPin >= 0 ? s.heldPin : s.heldCup;
-    if (hi < 0) return true;
+    if (hi < 0 || this.heldPair(s)) return true;
+    if (pair) return true;
     const h = this.objs[hi];
     return h.kind !== o.kind || (o.kind === 'pin' && h.pinType !== o.pinType);
+  }
+
+  /** The Pin still nested in field Cup `o` (it comes along when the Cup is picked up), or -1. */
+  rider(s: PlanState, o: StaticObj): number {
+    return o.kind === 'cup' && o.nest !== undefined && s.status[o.nest] === ST_FIELD && s.status[o.idx] === ST_FIELD ? o.nest : -1;
+  }
+
+  /** Whether the claw can take this piece off the tiles by itself. */
+  pickable(s: PlanState, o: StaticObj): boolean {
+    if (o.kind !== 'pin') return true;
+    if (o.lying && this.cfg.robot.intake.maxPinTiltDeg < 90) return false;
+    // a Pin standing in a Cup sits too high for a floor pickup: it rides along with its Cup
+    return !(o.nest !== undefined && s.status[o.nest] === ST_FIELD);
+  }
+
+  /** A one-piece claw holding a nested pair (the Cup gripped, a Pin riding in it). */
+  heldPair(s: PlanState): boolean {
+    return this.cfg.robot.intake.capacity === 'single' && s.heldPin >= 0 && s.heldCup >= 0;
   }
 
   /**
@@ -819,21 +904,23 @@ export class PlanWorld {
    */
   private dropFirst(s: PlanState): number {
     const R = this.cfg.robot;
-    const oi = s.heldPin >= 0 ? s.heldPin : s.heldCup;
-    if (R.intake.capacity !== 'single' || oi < 0) return 0;
+    const held = [s.heldCup, s.heldPin].filter((i) => i >= 0);
+    if (R.intake.capacity !== 'single' || !held.length) return 0;
     const t = liftTime(this.perf, s.holderH, R.lift.holderMinHeightIn) + R.intake.releaseTimeSec + straightTime(this.perf, 10);
     s.holderH = R.lift.holderMinHeightIn;
-    s.status[oi] = ST_UNAVAILABLE;
-    if (oi === s.heldPin) s.heldPin = -1;
-    else s.heldCup = -1;
-    // Holding it kept another robot's predicted placement of it from happening; on the
-    // tiles again, that robot still gets it (no "take it and drop it" denial).
-    const ev = this.cfg.externalEvents.slice(0, s.eventsApplied).find((e) => e.kind === 'place' && e.obj === oi && e.goal !== undefined);
-    if (ev) {
-      const gi = this.goals.findIndex((g) => g.id === this.goalIdFromIndex(ev.goal!));
-      if (gi >= 0 && this.nextKind(s, gi) === this.objs[oi].kind) {
-        s.stacks[gi].push(oi * 2 + (ev.bit ?? 0));
-        s.status[oi] = ST_PLACED;
+    s.heldPin = -1;
+    s.heldCup = -1;
+    for (const oi of held) {
+      s.status[oi] = ST_UNAVAILABLE;
+      // Holding it kept another robot's predicted placement of it from happening; on the
+      // tiles again, that robot still gets it (no "take it and drop it" denial).
+      const ev = this.cfg.externalEvents.slice(0, s.eventsApplied).find((e) => e.kind === 'place' && e.obj === oi && e.goal !== undefined);
+      if (ev) {
+        const gi = this.goals.findIndex((g) => g.id === this.goalIdFromIndex(ev.goal!));
+        if (gi >= 0 && this.nextKind(s, gi) === this.objs[oi].kind) {
+          s.stacks[gi].push(oi * 2 + (ev.bit ?? 0));
+          s.status[oi] = ST_PLACED;
+        }
       }
     }
     return t;
@@ -849,8 +936,11 @@ export class PlanWorld {
       // field objects, nearest first
       const cands: { i: number; d: number }[] = [];
       for (const o of this.objs) {
-        if (o.kind !== kind || s.status[o.idx] !== ST_FIELD || !o.startPos || !this.canTake(s, o)) continue;
-        if (auto && this.cfg.matchType === 'headToHead' && sideOf(o.startPos) !== this.cfg.alliance && !(Math.abs(o.startPos.x) < MIDFIELD_INNER_HALF && Math.abs(o.startPos.y) < MIDFIELD_INNER_HALF)) continue;
+        if (o.kind !== kind || s.status[o.idx] !== ST_FIELD || !o.startPos || !this.pickable(s, o) || !this.canTake(s, o)) continue;
+        // SG7: nothing from the opposing side in Autonomous; objects on the Autonomous Line are shared
+        if (auto && this.cfg.matchType === 'headToHead' && sideOf(o.startPos) !== this.cfg.alliance && !onAutonLine(o.startPos, objRadius(o))) continue;
+        // no pose puts the claw on it (e.g. against a wall: the robot's front would be in the wall)
+        if (!this.approaches(o.startPos, `o${o.idx}`).length) continue;
         cands.push({ i: o.idx, d: dist(hp, o.startPos) });
       }
       cands.sort((a, b) => a.d - b.d || a.i - b.i);
@@ -874,8 +964,15 @@ export class PlanWorld {
     }
     // placements
     const held: [number, ObjKind][] = [];
-    if (s.heldPin >= 0) held.push([s.heldPin, 'pin']);
-    if (s.heldCup >= 0) held.push([s.heldCup, 'cup']);
+    if (this.heldPair(s)) {
+      // the pair goes down together: its Cup over a Goal's top Pin, the Pin riding in it
+      for (let gi = 0; gi < this.goals.length; gi++) {
+        if (this.nextKind(s, gi) === 'cup' && this.goalLegal(s, gi, s.t)) out.push({ type: 'place', goal: gi, bit: this.naturalBit(s, s.heldCup) });
+      }
+    } else {
+      if (s.heldPin >= 0) held.push([s.heldPin, 'pin']);
+      if (s.heldCup >= 0) held.push([s.heldCup, 'cup']);
+    }
     for (const [oi, kind] of held) {
       const o = this.objs[oi];
       for (let gi = 0; gi < this.goals.length; gi++) {
@@ -926,6 +1023,7 @@ export class PlanWorld {
         return `Load ${this.objs[a.obj].kind === 'pin' ? this.objs[a.obj].pinType + ' Pin' : 'Cup'} at ${this.loaders[a.loader].id}`;
       case 'place': {
         if (s) {
+          if (this.heldPair(s)) return `Place ${this.objs[s.heldCup].id} with ${this.objs[s.heldPin].id} in it on ${this.goals[a.goal].id} (${this.orientLabel(s.heldCup, a.bit)})`;
           const oi = this.nextKind(s, a.goal) === 'pin' ? s.heldPin : s.heldCup;
           if (oi >= 0) return `Place ${this.objs[oi].id} on ${this.goals[a.goal].id} (${this.orientLabel(oi, a.bit)})`;
         }
@@ -1013,7 +1111,8 @@ export class PlanWorld {
     switch (a.type) {
       case 'pick': {
         const o = this.objs[a.obj];
-        if (s.status[a.obj] !== ST_FIELD || !o.startPos || !this.canTake(s, o)) return null;
+        if (s.status[a.obj] !== ST_FIELD || !o.startPos || !this.pickable(s, o) || !this.canTake(s, o)) return null;
+        const rider = this.rider(s, o);
         const dropT = this.dropFirst(s);
         if (!moveTo(o.startPos, `o${a.obj}`, {}, minH)) return null;
         mechT = dropT + R.intake.intakeTimeSec + R.execution.pickOverheadSec + (R.intake.capacity === 'pinAndCup' && (s.heldPin >= 0 || s.heldCup >= 0) ? R.intake.indexTimeSec : 0);
@@ -1021,6 +1120,14 @@ export class PlanWorld {
         s.status[a.obj] = ST_HELD;
         if (o.kind === 'pin') s.heldPin = a.obj;
         else s.heldCup = a.obj;
+        if (rider >= 0) {
+          if (R.intake.capacity === 'single') {
+            // the claw grips the Cup; the Pin standing in it comes along
+            s.status[rider] = ST_HELD;
+            s.heldPin = rider;
+            notes.push(`${this.objs[rider].id} comes along in the Cup`);
+          } else s.status[rider] = ST_UNAVAILABLE; // a two-pocket intake knocks it off
+        }
         risk = 0.02;
         break;
       }
@@ -1050,6 +1157,8 @@ export class PlanWorld {
       case 'place': {
         const g = this.goals[a.goal];
         const kind = this.nextKind(s, a.goal);
+        const pair = this.heldPair(s);
+        if (pair && kind !== 'cup') return null;
         const oi = kind === 'pin' ? s.heldPin : s.heldCup;
         if (oi < 0) return null;
         if (!this.goalLegal(s, a.goal, s.t)) return null;
@@ -1063,18 +1172,24 @@ export class PlanWorld {
         if (robotTopHeight(R, req) > cfg.params.robot.verticalMaxIn && !(this.isEndgame(s.t) && !cfg.params.robot.verticalLimitAppliesInEndgame)) return null;
         if (!moveTo(g.pos, `g${a.goal}`, { goal: g.id }, req)) return null;
         const reorient = a.bit !== this.naturalBit(s, oi);
-        if (reorient && !R.intake.canReorient) return null;
+        if (reorient && (!R.intake.canReorient || pair)) return null;
         mechT = R.intake.releaseTimeSec + R.execution.placeOverheadSec + (reorient ? R.intake.reorientTimeSec : 0);
         if (R.intake.capacity === 'pinAndCup' && s.heldPin >= 0 && s.heldCup >= 0) mechT += R.intake.indexTimeSec;
         s.stacks[a.goal].push(oi * 2 + a.bit);
         s.status[oi] = ST_PLACED;
+        if (pair) {
+          label = `Place ${this.objs[oi].id} with ${this.objs[s.heldPin].id} in it on ${g.id} (${this.orientLabel(oi, a.bit)})`;
+          s.stacks[a.goal].push(s.heldPin * 2 + this.naturalBit(s, s.heldPin));
+          s.status[s.heldPin] = ST_PLACED;
+          s.heldPin = -1;
+        }
         if (kind === 'pin') s.heldPin = -1;
         else s.heldCup = -1;
         // Funnel tolerance vs positioning error → miss probability (Gaussian radial error).
         const tol = R.intake.placeToleranceIn + (kind === 'cup' ? 0.4 : 0);
         const sig = cfg.positionSigma;
         risk = sig > 0 ? Math.exp(-(tol * tol) / (2 * sig * sig)) : 0;
-        label = `Place ${this.objs[oi].id} on ${g.id} (${this.orientLabel(oi, a.bit)})`;
+        if (!pair) label = `Place ${this.objs[oi].id} on ${g.id} (${this.orientLabel(oi, a.bit)})`;
         break;
       }
       case 'toggle': {
@@ -1092,12 +1207,13 @@ export class PlanWorld {
       }
       case 'park': {
         if (this.isAutonomous(s.t)) return null;
-        // nearest pose overlapping the Midfield by ~3", facing the center
+        // nearest pose overlapping the Midfield diamond by ~3", facing the center
         const L = R.chassis.lengthIn;
         const cands: { pos: Vec2; heading: number }[] = [];
         for (let k = 0; k < 8; k++) {
           const h = (k / 8) * 2 * Math.PI;
-          const pos = fromAngle(h + Math.PI, MIDFIELD_INNER_HALF + L / 2 - 3);
+          const edge = MIDFIELD_REACH / (Math.abs(Math.cos(h)) + Math.abs(Math.sin(h)));
+          const pos = fromAngle(h + Math.PI, edge + L / 2 - 3);
           if (this.poseClear(pos, h)) cands.push({ pos, heading: h });
         }
         let bestT = Infinity;
@@ -1180,4 +1296,10 @@ export class PlanWorld {
     const g = this.goals[gi];
     return g.type === 'midfield' ? 'midfield' : quadrantOf(g.pos);
   }
+}
+
+/** Footprint radius of an object where it starts (a lying Pin reaches half its length). */
+function objRadius(o: StaticObj): number {
+  if (o.kind === 'cup') return CUP.diameter / 2;
+  return o.lying ? PIN.half : PIN.diameter / 2;
 }

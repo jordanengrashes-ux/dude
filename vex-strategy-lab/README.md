@@ -52,10 +52,11 @@ and RLS policies on `realtime.messages`.
 
 ## Team mode
 
-A room opens by itself when the page loads, and the address bar becomes its invite
-link (`…/?room=CODE`; the header has **copy invite link**). Whoever opens the link
+A room opens by itself when the page loads, in Practice too, so there is nothing to
+create; the header has **copy invite link** (`…/?room=CODE`). Whoever opens the link
 joins: they replace a bot (the host's partner first, then the opponents), get the
-3rd-person camera on their robot, and the match starts. If nobody is hosting the
+3rd-person camera on their robot, and the match starts. A host who was practicing
+is switched to a match for both of them. If nobody is hosting the
 linked room (its host left or reloaded), the visitor hosts it. Online rooms use
 Supabase Realtime; if it can't be reached, the room links tabs of the same browser.
 
@@ -121,9 +122,10 @@ HUD lets clicks through to the field); after a click, the keys drive again.
 
 Turning works at speed: when forward + turn would exceed full power, both sides
 scale down together so the turn is kept, and the turn grows with speed (in place it
-stays gentle for aiming). **No momentum** (checkbox in the HUD, or M) sets the
-robot's speed straight from the sticks: it is at speed at once and stops the moment
-you let go, with no coasting or sliding.
+stays gentle for aiming). **No momentum** (checkbox in the HUD, or M) keeps the
+same motors and top speed but takes out the coasting: let go and the robot stops
+dead, ease off and it slows at once, push the other way and it stops before
+reversing.
 
 **The claw** holds one piece and closes on what is between its jaws: a piece within
 about 1" of the claw's center line, at the claw. Driving into a piece with the claw
@@ -135,10 +137,12 @@ claw can't take a second one beside it.
 
 The HUD shows the claw (closed / open, and what it holds; the light on the carriage
 is green when closed, amber when open) and the **aligner**: a ring on the Goal your
-held piece would go on — white when you are near, orange when you are over it but
-holding it too low, green when opening the claw now places it. Goals catch a Pin
-within 1.0" of their axis and a Cup within 1.1" (the tapered Pin half centers itself
-in the opening).
+held piece would go on — or on a loose Cup standing on the tiles your Pin would drop
+into (a loose Pin, for a held Cup) — white when you are near, orange when you are
+over it but holding it too low, green when opening the claw now drops it in. Goals
+catch a Pin within 1.0" of their axis and a Cup within 1.1" (the tapered Pin half
+centers itself in the opening). A Pin that settles in a loose Cup stays with it as
+one piece until it's picked up or the pair tips over.
 
 **Easy claw** (checkbox in the HUD, or G): the claw grabs whatever the robot drives
 into (still one piece, still standing Pins), never takes a scored piece off a Goal,
@@ -149,11 +153,16 @@ player's choice.
 ## Practice
 
 The app opens in **Practice**: only your robot on the full Head-to-Head field, no
-bots, no team room, no time limit, you drive from the first second (no Autonomous
-wait) and no rule checks, in 3rd person, with Easy claw and No momentum on (turn
-them off in the HUD; this browser remembers). The clock starts when you start
-driving and counts up. **Match** in the header (or `?mode=match`) brings the bots
-and a team room; an invite link (`?room=`) opens a match.
+bots, no time limit, you drive from the first second (no Autonomous wait) and no
+rule checks, in 3rd person, with Easy claw and No momentum on (turn them off in the
+HUD). The clock starts when you start driving and counts up. **Match** in the header
+(or `?mode=match`) brings the bots; an invite link (`?room=`) opens a match. Your
+room stays open while you practice (see Team mode).
+
+**Settings are saved** in this browser as you change them: your robot, rule
+switches, match type and slot, each robot's strategy, optimizer settings, camera,
+view toggles, Practice / Match, plus key bindings, Easy claw and No momentum.
+**Reset settings** (Setup tab) goes back to the defaults.
 
 ## Plan mode
 
@@ -162,11 +171,17 @@ The **Plan** tab has two boards.
 **Autonomous**: build a routine on an overhead field and run it with the same
 physics as the match.
 - Click on the field to add steps. In *Smart* mode a click on a Goal adds a "place
-  on it" sequence (arm up to the Goal, route around Goal posts and Loaders, line the
-  claw up, open, back away, arm down), a click on a Pin or Cup adds "pick it up"
-  (arm down, route, open, drive the claw onto it, close), anywhere else a drive.
-  *Drive*, *Back up* and *Turn* modes add just that; shift-click backs up. In a
-  match autonomous, routes stay on your side of the Autonomous Line.
+  on it" sequence (arm up to the Goal, route around Goal posts, Loaders and the Pins
+  and Cups on the tiles, line the claw up, open, back away, arm down), a click on a
+  Pin or Cup adds "pick it up" (arm down, route, open, drive the claw onto it,
+  close), anywhere else a drive. Routes keep the robot off the other pieces (it may
+  brush one when there is no other way). *Drive*, *Back up* and *Turn* modes add
+  just that; shift-click backs up. In a match autonomous, routes stay on your side
+  of the Autonomous Line.
+- **Starting position**: drag the robot on the field to move it, its ⟳ handle to
+  turn it (15° steps, Shift for any angle), or type x / y / θ. It snaps against a
+  wall within 1.5"; the program's `setPose` follows, and a note says if the pose
+  breaks SG1 (not touching the wall, over the Autonomous Line, in a Load Zone).
 - Edit any step (coordinates, heading, speed, "keep going" = LemLib async), add
   lift / claw / wait / turn / Toggle-arm steps, reorder, delete, drag the numbered
   points on the field. New steps go after the selected one.
@@ -202,6 +217,32 @@ PID gains, so a routine that works here may still need tuning on the robot.
 **Whiteboard**: pen, arrows, notes and robot tokens over the field, several boards
 saved in this browser, and **Save picture** for a PNG to send to your team.
 
+## The field
+
+The field follows the Game Manual v1.1 Appendix A drawings: 140.41" inside the
+walls (1.27" thick, 11.5" tall), tile seams 23.545" apart; the Midfield is the
+diamond inside the tape through the four-tile corners; the Autonomous Line is two
+tape strips 2.5" apart from the corners to the Midfield and around it; Loaders
+stand on the Alliance Station walls 11.44" from the corners (3.74" deep, Ø3.39"
+tube), each in a Load Zone 11.56" × 24.47" marked by colored tape; Goals at the
+official spots with rims at 3.25" / 5.77" / 8.77". Pins (Ø3.16" band, Ø2.35"
+cones, 6.5") and Cups (Ø3.16" rims, Ø2.32" waist) have the published sizes.
+
+Starting pieces (Head-to-Head, 36 Cups and 33 Pins on the tiles, 5 Pins in Goals):
+four crosses on the Autonomous Line (a clear-up Cup with four Pins lying around it,
+colored ends out), a red/blue Pin standing in a Cup at each Midfield corner, yellow
+Pins in Cups on the diagonal, eight rows of Cup / Pin-in-Cup / Cup against the walls,
+and a yellow Pin on each neutral Goal and the Midfield Goal. Robots start one per
+Quadrant against their own wall, as in Figure SG-1. The 28 objects on the
+Autonomous Line may be used by either alliance in Autonomous (SG7b). Skills uses the
+same tiles with empty Goals.
+
+With a claw that takes only standing Pins, the 16 Pins lying in the crosses are out
+of reach until something stands them up; the standing Pins all start in Cups, so the
+claw picks those up as pairs (gripping the Cup) and stacks both on a Goal topped by
+a Pin. A robot's claw can't reach pieces touching a wall (its front would be in the
+wall), so the wall rows stay put until pushed out.
+
 ## The bots
 
 Every robot of both alliances runs an optimized plan by default (scripted strategies
@@ -232,11 +273,12 @@ opposing Load Zones in Driver Control; violations left are from being pushed.
 
 The bots drive the same robot you do: one piece in the claw, standing Pins only.
 When a plan trades the held piece for a different one (say, a Cup it can't place
-yet for a Pin), the bot sets it down and backs away first. Their intake runs as they
-close in, so a Pin they reach is caught rather than knocked over; a Pin that does
-tip over stays on the tiles for good, and Loaders or Goals blocked by such pieces
-are avoided for a while. With one piece per trip the bots score about half of what
-the earlier two-pocket holder did.
+yet for a Pin), the bot sets it down and backs away first. A Pin standing in a Cup
+is picked up with its Cup and stacked as a pair. Bots route around loose Pins and
+Cups when there is a way, and their intake runs as they close in, so a Pin they
+reach is caught rather than knocked over; a Pin that does tip over stays on the
+tiles for good, and Loaders or Goals blocked by such pieces are avoided for a while.
+A robot parked early (nothing else looked doable) looks again every few seconds.
 
 ## The robot
 
@@ -291,18 +333,21 @@ against the current manual before relying on them.
 
 Field elements and robots are detailed procedural models built from the published
 dimensions:
-- Pins: 6.5 in, two tapered halves, 3.0 in at the middle ridge narrowing to 1.3 in
-  tips; Cups: 6.5 in hourglass shells with 3.15 in rims and a 1.9 in waist. Each Pin
-  half nests in a Cup half (ridge on the rim), so stacks are Pin, Cup, Pin, Cup.
-- octagonal Goals on element plates, topped by conical sockets for the first Pin
-- 25.8 in tri-color Toggle bars on 11.5 in walls
+- Pins: 6.5 in, a Ø3.16 in band between two cones (Ø2.35 in narrowing to Ø1.40 in
+  tips); Cups: 6.48 in hourglass shells with Ø3.16 in rims and a Ø2.32 in waist.
+  Each Pin half nests in a Cup half (band on the rim), so stacks are Pin, Cup, Pin,
+  Cup.
+- octagonal Goals on element plates, topped by conical sockets (Ø2.37 in) for the
+  first Pin
+- 25.8 in tri-color Toggle bars on 11.5 in walls; wall Loaders with a clear tube
 
-The physics uses the same shapes: a Pin's collider is the convex hull of its profile;
-a Cup's is a hollow shell (8 wedges per half plus the middle web), so a Pin dropped
-into a loose Cup nests and a Cup on its side rolls on its rims. Pieces are 72 g / 77 g
-with plastic-on-foam friction and little bounce. The shapes follow community
-descriptions of the pieces (see the Rules tab); the Appendix A drawings and official
-CAD are authoritative.
+The physics uses the same shapes: a Pin's collider is its band and two cones (three
+convex pieces); a Cup's is a hollow shell (8 wedges per half plus the middle web), so
+a Pin dropped into a loose Cup nests and a Cup on its side rolls on its rims. Pieces
+are 72 g / 77 g with plastic-on-foam friction and little bounce. The robot's
+collision blocks are the parts the 3D model draws: the drive modules from the claw
+slot out to the sides (as tall as the wheels), the cross member and deck behind the
+slot, the lift towers, the claw carriage and the Toggle arm.
 
 The official STEP files can replace any of them: `docs/CAD.md` covers
 `npm run cad`, the converter self-test and `public/models/manifest.json`.
@@ -325,9 +370,11 @@ The official STEP files can replace any of them: `docs/CAD.md` covers
 
 ## Known limitations
 
-- Rules and some field dimensions come from secondary sources (see the Rules tab).
-  Element shapes beyond the published dimensions are approximations until official
-  CAD is loaded.
+- Rules come partly from secondary sources (see the Rules tab). The field layout and
+  dimensions are from the Game Manual v1.1 PDF (the copy that could be downloaded;
+  VEX marks it superseded), so re-check them against the current manual. Element
+  shapes beyond the published dimensions are approximations until official CAD is
+  loaded.
 - Plans are optimal only within the macro-action model and its candidate limits. On
   the full field the optimizer reports best found with a gap, not a proof.
 - Physical execution falls short of the model: objects get plowed, wedged or knocked

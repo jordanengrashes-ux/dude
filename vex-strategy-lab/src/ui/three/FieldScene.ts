@@ -365,7 +365,7 @@ export class FieldScene {
   private alignRing: THREE.Mesh | null = null;
   private goalPos = new Map(buildGoals().map((g) => [g.id, g.pos]));
 
-  /** Aligner ring over the Goal the followed robot would place on (white near, orange too low, green: release). */
+  /** Aligner ring over the Goal (or loose Cup / Pin) the followed robot would drop on (white near, orange too low, green: release). */
   private updateAligner(frame: SceneFrame) {
     const r = this.chaseId ? frame.robots.find((x) => x.id === this.chaseId) : undefined;
     const a = r?.align ?? null;
@@ -376,13 +376,14 @@ export class FieldScene {
       this.scene.add(this.alignRing);
     }
     const ring = this.alignRing;
-    const g = a ? this.goalPos.get(a.goal) : undefined;
+    const g = a ? (a.at ?? this.goalPos.get(a.goal)) : undefined;
     ring.visible = !!(a && g);
     if (!a || !g) return;
     const w = toWorld(g.x, g.y, a.top + 0.4);
     ring.position.set(w.x, w.y, w.z);
     (ring.material as THREE.MeshBasicMaterial).color.set(a.state === 2 ? '#39d353' : a.state === 1 ? '#ff9f1a' : '#ffffff');
-    ring.scale.setScalar(a.state === 2 ? 1.15 : 1);
+    // a loose piece is smaller than a Goal's socket
+    ring.scale.setScalar((a.state === 2 ? 1.15 : 1) * (a.at ? 0.95 : 1));
   }
 
   /** Robot the 3rd-person camera follows (null: none). */

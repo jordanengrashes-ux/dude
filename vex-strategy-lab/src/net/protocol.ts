@@ -112,8 +112,10 @@ export function encodeSnap(frame: SceneFrame, hud: HudData, k: number, keyframe:
     k,
     f: keyframe ? 1 : 0,
     r: frame.robots.map((r) => {
-      const goal = r.align ? GOAL_IDS.indexOf(r.align.goal) : -1;
-      return [...p3(r.chassis.p), ...q4(r.chassis.q), ...p3(r.carriage.p), ...q4(r.carriage.q), Math.round(r.holderH * 100), (r.claw ? 1 : 0) | (r.holding << 1), goal, r.align?.state ?? 0, Math.round((r.align?.top ?? 0) * 100)];
+      // the aligner's target: a Goal by index, or −2 and its position for a loose piece
+      const goal = r.align ? (r.align.at ? -2 : GOAL_IDS.indexOf(r.align.goal)) : -1;
+      const at = r.align?.at ? [Math.round(r.align.at.x * 100), Math.round(r.align.at.y * 100)] : [];
+      return [...p3(r.chassis.p), ...q4(r.chassis.q), ...p3(r.carriage.p), ...q4(r.carriage.q), Math.round(r.holderH * 100), (r.claw ? 1 : 0) | (r.holding << 1), goal, r.align?.state ?? 0, Math.round((r.align?.top ?? 0) * 100), ...at];
     }),
     o,
     g: frame.toggles.map((t) => q4(t.q)),
@@ -158,7 +160,8 @@ export function decodeSnap(snap: WireSnap, setup: SetupMsg, prev: SceneFrame | n
       if (!last || Math.hypot(last.x - g.x, last.y - g.y) > 1) trail.push(g);
       const flags = a[15] ?? 0;
       const goal = a[16] ?? -1;
-      const align = goal >= 0 && GOAL_IDS[goal] ? { goal: GOAL_IDS[goal], state: (a[17] ?? 0) as 0 | 1 | 2, top: (a[18] ?? 0) / 100 } : null;
+      const state = (a[17] ?? 0) as 0 | 1 | 2;
+      const align = goal >= 0 && GOAL_IDS[goal] ? { goal: GOAL_IDS[goal], state, top: (a[18] ?? 0) / 100 } : goal === -2 ? { goal: 'piece', state, top: (a[18] ?? 0) / 100, at: { x: (a[19] ?? 0) / 100, y: (a[20] ?? 0) / 100 } } : null;
       return { id: r.id, alliance: r.alliance, cfg: r.cfg, chassis, carriage: { p: P(a, 7), q: Q(a, 10) }, holderH: a[14] / 100, trail, claw: (flags & 1) === 1, holding: flags >> 1, align };
     }),
     objects,

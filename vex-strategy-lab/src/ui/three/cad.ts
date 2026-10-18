@@ -181,7 +181,7 @@ export async function applyCadOverrides(fs: FieldScene): Promise<CadOverrides | 
     }
   }
 
-  // ---- Loaders (authored for the (−x, −y) corner; rotate for the others)
+  // ---- Loaders (authored for the red wall (−x): origin on the wall's inner face behind the Loader; turned 180° for blue)
   if (el.loader) {
     for (const l of buildLoaders()) {
       const e = el.loader[l.alliance];
@@ -190,13 +190,9 @@ export async function applyCadOverrides(fs: FieldScene): Promise<CadOverrides | 
       if (!m) continue;
       const proc = scene.getObjectByName(`loader:${l.id}`);
       if (proc) proc.visible = false;
-      const corner = toWorld(l.corner.x, l.corner.y);
-      const sx = Math.sign(l.corner.x);
-      const sy = Math.sign(l.corner.y);
-      // quarter turns taking the (−,−) corner to (sx, sy); world yaw is about +Y with world z = −game y
-      const quarter = sx < 0 && sy < 0 ? 0 : sx > 0 && sy < 0 ? 1 : sx > 0 && sy > 0 ? 2 : 3;
-      m.rotation.y = (quarter * Math.PI) / 2;
-      m.position.set(corner.x, 0, corner.z);
+      const w = toWorld(l.wall.x, l.wall.y);
+      m.rotation.y = l.alliance === 'red' ? 0 : Math.PI;
+      m.position.set(w.x, 0, w.z);
       scene.add(m);
       if (!replaced.includes('loaders')) replaced.push('loaders');
     }

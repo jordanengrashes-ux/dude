@@ -4,66 +4,85 @@ import type { QuadrantId } from '../rules/fieldState';
 import type { Alliance } from '../rules/ruleset';
 
 /**
- * Override field geometry (inches, field-centered game frame).
- * See rules/ruleset.ts OVERRIDE_RULES for provenance of each constant.
+ * Override field geometry (inches, field-centered game frame: x toward the blue
+ * Alliance Station, y away from the audience). Dimensions are from the Game Manual
+ * v1.1 Appendix A drawings (field, tape, Goal, Loader and object sheets).
  */
 
-/** 600 mm foam tile (VEX field system). */
-export const TILE = 600 / 25.4; // 23.622"
-/** Half the inside dimension of the perimeter (3 tiles). */
-export const HALF = 3 * TILE; // 70.866"
-/** Field wall height: 11.5" nominal (GDC Q&A allows 11.5"–12.5"; older VEX field drawings list 11.50"). */
+/** Tile seam spacing on the Appendix A field drawing (seams at ±23.545" and ±47.09"). */
+export const TILE = 23.545;
+/** Half the inside wall-to-wall dimension (140.41" on the field drawing; ~140.5" on the perimeter sheet). */
+export const HALF = 140.41 / 2; // 70.205"
+/** Field wall height (perimeter sheet: 11.50"). */
 export const PERIMETER_HEIGHT = 11.5;
-export const PERIMETER_THICKNESS = 1.5; // assumption (extrusion + panel depth)
-export const TAPE_WIDTH = 2.5; // Autonomous Line tape width (official extract: 2.50 in)
-
-/** Midfield: square of tape centered on the tile seams at ±1 tile; volume = inner edges. */
-export const MIDFIELD_INNER_HALF = TILE - TAPE_WIDTH / 2; // 22.372"
-
-/** Load Zone: square in each Loader corner (approximate footprint). */
-export const LOAD_ZONE_SIZE = TILE; // assumption
+/** Wall thickness (perimeter sheet: 1.27"). */
+export const PERIMETER_THICKNESS = 1.27;
+/** One strip of white tape (measured on the tape sheet: the 2.50" Autonomous Line is two strips and a gap). */
+export const TAPE_WIDTH = 0.75;
+/** The Autonomous Line along x + y = 0: two tape strips, 2.50" outside to outside. */
+export const AUTON_LINE_WIDTH = 2.5;
 
 /**
- * Pin: two tapered halves joined at a ridge — widest (3.0") at the middle, narrowing
- * to a 1.3" tip at each end. Each half nests in a Cup half (or a Goal socket) with
- * the ridge on the rim. `profile`: [radius, distance from the middle] (in), middle →
- * tip; the four diameters are the ridge, the start and end of the taper, and the tip.
- * Approximate (community descriptions: "3 in wide at the middle", "ends 1.25–1.5 in",
- * "four diameters", 6–6.5 in long); Appendix A drawings are authoritative.
+ * Midfield: a diamond (a square turned 45°) of single tape whose centerline runs
+ * through the four-tile corners (±TILE, 0) and (0, ±TILE). The volume is bounded by
+ * the tape's inner edges: |x| + |y| ≤ MIDFIELD_REACH.
+ */
+export const MIDFIELD_REACH = TILE - (TAPE_WIDTH / 2) * Math.SQRT2; // 23.01"
+
+/**
+ * Pin: two tapered halves joined at a band — the band is Ø3.16" and 0.64" tall,
+ * each half a cone from Ø2.35" at the band to a Ø1.40" tip; 6.50" long. Each half
+ * nests in a Cup half (or a Goal socket) with the band on the rim. `profile`:
+ * [radius, distance from the middle] (in), middle → tip.
  */
 export const PIN = {
-  diameter: 3.0,
-  tipDiameter: 1.3,
+  diameter: 3.16,
+  tipDiameter: 1.4,
   length: 6.5,
   half: 3.25,
   massKg: 0.072,
   profile: [
-    [1.5, 0],
-    [1.5, 0.18],
-    [1.45, 0.3],
-    [0.75, 3.05],
-    [0.65, 3.25],
+    [1.58, 0],
+    [1.58, 0.32],
+    [1.175, 0.36],
+    [0.72, 3.1],
+    [0.7, 3.25],
   ] as [number, number][],
 } as const;
 
 /**
- * Cup: an hourglass shell — 3.15" rims at both ends narrowing to a 1.9" waist with a
- * web at the middle; each half is a conical cup that takes one Pin half. One half
- * clear, the other gray. Approximate (community: "3 in wide at the ends", 80 mm ×
- * 164.5 mm); Appendix A drawings are authoritative.
+ * Cup: an hourglass shell — Ø3.16" rims at both ends narrowing to a Ø2.32" waist
+ * with a web at the middle; 6.48" long. Each half is a conical cup that takes one
+ * Pin half. One half clear, the other gray.
  */
 export const CUP = {
-  diameter: 3.15,
-  waistDiameter: 1.9,
+  diameter: 3.16,
+  waistDiameter: 2.32,
   wall: 0.08,
   web: 0.15,
-  length: 6.5,
-  half: 3.25,
+  length: 6.48,
+  half: 3.24,
   massKg: 0.077,
 } as const;
 
-/** Goal top: a conical socket the first Pin's lower half sits in (ridge on the rim). */
-export const GOAL_SOCKET = { topRadius: 1.66, depth: PIN.half } as const;
+/**
+ * How far a Pin standing in a loose Cup sits above the Pin–Cup stacking height: its
+ * band's tapered underside rests on the Cup's rim, where the profile narrows to the
+ * rim's inner radius (Goal stacks are drawn band-on-rim).
+ */
+export function pinSeatLift(): number {
+  const rIn = CUP.diameter / 2 - CUP.wall;
+  const p = PIN.profile;
+  for (let i = 1; i < p.length; i++) {
+    const [r0, d0] = p[i - 1];
+    const [r1, d1] = p[i];
+    if (r0 >= rIn && r1 <= rIn) return r0 === r1 ? d0 : d0 + ((r0 - rIn) / (r0 - r1)) * (d1 - d0);
+  }
+  return 0;
+}
+
+/** Goal top: a conical socket (Ø2.37" opening) the first Pin's lower half sits in, band on the rim. */
+export const GOAL_SOCKET = { topRadius: 2.37 / 2, depth: PIN.half } as const;
 
 export interface GoalGeom {
   id: string;
@@ -81,8 +100,9 @@ export interface GoalGeom {
  * Toggle: a long triangular bar mounted on top of the middle of a field wall,
  * rotating about its long axis (parallel to the wall). Each of its three long faces
  * is red, yellow or blue; it is set to a color when it rests on a face in that
- * detent and no Robot touches it (SC4). Length 25.8" and ~2.05" faces are from a
- * community transcription of Appendix A; the mount position is an assumption.
+ * detent and no Robot touches it (SC4). Toggles start yellow face up and into the
+ * field. Length 25.8" and ~2.05" faces are from a community transcription of
+ * Appendix A; the mount position is an assumption.
  */
 export interface ToggleGeom {
   id: string;
@@ -106,46 +126,83 @@ export interface ToggleGeom {
 export const TOGGLE_LENGTH = 25.8;
 export const TOGGLE_FACE = 2.05;
 
+/**
+ * Loader: a hopper on an Alliance Station wall, 11.44" from each corner. Its body
+ * sticks 3.74" into the field and is 4.02" wide; Match Loads drop down its Ø3.39"
+ * tube and come out of the 3.25"-tall opening at the bottom, facing the field.
+ */
+export const LOADER = { depth: 3.74, width: 4.02, tubeDiameter: 3.39, openingHeight: 3.25, height: 14, fromCenter: 58.765 } as const;
+
 export interface LoaderGeom {
   id: string;
   alliance: Alliance;
-  corner: Vec2;
-  /** Where a Match Load rests after introduction (inside the field, at the chute mouth). */
+  /** Center of the Loader body's footprint on the tiles. */
+  pos: Vec2;
+  /** Footprint half extents (axis-aligned). */
+  halfSize: Vec2;
+  /** Point on the wall's inner face behind the Loader. */
+  wall: Vec2;
+  /** Where a Match Load rests after introduction (inside the field, at the opening). */
   dispense: Vec2;
-  /** Direction from the dispense point into the field (robot approaches against it). */
+  /** Direction from the Loader into the field (robot approaches against it). */
   outward: Vec2;
-  footprint: number;
+  height: number;
 }
 
-const GOAL_HEIGHTS = { alliance: 3.25, neutral: 5.8, midfield: 8.7 } as const;
+const GOAL_HEIGHTS = { alliance: 3.25, neutral: 5.77, midfield: 8.77 } as const;
 
+/** Quadrant: the four triangles between the field's diagonals. */
 export function quadrantOf(p: Vec2): QuadrantId {
   if (Math.abs(p.x) >= Math.abs(p.y)) return p.x < 0 ? 'R1' : 'B1';
   return p.y < 0 ? 'R2' : 'B2';
 }
 
-/** Alliance side of the Autonomous Line (red = the two red Quadrants, x + y < 0). */
+/** Half width of the Autonomous Line band in x + y units. */
+const LINE_S = (AUTON_LINE_WIDTH / 2) * Math.SQRT2;
+/** The Midfield tape's outer edge in |x| + |y| units (the Autonomous Line runs around the Midfield). */
+const DIAMOND_OUTER = TILE + (TAPE_WIDTH / 2) * Math.SQRT2;
+
+/**
+ * Alliance side of the Autonomous Line (red = the two red Quadrants, x + y < 0).
+ * 'line' = on the Autonomous Line: the band between its two tape strips, or inside
+ * the Midfield tape that it runs around.
+ */
 export function sideOf(p: Vec2): Alliance | 'line' {
   const s = p.x + p.y;
-  const halfTapeDiag = (TAPE_WIDTH / 2) * Math.SQRT2;
-  if (s < -halfTapeDiag) return 'red';
-  if (s > halfTapeDiag) return 'blue';
-  return 'line';
+  if (Math.abs(s) <= LINE_S || Math.abs(p.x) + Math.abs(p.y) <= DIAMOND_OUTER) return 'line';
+  return s < 0 ? 'red' : 'blue';
+}
+
+/** Distance from a point to the Autonomous Line (0 on it). */
+export function distToAutonLine(p: Vec2): number {
+  const band = Math.max(0, (Math.abs(p.x + p.y) - LINE_S) / Math.SQRT2);
+  const diamond = Math.max(0, (Math.abs(p.x) + Math.abs(p.y) - DIAMOND_OUTER) / Math.SQRT2);
+  return Math.min(band, diamond);
+}
+
+/** SG7b: a Scoring Object of radius `r` starting here is on the Autonomous Line (usable by both Alliances). */
+export function onAutonLine(p: Vec2, r: number): boolean {
+  return distToAutonLine(p) <= r;
 }
 
 export function inMidfieldPoint(p: Vec2): boolean {
-  return Math.abs(p.x) <= MIDFIELD_INNER_HALF && Math.abs(p.y) <= MIDFIELD_INNER_HALF;
+  return Math.abs(p.x) + Math.abs(p.y) <= MIDFIELD_REACH;
+}
+
+/** The Midfield's boundary (inner tape edges), CCW. */
+export function midfieldPolygon(): Vec2[] {
+  const R = MIDFIELD_REACH;
+  return [{ x: R, y: 0 }, { x: 0, y: R }, { x: -R, y: 0 }, { x: 0, y: -R }];
 }
 
 /** SC6: any part of the robot footprint within the Midfield volume. */
 export function footprintInMidfield(center: Vec2, heading: number, length: number, width: number): boolean {
-  const poly = obbCorners(center, heading, length, width);
-  return polyIntersectsAabb(poly, -MIDFIELD_INNER_HALF, -MIDFIELD_INNER_HALF, MIDFIELD_INNER_HALF, MIDFIELD_INNER_HALF);
+  return convexPolysIntersect(obbCorners(center, heading, length, width), midfieldPolygon());
 }
 
-/** Polygon (CCW) of an alliance's side of the Autonomous Line, used for SG7 checks. */
+/** Polygon (CCW) of an alliance's side of the Autonomous Line (outside the band), used for SG7 checks. */
 export function sidePolygon(a: Alliance): Vec2[] {
-  const o = (TAPE_WIDTH / 2) * Math.SQRT2 * 0.5;
+  const o = LINE_S;
   if (a === 'red') return [{ x: -HALF, y: HALF - o }, { x: -HALF, y: -HALF }, { x: HALF - o, y: -HALF }];
   return [{ x: HALF, y: -HALF + o }, { x: HALF, y: HALF }, { x: -HALF + o, y: HALF }];
 }
@@ -155,9 +212,10 @@ export function footprintOnOpposingSide(center: Vec2, heading: number, length: n
   const opp: Alliance = alliance === 'red' ? 'blue' : 'red';
   const poly = obbCorners(center, heading, length, width);
   if (!convexPolysIntersect(poly, sidePolygon(opp))) return false;
-  // Midfield is shared territory (SG8); only count contact outside the Midfield square.
-  const outsideMid = poly.some((p) => !inMidfieldPoint(p) && sideOf(p) === opp);
-  return outsideMid;
+  // the Autonomous Line and the Midfield it runs around are shared (SG8): check the
+  // footprint's corners and edge midpoints against the opposing side itself
+  const pts = [...poly, ...poly.map((p, i) => ({ x: (p.x + poly[(i + 1) % 4].x) / 2, y: (p.y + poly[(i + 1) % 4].y) / 2 }))];
+  return pts.some((p) => sideOf(p) === opp);
 }
 
 export function buildGoals(): GoalGeom[] {
@@ -207,28 +265,46 @@ export function buildToggles(): ToggleGeom[] {
 }
 
 export function buildLoaders(): LoaderGeom[] {
-  const F = 6; // loader footprint (assumption)
-  const mk = (id: string, alliance: Alliance, sx: number, sy: number): LoaderGeom => {
-    const corner = { x: sx * HALF, y: sy * HALF };
-    const outward = { x: -sx * Math.SQRT1_2, y: -sy * Math.SQRT1_2 };
-    // Loader box occupies the corner square of side F; its inner corner is F·√2 from the field corner.
-    // Match Loads rest just outside it, on the diagonal.
-    // 3.7" offset keeps a 16" robot facing the corner at 45° inside the perimeter (assumption).
-    const d = F * Math.SQRT2 + 3.7;
-    return { id, alliance, corner, dispense: { x: corner.x + outward.x * d, y: corner.y + outward.y * d }, outward, footprint: F };
+  const mk = (id: string, alliance: Alliance, sy: number): LoaderGeom => {
+    const sx = alliance === 'red' ? -1 : 1;
+    const y = sy * LOADER.fromCenter;
+    const outward = { x: -sx, y: 0 };
+    // a Match Load stands in front of the opening, just clear of the Loader body
+    const d = LOADER.depth + PIN.diameter / 2 + 0.1;
+    return {
+      id,
+      alliance,
+      pos: { x: sx * (HALF - LOADER.depth / 2), y },
+      halfSize: { x: LOADER.depth / 2, y: LOADER.width / 2 },
+      wall: { x: sx * HALF, y },
+      dispense: { x: sx * (HALF - d), y },
+      outward,
+      height: LOADER.height,
+    };
   };
-  return [mk('L-R-low', 'red', -1, -1), mk('L-R-high', 'red', -1, 1), mk('L-B-high', 'blue', 1, 1), mk('L-B-low', 'blue', 1, -1)];
+  return [mk('L-R-low', 'red', -1), mk('L-R-high', 'red', 1), mk('L-B-high', 'blue', 1), mk('L-B-low', 'blue', -1)];
 }
 
-/** Load Zone squares (corner-anchored) as AABBs: [minX, minY, maxX, maxY]. */
+/** Loader body footprint as an AABB: [minX, minY, maxX, maxY]. */
+export function loaderAabb(l: LoaderGeom): [number, number, number, number] {
+  return [l.pos.x - l.halfSize.x, l.pos.y - l.halfSize.y, l.pos.x + l.halfSize.x, l.pos.y + l.halfSize.y];
+}
+
+/**
+ * Load Zones: the area around each Loader inside the outer edges of its colored
+ * L of tape — 11.56" out from the Alliance Station wall and 24.47" along it from the
+ * corner. As AABBs: [minX, minY, maxX, maxY].
+ */
+export const LOAD_ZONE = { depth: HALF - 58.65, length: HALF - 45.74 } as const;
+
 export function loadZones(): { alliance: Alliance; aabb: [number, number, number, number] }[] {
   return buildLoaders().map((l) => {
-    const sx = Math.sign(l.corner.x);
-    const sy = Math.sign(l.corner.y);
+    const sx = Math.sign(l.wall.x);
+    const sy = Math.sign(l.wall.y);
     const x0 = sx * HALF;
     const y0 = sy * HALF;
-    const x1 = x0 - sx * LOAD_ZONE_SIZE;
-    const y1 = y0 - sy * LOAD_ZONE_SIZE;
+    const x1 = x0 - sx * LOAD_ZONE.depth;
+    const y1 = y0 - sy * LOAD_ZONE.length;
     return { alliance: l.alliance, aabb: [Math.min(x0, x1), Math.min(y0, y1), Math.max(x0, x1), Math.max(y0, y1)] as [number, number, number, number] };
   });
 }
@@ -238,6 +314,51 @@ export function footprintInLoadZone(center: Vec2, heading: number, length: numbe
   return loadZones()
     .filter((z) => z.alliance === alliance)
     .some((z) => polyIntersectsAabb(poly, ...z.aabb));
+}
+
+export interface TapeStrip {
+  a: Vec2;
+  b: Vec2;
+  color: 'white' | Alliance;
+}
+
+/**
+ * Tape on the tiles as strip centerlines, each TAPE_WIDTH wide (tape sheet): the
+ * Autonomous Line's two strips from the corners to the Midfield, the Midfield
+ * diamond, the single diagonal y = x between the Quadrants, and each Load Zone's
+ * colored L (its outer edge on the zone boundary).
+ */
+export function tapeStrips(): TapeStrip[] {
+  const T = TILE;
+  const w = TAPE_WIDTH;
+  const out: TapeStrip[] = [];
+  // Autonomous Line strips: x + y = ±c, from the walls to the diamond's centerline (−x + y = T or x − y = T)
+  const c = ((AUTON_LINE_WIDTH - w) / 2) * Math.SQRT2;
+  for (const k of [-c, c]) {
+    for (const s of [-1, 1]) {
+      // s = −1: top-left half (x < 0); s = 1: bottom-right half
+      const wall = s < 0 ? (k >= 0 ? { x: k - HALF, y: HALF } : { x: -HALF, y: k + HALF }) : k >= 0 ? { x: HALF, y: k - HALF } : { x: k + HALF, y: -HALF };
+      const end = s < 0 ? { x: (k - T) / 2, y: (k + T) / 2 } : { x: (k + T) / 2, y: (k - T) / 2 };
+      out.push({ a: wall, b: end, color: 'white' });
+    }
+  }
+  // Midfield diamond
+  const v = [{ x: T, y: 0 }, { x: 0, y: T }, { x: -T, y: 0 }, { x: 0, y: -T }];
+  for (let i = 0; i < 4; i++) out.push({ a: v[i], b: v[(i + 1) % 4], color: 'white' });
+  // y = x between the Quadrants, corners to the diamond
+  out.push({ a: { x: -HALF, y: -HALF }, b: { x: -T / 2, y: -T / 2 }, color: 'white' });
+  out.push({ a: { x: T / 2, y: T / 2 }, b: { x: HALF, y: HALF }, color: 'white' });
+  // Load Zone L's
+  for (const z of loadZones()) {
+    const [x0, y0, x1, y1] = z.aabb;
+    const sx = x0 <= -HALF + 1e-6 ? -1 : 1;
+    const sy = y0 <= -HALF + 1e-6 ? -1 : 1;
+    const xe = sx < 0 ? x1 - w / 2 : x0 + w / 2; // edge along the field side
+    const ye = sy < 0 ? y1 - w / 2 : y0 + w / 2;
+    out.push({ a: { x: xe, y: sy * HALF }, b: { x: xe, y: ye - (sy * w) / 2 }, color: z.alliance });
+    out.push({ a: { x: sx * HALF, y: ye }, b: { x: xe + (sx * w) / 2, y: ye }, color: z.alliance });
+  }
+  return out;
 }
 
 /** True if any corner of the footprint is within `margin` of the perimeter. */

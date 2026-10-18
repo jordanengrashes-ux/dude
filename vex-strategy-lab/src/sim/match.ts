@@ -9,9 +9,10 @@ import {
   footprintOnOpposingSide,
   CUP,
   PIN,
+  pinSeatLift,
   type LoaderGeom,
 } from '../field/geometry';
-import { PIN_COLORS, type FieldLayout } from '../field/layout';
+import { fitStartToWall, PIN_COLORS, type FieldLayout } from '../field/layout';
 import type { RobotConfig } from '../robot/config';
 import { robotTopHeight } from '../robot/kinematics';
 import type { FieldState, GoalState, Period, StackElement, TogglePosition, Violation } from '../rules/fieldState';
@@ -203,7 +204,8 @@ export class MatchSim {
     const L = this.opts.layout;
     // robots
     for (const rs of this.opts.robots) {
-      const start = rs.start ?? L.robots.find((r) => r.slot === rs.id) ?? { pos: { x: 0, y: 0 }, heading: 0 };
+      const ls = L.robots.find((r) => r.slot === rs.id);
+      const start = rs.start ?? (ls ? fitStartToWall(ls, rs.config.chassis.lengthIn, rs.config.chassis.widthIn) : { pos: { x: 0, y: 0 }, heading: 0 });
       const body = new RobotBody(R, this.world, rs.id, rs.alliance, rs.config, start, this.field.floor);
       body.motorScale = rs.motorScale ?? 1;
       body.tractionScale = rs.tractionScale ?? 1;
@@ -228,14 +230,22 @@ export class MatchSim {
     const jitter = this.opts.objectJitterSd ?? 0;
     const sortedGoal = <T extends { start: { where: string } }>(arr: T[]) => arr;
     const goalPlacements: { obj: SimObject; goalId: string; index: number; flipped: boolean }[] = [];
+    // a Pin that starts in a Cup moves with it
+    const cupJitter = new Map<string, { x: number; y: number }>();
     for (const p of sortedGoal(L.pins)) {
       const colors = PIN_COLORS[p.type];
       const obj = this.objects.add({ id: p.id, kind: 'pin', colors, matchloadAlliance: p.start.where === 'matchload' ? p.start.alliance : undefined });
       const s = p.start;
       if (s.where === 'field') {
-        const jx = jitter ? this.rng.normal(0, jitter) : 0;
-        const jy = jitter ? this.rng.normal(0, jitter) : 0;
-        this.objects.spawn(obj, { x: s.pos.x + jx, y: s.pos.y + jy, z: 0, flipped: colors[1] !== s.upColor && colors[0] === s.upColor });
+        const j = { x: jitter ? this.rng.normal(0, jitter) : 0, y: jitter ? this.rng.normal(0, jitter) : 0 };
+        const x = s.pos.x + j.x;
+        const y = s.pos.y + j.y;
+        const upEnd = colors[1] === s.upColor || colors[0] !== s.upColor; // local +Y half is the named one
+        if (s.lying) this.objects.spawn(obj, { x, y, z: 0, flipped: false, lie: (s.axis ?? 0) + (upEnd ? 0 : Math.PI) });
+        else {
+          if (s.inCup) cupJitter.set(s.inCup, j);
+          this.objects.spawn(obj, { x, y, z: s.inCup ? CUP.length - PIN.half + pinSeatLift() : 0, flipped: !upEnd });
+        }
       } else if (s.where === 'goal') {
         goalPlacements.push({ obj, goalId: s.goalId, index: s.index ?? 0, flipped: colors[0] !== s.bottom });
       } else if (s.where === 'preload' || s.where === 'held') {
@@ -247,15 +257,19 @@ export class MatchSim {
       const obj = this.objects.add({ id: c.id, kind: 'cup', matchloadAlliance: c.start.where === 'matchload' ? c.start.alliance : undefined });
       const s = c.start;
       if (s.where === 'field') {
-        const jx = jitter ? this.rng.normal(0, jitter) : 0;
-        const jy = jitter ? this.rng.normal(0, jitter) : 0;
-        this.objects.spawn(obj, { x: s.pos.x + jx, y: s.pos.y + jy, z: 0, flipped: !s.grayUp });
+        const j = cupJitter.get(c.id) ?? { x: jitter ? this.rng.normal(0, jitter) : 0, y: jitter ? this.rng.normal(0, jitter) : 0 };
+        this.objects.spawn(obj, { x: s.pos.x + j.x, y: s.pos.y + j.y, z: 0, flipped: !s.grayUp });
       } else if (s.where === 'goal') {
         goalPlacements.push({ obj, goalId: s.goalId, index: s.index, flipped: s.grayDown });
       } else if (s.where === 'held') {
         const r = this.robots.find((x) => x.id === s.robotSlot);
         if (r) this.attachAtStart(r, obj, !s.grayUp);
       }
+    }
+    for (const p of L.pins) {
+      const cup = p.start.where === 'field' && p.start.inCup ? this.objects.objects.get(p.start.inCup) : undefined;
+      const pin = this.objects.objects.get(p.id);
+      if (cup?.body && pin?.body) this.objects.bond(cup, pin);
     }
     goalPlacements.sort((a, b) => (a.goalId < b.goalId ? -1 : a.goalId > b.goalId ? 1 : a.index - b.index));
     for (const gp of goalPlacements) this.objects.preplace(gp.obj, gp.goalId, gp.flipped);
@@ -372,6 +386,7 @@ export class MatchSim {
     }
     for (const tb of this.field.toggles) stepToggle(tb, DT);
     this.processMatchLoads();
+    if (this.steps % 6 === 3) this.bondSettledPairs();
     this.objects.stepAnimations(
       this.t,
       (id) => this.robot(id)?.body.carriageFrame() ?? null,
@@ -513,12 +528,9 @@ export class MatchSim {
       let bestD = Infinity;
       for (const obj of this.objects.objects.values()) {
         if (obj.mode !== 'free' || !obj.body || !canTake(obj.kind)) continue;
-        // the claw closes around a standing Pin; one lying down slips out (one tipping
-        // over as the robot reaches it, standing a moment ago, is still caught)
-        if (obj.kind === 'pin') {
-          if (tiltDeg(obj) <= cfg.intake.maxPinTiltDeg) obj.uprightAt = this.t;
-          else if (!(this.t - (obj.uprightAt ?? -Infinity) < 0.5)) continue;
-        }
+        // the claw closes only around a standing Pin: one lying on its side (or tipped
+        // past the claw's limit) slips out and is never lifted
+        if (obj.kind === 'pin' && tiltDeg(obj) > cfg.intake.maxPinTiltDeg) continue;
         const p = obj.body.translation();
         if (p.y / IN > 5) continue;
         const gx = p.x / IN;
@@ -541,13 +553,13 @@ export class MatchSim {
         }
       }
       if (best) {
-        // a nested pair comes along together (drivers' claws; bots take what their plan picks):
-        // the claw grips the bottom piece, the one nested on it rides
+        // a nested pair comes along together: the claw grips the bottom piece, the one
+        // nested on it rides
         let rider: SimObject | null = null;
-        if (single && !r.req.intakeKind) {
+        if (single) {
           const under = this.nestedOn(best, -1);
-          if (under) [best, rider] = [under, best];
-          else rider = this.nestedOn(best, 1);
+          if (under && (!want || want === under.kind)) [best, rider] = [under, best];
+          else if (!under) rider = this.nestedOn(best, 1);
         }
         this.beginIntake(r, best, fr);
         if (rider) this.beginIntake(r, rider, fr, true);
@@ -572,6 +584,26 @@ export class MatchSim {
         this.beginIntake(r, obj, fr);
       }
       return;
+    }
+  }
+
+  /**
+   * A piece that came to rest nested on a loose one (a Pin dropped into a Cup, a Cup
+   * over a Pin, a pair set down) is held to it like the field's starting pairs.
+   */
+  private bondSettledPairs() {
+    const still = (o: SimObject) => {
+      const v = o.body!.linvel();
+      return Math.hypot(v.x, v.y, v.z) / IN < 0.5 && tiltDeg(o) < 10;
+    };
+    // seated, not caught at the top of a bounce: the middles sit a half plus the seat lift apart
+    const seated = CUP.half + pinSeatLift();
+    for (const top of this.objects.objects.values()) {
+      if (top.mode !== 'free' || top.bond || !top.body || !still(top)) continue;
+      const base = this.nestedOn(top, -1);
+      if (!base?.body || base.bond || !still(base)) continue;
+      if (Math.abs(Math.abs(top.body.translation().y - base.body.translation().y) / IN - seated) > 0.2) continue;
+      this.objects.bond(base, top);
     }
   }
 
@@ -868,7 +900,9 @@ export class MatchSim {
 
   /**
    * Aligner for the object a robot would release (primary pocket): the nearest Goal
-   * that takes that kind next, and whether opening the claw now would place it.
+   * that takes that kind next — or loose piece standing on the tiles it would nest
+   * on (a Pin into a Cup, a Cup over a Pin) — and whether opening the claw now would
+   * drop it in.
    */
   alignHint(r: SimRobot): AlignHint | null {
     const obj = r.primary;
@@ -889,6 +923,25 @@ export class MatchSim {
       const high = bottom >= this.objects.nextBottom(st) - this.objects.funnel.below;
       best = { goal: st.goal.id, state: lined && high ? 2 : lined ? 1 : 0, top: this.objects.topHeight(st) };
     }
+    if (r.secondary) return best; // a nested pair goes onto Goals only
+    // loose pieces: an upright piece of the other kind with nothing nested on it yet
+    const want = obj.kind === 'pin' ? 'cup' : 'pin';
+    // a Pin's tip has to clear the Cup's rim to drop in; a Cup's rim has to clear the Pin's band
+    const tolPiece = obj.kind === 'pin' ? CUP.diameter / 2 - CUP.wall - PIN.tipDiameter / 2 - 0.05 : CUP.diameter / 2 - CUP.wall - PIN.tipDiameter / 2;
+    for (const o of this.objects.objects.values()) {
+      if (o.kind !== want || o.mode !== 'free' || !o.body || o.bond || tiltDeg(o) > 12) continue;
+      if (this.nestedOn(o, 1)) continue;
+      const t = o.body.translation();
+      const ox = t.x / IN;
+      const oy = -t.z / IN;
+      const off = Math.hypot(x - ox, y - oy);
+      if (off >= bestOff) continue;
+      bestOff = off;
+      const top = t.y / IN + (o.kind === 'pin' ? PIN.length : CUP.length) / 2;
+      const lined = off <= tolPiece;
+      const high = bottom >= top - (o.kind === 'cup' ? PIN.half - 0.4 : CUP.half - 0.4);
+      best = { goal: o.id, state: lined && high ? 2 : lined ? 1 : 0, top, at: { x: ox, y: oy } };
+    }
     return best;
   }
 
@@ -902,7 +955,10 @@ export class MatchSim {
     for (const spec of L.pins) {
       const o = this.objects.objects.get(spec.id)!;
       const tipped = o.mode === 'free' && !!o.body && tiltDeg(o) > maxTilt;
-      pins.push({ ...spec, start: (tipped ? { where: 'unavailable' } : this.objStart(o)) as FieldLayout['pins'][number]['start'] });
+      const start = (tipped ? { where: 'unavailable' } : this.objStart(o)) as FieldLayout['pins'][number]['start'];
+      // standing in a Cup: the pair is picked up together
+      const cup = start.where === 'field' && !start.lying ? this.nestedOn(o, -1) : null;
+      pins.push({ ...spec, start: cup && start.where === 'field' ? { ...start, inCup: cup.id } : start });
     }
     for (const spec of L.cups) {
       const o = this.objects.objects.get(spec.id)!;

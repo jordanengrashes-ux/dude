@@ -47,6 +47,8 @@ export interface AutonProgram {
   /** Match autonomous (15 s, Head-to-Head field) or Skills autonomous (60 s). */
   mode: AutonMode;
   steps: AutonStep[];
+  /** Where the robot starts (field inches, field heading in radians); the slot's tile when unset. */
+  start?: { x: number; y: number; heading: number };
 }
 
 /** Motion steps (they drive the chassis). */

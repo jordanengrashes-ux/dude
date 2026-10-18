@@ -131,7 +131,7 @@ export function ImportDialog() {
       <div className="import-grid">
         <textarea
           className="code"
-          placeholder={'void autonomous() {\n  chassis.setPose(-61, -36, 90);\n  chassis.moveToPoint(-36, -36, 2000);\n  ...\n}'}
+          placeholder={'void autonomous() {\n  chassis.setPose(-62.2, 6, 90);\n  chassis.moveToPoint(-36, 6, 2000);\n  ...\n}'}
           value={code}
           spellCheck={false}
           onChange={(e) => {

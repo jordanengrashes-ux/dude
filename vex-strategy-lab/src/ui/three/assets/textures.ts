@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { HALF, TAPE_WIDTH, TILE } from '../../../field/geometry';
+import { HALF, TAPE_WIDTH, tapeStrips, TILE } from '../../../field/geometry';
 import { Rng } from '../../../core/rng';
 
 /**
@@ -83,27 +83,22 @@ export function fieldTextures(px = 2048): { map: THREE.CanvasTexture; bump: THRE
     seam(-HALF, k * TILE, HALF, k * TILE);
     seam(k * TILE, -HALF, k * TILE, HALF);
   }
-  // white vinyl tape: Autonomous Line diagonals and the Midfield square
-  const M = TILE;
-  for (const [ctx, col] of [
-    [g, '#f1f1ee'],
+  // vinyl tape: the Autonomous Line's two strips, the Midfield diamond, the Quadrant
+  // diagonal and the colored Load Zone L's
+  const tapeCol = { white: '#f1f1ee', red: '#c8352f', blue: '#2f6fd0' } as const;
+  for (const [ctx, bumpCol] of [
+    [g, null],
     [gb, '#9a9a9a'],
   ] as const) {
-    ctx.strokeStyle = col;
     ctx.lineWidth = TAPE_WIDTH * s;
-    ctx.lineCap = 'butt';
-    ctx.beginPath();
-    for (const [a, b] of [
-      [-1, -1],
-      [1, 1],
-      [-1, 1],
-      [1, -1],
-    ]) {
-      ctx.moveTo(X(a * HALF), Y(b * HALF));
-      ctx.lineTo(X(a * M), Y(b * M));
+    ctx.lineCap = 'square';
+    for (const t of tapeStrips()) {
+      ctx.strokeStyle = bumpCol ?? tapeCol[t.color];
+      ctx.beginPath();
+      ctx.moveTo(X(t.a.x), Y(t.a.y));
+      ctx.lineTo(X(t.b.x), Y(t.b.y));
+      ctx.stroke();
     }
-    ctx.rect(X(-M), Y(M), 2 * M * s, 2 * M * s);
-    ctx.stroke();
   }
   const map = new THREE.CanvasTexture(c);
   map.colorSpace = THREE.SRGBColorSpace;

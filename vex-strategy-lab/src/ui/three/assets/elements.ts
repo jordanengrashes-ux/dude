@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { IN } from '../../../core/units';
-import { CUP, GOAL_SOCKET, HALF, PERIMETER_HEIGHT, PERIMETER_THICKNESS, PIN, TILE, type GoalGeom, type LoaderGeom, type ToggleGeom } from '../../../field/geometry';
+import { CUP, GOAL_SOCKET, HALF, LOADER, PERIMETER_HEIGHT, PERIMETER_THICKNESS, PIN, TILE, type GoalGeom, type LoaderGeom, type ToggleGeom } from '../../../field/geometry';
 import { toggleSection } from '../../../physics/field';
 import { toWorld } from '../../../physics/frames';
 import { PALETTE, type MaterialLibrary } from './materials';
@@ -263,59 +263,48 @@ export function toggleMountModel(tg: ToggleGeom, mats: MaterialLibrary): THREE.G
 
 // ---------------------------------------------------------------- Loaders
 
-/** Corner Loader: aluminum frame, polycarbonate walls, alliance-colored rim and a chute toward the field. Approximate design. */
+/**
+ * Wall Loader: a clear tube the Drive Team drops Match Loads into, standing against
+ * the Alliance Station wall on two aluminum side posts, with an alliance-colored
+ * funnel on top and the opening at the bottom facing the field. Body footprint and
+ * tube size from Appendix A; the funnel and posts are approximate.
+ */
 export function loaderModel(l: LoaderGeom, mats: MaterialLibrary): THREE.Group {
   const grp = new THREE.Group();
-  const F = l.footprint;
-  const Hh = 12;
-  const sx = Math.sign(l.corner.x);
-  const sy = Math.sign(l.corner.y);
-  const cx = l.corner.x - sx * (F / 2);
-  const cy = l.corner.y - sy * (F / 2);
+  const D = l.halfSize.x * 2;
+  const W = l.halfSize.y * 2;
+  const Hh = l.height;
+  const open = LOADER.openingHeight;
+  const tubeR = LOADER.tubeDiameter / 2 + 0.06;
   const allianceCol = l.alliance === 'red' ? PALETTE.red : PALETTE.blue;
-  const post = new THREE.BoxGeometry(0.5 * IN, Hh * IN, 0.5 * IN);
-  for (const [dx, dy] of [
-    [-1, -1],
-    [-1, 1],
-    [1, -1],
-    [1, 1],
-  ]) {
+  const at = (x: number, y: number, z: number) => toWorld(l.pos.x + x, l.pos.y + y, z);
+  // side posts either side of the opening, and a back plate against the wall
+  const post = new THREE.BoxGeometry(D * IN, Hh * IN, 0.35 * IN);
+  for (const s of [-1, 1]) {
     const m = new THREE.Mesh(post, mats.aluminum);
-    const w = toWorld(cx + dx * (F / 2 - 0.25), cy + dy * (F / 2 - 0.25), Hh / 2);
+    const w = at(0, s * (W / 2 - 0.175), Hh / 2);
     m.position.set(w.x, w.y, w.z);
     grp.add(m);
   }
-  // polycarbonate walls on the two field-facing sides, alliance rim on top
-  for (const [nx, ny] of [
-    [-sx, 0],
-    [0, -sy],
-  ]) {
-    const along = nx !== 0 ? 'y' : 'x';
-    const panel = new THREE.Mesh(new THREE.PlaneGeometry(F * IN, (Hh - 1) * IN), mats.polycarbonate);
-    const w = toWorld(cx + nx * (F / 2), cy + ny * (F / 2), Hh / 2 + 0.5);
-    panel.position.set(w.x, w.y, w.z);
-    if (along === 'y') panel.rotation.y = Math.PI / 2;
-    grp.add(panel);
-    const rim = new THREE.Mesh(new THREE.BoxGeometry(F * IN, 0.75 * IN, 0.3 * IN), mats.plastic(allianceCol));
-    const r = toWorld(cx + nx * (F / 2), cy + ny * (F / 2), Hh - 0.375);
-    rim.position.set(r.x, r.y, r.z);
-    if (along === 'y') rim.rotation.y = Math.PI / 2;
-    grp.add(rim);
-  }
-  // base plate
-  const base = new THREE.Mesh(new THREE.BoxGeometry(F * IN, 0.25 * IN, F * IN), mats.powderCoat);
-  const b = toWorld(cx, cy, 0.125);
-  base.position.set(b.x, b.y, b.z);
-  grp.add(base);
-  // chute: a sloped tray from the box toward the dispense point
-  const chuteLen = 5;
-  const chute = new THREE.Mesh(new THREE.BoxGeometry(chuteLen * IN, 0.2 * IN, 3.6 * IN), mats.plastic(allianceCol));
-  const mid = { x: l.corner.x + l.outward.x * (F * Math.SQRT2 + chuteLen / 2 - 1), y: l.corner.y + l.outward.y * (F * Math.SQRT2 + chuteLen / 2 - 1) };
-  const cw = toWorld(mid.x, mid.y, 1.6);
-  chute.position.set(cw.x, cw.y, cw.z);
-  chute.rotation.y = Math.atan2(l.outward.y, l.outward.x);
-  chute.rotateZ(-0.35);
-  grp.add(chute);
+  const back = new THREE.Mesh(new THREE.BoxGeometry(0.2 * IN, Hh * IN, W * IN), mats.powderCoat);
+  const bw = toWorld(l.wall.x - l.outward.x * 0.1, l.wall.y, Hh / 2);
+  back.position.set(bw.x, bw.y, bw.z);
+  grp.add(back);
+  // the tube from the top of the opening up
+  const tube = new THREE.Mesh(new THREE.CylinderGeometry(tubeR * IN, tubeR * IN, (Hh - open) * IN, 24, 1, true), mats.polycarbonate);
+  const tw = at(0, 0, (Hh + open) / 2);
+  tube.position.set(tw.x, tw.y, tw.z);
+  grp.add(tube);
+  // funnel on top and a colored band at the opening
+  const funnel = new THREE.Mesh(new THREE.CylinderGeometry((tubeR + 1.2) * IN, tubeR * IN, 2 * IN, 24, 1, true), mats.plastic(allianceCol));
+  (funnel.material as THREE.Material).side = THREE.DoubleSide;
+  const fw = at(0, 0, Hh + 1);
+  funnel.position.set(fw.x, fw.y, fw.z);
+  grp.add(funnel);
+  const band = new THREE.Mesh(new THREE.BoxGeometry(D * IN, 0.4 * IN, W * IN), mats.plastic(allianceCol));
+  const nw = at(0, 0, open + 0.2);
+  band.position.set(nw.x, nw.y, nw.z);
+  grp.add(band);
   grp.traverse((o) => {
     if ((o as THREE.Mesh).isMesh && (o as THREE.Mesh).material !== mats.polycarbonate) {
       o.castShadow = true;

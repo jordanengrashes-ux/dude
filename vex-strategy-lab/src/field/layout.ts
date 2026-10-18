@@ -1,15 +1,24 @@
 import type { Vec2 } from '../core/vec';
-import { dist, obbCorners, distPointToPolygon } from '../core/vec';
 import type { Alliance, HalfColor, MatchType } from '../rules/ruleset';
-import { buildGoals, buildLoaders, buildToggles, HALF, sideOf, PIN, CUP } from './geometry';
+import { obbCorners } from '../core/vec';
+import { buildGoals, footprintInLoadZone, footprintTouchesPerimeter, HALF, TILE, PIN, CUP, quadrantOf, sideOf } from './geometry';
 
 /**
- * Starting layout of every Scoring Object and Robot.
+ * Starting layout of every Scoring Object and Robot, from the Game Manual v1.1
+ * (Appendix A object-placement sheet, Figure SG-1, <SG5>, <RSC2>, <RSC4>).
  *
- * ASSUMPTION: exact Appendix A coordinates could not be retrieved, so this layout
- * is a rule-consistent approximation: correct object counts and color splits,
- * 180° rotational symmetry with red↔blue swapped, and clear of all Field Elements.
- * Every position is editable at runtime (Field Setup panel) and in saved scenarios.
+ * Head-to-Head, per the manual's counts (36 Cups and 33 Pins on the tiles):
+ *  - four "crosses" on the Autonomous Line at (−2T, 2T), (−T, T), (T, −T), (2T, −2T):
+ *    a clear-up Cup with four Pins lying around it, yellow halves in — red/yellow
+ *    Pins on its −x and −y sides, blue/yellow on +x and +y;
+ *  - a red/blue Pin standing in a clear-up Cup at each Midfield corner, red up on
+ *    the red side;
+ *  - a yellow Pin in a clear-up Cup at (±T, ±T) and (±2T, ±2T) (same signs);
+ *  - eight rows against the walls, centered on the tile seams at ±T: gray-up Cup,
+ *    yellow Pin in a gray-up Cup, gray-up Cup;
+ *  - a yellow Pin on each neutral Goal and the Midfield Goal.
+ * Skills: the same tiles, empty Goals, one Robot in R1 and the red Loaders only.
+ * Every position stays editable at runtime (Field Setup panel) and in saved scenarios.
  */
 
 export type PinType = 'RB' | 'RY' | 'BY' | 'YY';
@@ -22,7 +31,11 @@ export const PIN_COLORS: Record<PinType, [HalfColor, HalfColor]> = {
 };
 
 export type PinStart =
-  | { where: 'field'; pos: Vec2; upColor: HalfColor; lying?: boolean }
+  /**
+   * Standing (`upColor` up) — in the Cup `inCup` when given — or lying down with
+   * `upColor`'s end pointing along field heading `axis`.
+   */
+  | { where: 'field'; pos: Vec2; upColor: HalfColor; lying?: boolean; axis?: number; inCup?: string }
   | { where: 'goal'; goalId: string; bottom: HalfColor; top: HalfColor; index?: number }
   | { where: 'preload'; robotSlot: string; upColor: HalfColor }
   | { where: 'held'; robotSlot: string; upColor: HalfColor }
@@ -54,6 +67,8 @@ export interface RobotStart {
   alliance: Alliance;
   pos: Vec2;
   heading: number;
+  /** Placed by hand (Plan tab, Field Setup): used as is, not fitted to the robot's size. */
+  exact?: boolean;
 }
 
 export interface FieldLayout {
@@ -67,84 +82,89 @@ export interface FieldLayout {
   provenance: string;
 }
 
-const rot180 = (p: Vec2): Vec2 => ({ x: -p.x, y: -p.y });
-const swapType = (t: PinType): PinType => (t === 'RY' ? 'BY' : t === 'BY' ? 'RY' : t);
+const T = TILE;
 
-/** Red-side field pins (inches). Blue side is the 180° rotation with colors swapped. */
-const RED_SIDE_PINS: { type: PinType; pos: Vec2 }[] = [
-  { type: 'YY', pos: { x: -36, y: -8 } },
-  { type: 'YY', pos: { x: -8, y: -36 } },
-  { type: 'YY', pos: { x: -30, y: -30 } },
-  { type: 'YY', pos: { x: -56, y: -48 } },
-  { type: 'YY', pos: { x: -48, y: -56 } },
-  { type: 'YY', pos: { x: -14, y: -14 } },
-  { type: 'RY', pos: { x: -36, y: 14 } },
-  { type: 'RY', pos: { x: 14, y: -36 } },
-  { type: 'RY', pos: { x: -40, y: -40 } },
-  { type: 'RY', pos: { x: -36, y: -62 } },
-  { type: 'RY', pos: { x: -48, y: -34 } },
-  { type: 'RY', pos: { x: -34, y: -48 } },
-  { type: 'BY', pos: { x: -6, y: -56 } },
-  { type: 'BY', pos: { x: -56, y: -6 } },
+/** Crosses on the Autonomous Line. */
+export const CROSS_CENTERS: Vec2[] = [
+  { x: -2 * T, y: 2 * T },
+  { x: -T, y: T },
+  { x: T, y: -T },
+  { x: 2 * T, y: -2 * T },
+];
+/** Lying Pins sit with their middles this far from the cross center. */
+export const CROSS_ARM = 4.83;
+
+/** Midfield corners: red/blue Pin in a clear-up Cup, red up on the red side. */
+const MIDFIELD_CORNERS: { pos: Vec2; up: HalfColor }[] = [
+  { pos: { x: -T, y: 0 }, up: 'red' },
+  { pos: { x: 0, y: -T }, up: 'red' },
+  { pos: { x: T, y: 0 }, up: 'blue' },
+  { pos: { x: 0, y: T }, up: 'blue' },
 ];
 
-/** Red/blue Pins sit on the Autonomous Line diagonal (shared). Listed once per symmetric pair. */
-const LINE_PINS: Vec2[] = [
-  { x: -36, y: 36 },
-  { x: -8, y: 8 },
+/** Yellow Pins in clear-up Cups on the y = x diagonal. */
+const DIAGONAL_SPOTS: Vec2[] = [
+  { x: -2 * T, y: -2 * T },
+  { x: -T, y: -T },
+  { x: T, y: T },
+  { x: 2 * T, y: 2 * T },
 ];
 
-export const DEFAULT_ROBOT_STARTS: RobotStart[] = [
-  { slot: 'red-1', alliance: 'red', pos: { x: -61, y: -36 }, heading: 0 },
-  { slot: 'red-2', alliance: 'red', pos: { x: -61, y: 36 }, heading: 0 },
-  { slot: 'blue-1', alliance: 'blue', pos: { x: 61, y: 36 }, heading: Math.PI },
-  { slot: 'blue-2', alliance: 'blue', pos: { x: 61, y: -36 }, heading: Math.PI },
-];
-
-const ROBOT_FOOT = 18; // clearance computed against the maximum legal starting footprint
-
-/** Deterministic farthest-point selection of cup spots on the red side. */
-function redSideCupSpots(occupied: Vec2[], count: number): Vec2[] {
-  const goals = buildGoals();
-  const toggles = buildToggles();
-  const loaders = buildLoaders();
-  const robots = DEFAULT_ROBOT_STARTS.map((r) => obbCorners(r.pos, r.heading, ROBOT_FOOT, ROBOT_FOOT));
-  const candidates: Vec2[] = [];
-  for (let x = -66; x <= 66; x += 3) {
-    for (let y = -66; y <= 66; y += 3) {
-      const p = { x, y };
-      if (sideOf(p) !== 'red') continue;
-      if (Math.abs(x) > HALF - 5 || Math.abs(y) > HALF - 5) continue;
-      if (goals.some((g) => dist(g.pos, p) < g.baseRadius + 5)) continue;
-      if (toggles.some((t) => dist(t.pos, p) < 12)) continue;
-      if (loaders.some((l) => dist(l.corner, p) < 22)) continue;
-      if (robots.some((poly) => distPointToPolygon(p, poly) < 4)) continue;
-      if (occupied.some((o) => dist(o, p) < 6.5)) continue;
-      // keep the blue mirror clear of the red-side spot set too
-      if (occupied.some((o) => dist(o, rot180(p)) < 6.5)) continue;
-      candidates.push(p);
+/** Rows against the walls: their pieces touch the wall, 3.16" apart along it. */
+export const WALL_ROW_OFFSET = HALF - CUP.diameter / 2; // 68.625"
+const ROW_SPACING = CUP.diameter;
+function wallRows(): { center: Vec2; along: Vec2 }[] {
+  const out: { center: Vec2; along: Vec2 }[] = [];
+  for (const s of [-1, 1]) {
+    for (const t of [-T, T]) {
+      out.push({ center: { x: s * WALL_ROW_OFFSET, y: t }, along: { x: 0, y: 1 } });
+      out.push({ center: { x: t, y: s * WALL_ROW_OFFSET }, along: { x: 1, y: 0 } });
     }
   }
-  const chosen: Vec2[] = [];
-  // Seed: candidate nearest the red Alliance Goal in R1 (deterministic).
-  const seed = buildGoals().find((g) => g.id === 'G-R1a')!.pos;
-  let best = candidates.reduce((a, b) => (dist(a, seed) <= dist(b, seed) ? a : b));
-  chosen.push(best);
-  while (chosen.length < count) {
-    let bestD = -1;
-    for (const c of candidates) {
-      const d = Math.min(...chosen.map((s) => dist(s, c)), ...occupied.map((o) => dist(o, c) + 4));
-      if (d > bestD) {
-        bestD = d;
-        best = c;
-      }
-    }
-    chosen.push(best);
-  }
-  return chosen;
+  return out;
 }
 
-let cachedCupSpots: Vec2[] | null = null;
+/** SG1: one Robot per Quadrant, touching its Alliance's wall (positions as in Figure SG-1, for a 16" robot). */
+export const DEFAULT_ROBOT_STARTS: RobotStart[] = [
+  { slot: 'red-1', alliance: 'red', pos: { x: -HALF + 8, y: 6 }, heading: 0 },
+  { slot: 'red-2', alliance: 'red', pos: { x: -6, y: -HALF + 8 }, heading: Math.PI / 2 },
+  { slot: 'blue-1', alliance: 'blue', pos: { x: HALF - 8, y: -6 }, heading: Math.PI },
+  { slot: 'blue-2', alliance: 'blue', pos: { x: 6, y: HALF - 8 }, heading: -Math.PI / 2 },
+];
+
+/**
+ * A start pose moved so a robot of this size touches the wall it backs onto, the
+ * way the layout's 16" robot does (SG1f). Poses away from the walls are unchanged.
+ */
+export function fitStartToWall(start: { pos: Vec2; heading: number; exact?: boolean }, length: number, width: number): { pos: Vec2; heading: number } {
+  if (start.exact) return { pos: { ...start.pos }, heading: start.heading };
+  const pos = { ...start.pos };
+  const c = Math.abs(Math.cos(start.heading));
+  const s = Math.abs(Math.sin(start.heading));
+  const hx = (c * length + s * width) / 2;
+  const hy = (s * length + c * width) / 2;
+  if (HALF - Math.abs(pos.x) < 12) pos.x = Math.sign(pos.x) * (HALF - hx);
+  if (HALF - Math.abs(pos.y) < 12) pos.y = Math.sign(pos.y) * (HALF - hy);
+  return { pos, heading: start.heading };
+}
+
+/**
+ * What keeps a starting pose from being legal (SG1): the robot must touch the field
+ * wall and the tiles on its own side of the Autonomous Line, and stay off the Load
+ * Zones. Empty when it's fine. Pieces and other robots are not checked.
+ */
+export function startProblems(pos: Vec2, heading: number, length: number, width: number, alliance: Alliance, matchType: MatchType): string[] {
+  const out: string[] = [];
+  const poly = obbCorners(pos, heading, length, width);
+  if (poly.some((p) => Math.abs(p.x) > HALF + 0.05 || Math.abs(p.y) > HALF + 0.05)) out.push('it sticks out of the field');
+  else if (!footprintTouchesPerimeter(pos, heading, length, width, 0.3)) out.push("it doesn't touch the field wall");
+  if (matchType === 'headToHead') {
+    const pts = [...poly, ...poly.map((p, i) => ({ x: (p.x + poly[(i + 1) % 4].x) / 2, y: (p.y + poly[(i + 1) % 4].y) / 2 }))];
+    if (pts.some((p) => sideOf(p) !== alliance)) out.push('it touches the Autonomous Line or the other side');
+  } else if (quadrantOf(pos) !== 'R1') out.push('Skills robots start in the Quadrant by the red Alliance Station (R1)');
+  if (footprintInLoadZone(pos, heading, length, width, 'red') || footprintInLoadZone(pos, heading, length, width, 'blue')) out.push('it is in a Load Zone');
+  return out;
+}
 
 export function buildLayout(matchType: MatchType = 'headToHead'): FieldLayout {
   const pins: PinSpec[] = [];
@@ -154,30 +174,51 @@ export function buildLayout(matchType: MatchType = 'headToHead'): FieldLayout {
   const pid = (t: PinType) => `P${String(++pinN).padStart(2, '0')}-${t}`;
   const cid = () => `C${String(++cupN).padStart(2, '0')}`;
   const isSkills = matchType !== 'headToHead';
+  const cup = (pos: Vec2, grayUp: boolean) => {
+    const id = cid();
+    cups.push({ id, kind: 'cup', start: { where: 'field', pos, grayUp } });
+    return id;
+  };
+  const pinInCup = (t: PinType, pos: Vec2, upColor: HalfColor, grayUp: boolean) => {
+    const inCup = cup(pos, grayUp);
+    pins.push({ id: pid(t), kind: 'pin', type: t, start: { where: 'field', pos, upColor, inCup } });
+  };
 
-  // Field pins
-  for (const p of RED_SIDE_PINS) {
-    pins.push({ id: pid(p.type), kind: 'pin', type: p.type, start: { where: 'field', pos: p.pos, upColor: PIN_COLORS[p.type][1] } });
-    const bt = swapType(p.type);
-    pins.push({ id: pid(bt), kind: 'pin', type: bt, start: { where: 'field', pos: rot180(p.pos), upColor: PIN_COLORS[bt][1] } });
+  for (const c of CROSS_CENTERS) {
+    cup(c, false);
+    // the colored end points out, yellow in
+    for (const [dx, dy, t] of [
+      [1, 0, 'BY'],
+      [0, 1, 'BY'],
+      [-1, 0, 'RY'],
+      [0, -1, 'RY'],
+    ] as [number, number, PinType][]) {
+      const pos = { x: c.x + dx * CROSS_ARM, y: c.y + dy * CROSS_ARM };
+      pins.push({ id: pid(t), kind: 'pin', type: t, start: { where: 'field', pos, upColor: PIN_COLORS[t][0], lying: true, axis: Math.atan2(dy, dx) } });
+    }
   }
-  for (const p of LINE_PINS) {
-    pins.push({ id: pid('RB'), kind: 'pin', type: 'RB', start: { where: 'field', pos: p, upColor: 'blue' } });
-    pins.push({ id: pid('RB'), kind: 'pin', type: 'RB', start: { where: 'field', pos: rot180(p), upColor: 'red' } });
+  for (const m of MIDFIELD_CORNERS) pinInCup('RB', m.pos, m.up, false);
+  for (const d of DIAGONAL_SPOTS) pinInCup('YY', d, 'yellow', false);
+  for (const r of wallRows()) {
+    cup({ x: r.center.x - r.along.x * ROW_SPACING, y: r.center.y - r.along.y * ROW_SPACING }, true);
+    pinInCup('YY', r.center, 'yellow', true);
+    cup({ x: r.center.x + r.along.x * ROW_SPACING, y: r.center.y + r.along.y * ROW_SPACING }, true);
   }
-  // Neutral and Midfield Goals start with a yellow/yellow Pin Placed (Head-to-Head only).
-  for (const g of buildGoals()) {
-    if (g.type === 'alliance') continue;
-    if (isSkills) continue; // RSC4: Goals begin empty in Skills
-    pins.push({ id: pid('YY'), kind: 'pin', type: 'YY', start: { where: 'goal', goalId: g.id, bottom: 'yellow', top: 'yellow' } });
+  // Neutral and Midfield Goals start with a yellow/yellow Pin Placed (Head-to-Head only; RSC4c).
+  if (!isSkills) {
+    for (const g of buildGoals()) {
+      if (g.type === 'alliance') continue;
+      pins.push({ id: pid('YY'), kind: 'pin', type: 'YY', start: { where: 'goal', goalId: g.id, bottom: 'yellow', top: 'yellow' } });
+    }
   }
 
-  // Preloads and match loads
+  // Preloads (SG5) and Match Loads
   const robots = isSkills ? [DEFAULT_ROBOT_STARTS[0]] : DEFAULT_ROBOT_STARTS;
   if (isSkills) {
     pins.push({ id: pid('RY'), kind: 'pin', type: 'RY', start: { where: 'preload', robotSlot: 'red-1', upColor: 'yellow' } });
     for (let i = 0; i < 3; i++) pins.push({ id: pid('RY'), kind: 'pin', type: 'RY', start: { where: 'matchload', alliance: 'red' } });
     for (let i = 0; i < 4; i++) pins.push({ id: pid('BY'), kind: 'pin', type: 'BY', start: { where: 'matchload', alliance: 'red' } });
+    for (let i = 0; i < 7; i++) cups.push({ id: cid(), kind: 'cup', start: { where: 'matchload', alliance: 'red' } });
   } else {
     for (const r of robots) {
       const t: PinType = r.alliance === 'red' ? 'RY' : 'BY';
@@ -187,23 +228,8 @@ export function buildLayout(matchType: MatchType = 'headToHead'): FieldLayout {
       const t: PinType = a === 'red' ? 'RY' : 'BY';
       for (let i = 0; i < 10; i++) pins.push({ id: pid(t), kind: 'pin', type: t, start: { where: 'matchload', alliance: a } });
       pins.push({ id: pid('YY'), kind: 'pin', type: 'YY', start: { where: 'matchload', alliance: a } });
+      for (let i = 0; i < 10; i++) cups.push({ id: cid(), kind: 'cup', start: { where: 'matchload', alliance: a } });
     }
-  }
-
-  // Cups: 18 per side (12 gray-up, 6 clear-up), mirrored.
-  if (!cachedCupSpots) {
-    const occupied = [...RED_SIDE_PINS.map((p) => p.pos), ...LINE_PINS, ...LINE_PINS.map(rot180), ...RED_SIDE_PINS.map((p) => rot180(p.pos))];
-    cachedCupSpots = redSideCupSpots(occupied, 18);
-  }
-  cachedCupSpots.forEach((pos, i) => {
-    const grayUp = i % 3 !== 2; // 12 gray-up, 6 clear-up per side
-    cups.push({ id: cid(), kind: 'cup', start: { where: 'field', pos, grayUp } });
-    cups.push({ id: cid(), kind: 'cup', start: { where: 'field', pos: rot180(pos), grayUp } });
-  });
-  if (isSkills) {
-    for (let i = 0; i < 7; i++) cups.push({ id: cid(), kind: 'cup', start: { where: 'matchload', alliance: 'red' } });
-  } else {
-    for (const a of ['red', 'blue'] as Alliance[]) for (let i = 0; i < 10; i++) cups.push({ id: cid(), kind: 'cup', start: { where: 'matchload', alliance: a } });
   }
 
   return {
@@ -211,8 +237,7 @@ export function buildLayout(matchType: MatchType = 'headToHead'): FieldLayout {
     pins,
     cups,
     robots: robots.map((r) => ({ ...r, pos: { ...r.pos } })),
-    provenance:
-      'Approximate layout: official counts/colors, 180° symmetric, positions not from Appendix A (unavailable). Edit in Field Setup.',
+    provenance: 'Official layout: Game Manual v1.1 Appendix A object placement and Figure SG-1 robot starts. Edit in Field Setup.',
   };
 }
 

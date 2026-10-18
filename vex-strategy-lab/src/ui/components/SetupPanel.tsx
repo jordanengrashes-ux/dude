@@ -1,6 +1,6 @@
 import type { MatchType } from '../../rules/ruleset';
 import type { Strategy } from '../../sim/scenario';
-import { exportScenario, importScenario, resetLayout, setLayout, setMatchType, setSlotStrategy, store, useApp, type SavedScenario } from '../store';
+import { exportScenario, importScenario, resetLayout, resetSettings, setLayout, setMatchType, setSlotStrategy, store, useApp, type SavedScenario } from '../store';
 import { TopDown } from './TopDown';
 
 const STRATEGIES: { v: Strategy; label: string }[] = [
@@ -114,7 +114,20 @@ export function SetupPanel() {
           </label>
           <button onClick={() => quick('save')}>Quick save</button>
           <button onClick={() => quick('load')}>Quick load</button>
+          <button
+            className="link"
+            title="Your robot, rules, strategies, optimizer and view settings are kept in this browser between visits"
+            onClick={() => {
+              if (confirm('Reset every setting (robot, rules, strategies, optimizer, view) to the defaults?')) {
+                resetSettings();
+                store.set({ message: 'Settings reset to the defaults' });
+              }
+            }}
+          >
+            Reset settings
+          </button>
         </div>
+        <p className="small muted">Settings are saved in this browser as you change them.</p>
       </section>
       <section className="card">
         <h3>Field setup</h3>

@@ -46,7 +46,7 @@ export function TeamPanel() {
       <section className="card">
         <h3>Team mode</h3>
         <p className="small">
-          A room opens automatically when the page loads; send the invite link and whoever opens it joins. Every robot is driven by its bot until a player takes it: a joining player replaces a bot (your partner first) and the match starts; when they leave, the bot takes the robot back and replans from where things stand. Press W A S D on the field to drive your own robot in 3rd person. Robots run their autonomous programs during Autonomous; drivers take over at Driver Control.
+          Your room is open as soon as the page loads — in Practice too, nothing to create. Send the invite link and whoever opens it joins (if you're practicing, the app switches to a match for both of you). Every robot is driven by its bot until a player takes it: a joining player replaces a bot (your partner first) and the match starts; when they leave, the bot takes the robot back and replans from where things stand. Press W A S D on the field to drive your own robot in 3rd person. Robots run their autonomous programs during Autonomous; drivers take over at Driver Control.
         </p>
         {!inRoom ? (
           <>

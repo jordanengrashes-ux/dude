@@ -49,7 +49,7 @@ meters, "scale" }`, applied to the loaded model.
 | `cup` | center of the Cup | axis +Y; gray half toward +Y |
 | `goal` | on the floor at the Goal's axis | +Y up |
 | `toggle` | on the rotation axis, middle of the bar | +Z along the axis, +X toward the field, yellow face toward the field |
-| `loader` | the field corner on the floor, for the red Loader in the (−x, −y) corner | +Y up; the other three corners are rotated copies |
+| `loader` | the wall's inner face on the floor, behind the red Loader on the −x wall | +Y up; the blue Loaders are copies turned 180° |
 | `perimeter` | field center on the floor | +Y up |
 
 The world frame is meters, +Y up, field center at the origin; game +x (toward the blue

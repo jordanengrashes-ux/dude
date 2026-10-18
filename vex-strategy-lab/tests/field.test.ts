@@ -4,15 +4,19 @@ import {
   buildGoals,
   buildLoaders,
   buildToggles,
+  footprintInLoadZone,
   footprintInMidfield,
   footprintOnOpposingSide,
   HALF,
-  MIDFIELD_INNER_HALF,
+  MIDFIELD_REACH,
+  onAutonLine,
+  PIN,
   quadrantOf,
   sideOf,
+  tapeStrips,
   TILE,
 } from '../src/field/geometry';
-import { buildLayout, PIN_COLORS } from '../src/field/layout';
+import { buildLayout, DEFAULT_ROBOT_STARTS, fitStartToWall, PIN_COLORS } from '../src/field/layout';
 import { cloneRobot, DEFAULT_ROBOT } from '../src/robot/config';
 import { inspectRobot } from '../src/rules/inspection';
 import { buildClock, isEndgame, periodAt } from '../src/rules/timing';
@@ -20,10 +24,10 @@ import { OVERRIDE_DEFAULTS, OVERRIDE_RULES } from '../src/rules/ruleset';
 import { SOURCES } from '../src/rules/sources';
 
 describe('Field dimensions', () => {
-  it('is 6 × 6 tiles of 600 mm (≈ 12 ft nominal)', () => {
-    expect(TILE * 6 * 25.4).toBeCloseTo(3600, 6);
-    expect(HALF * 2).toBeGreaterThan(140);
-    expect(HALF * 2).toBeLessThan(144);
+  it('matches the Appendix A field drawing: 140.41" inside, tile seams at ±23.545" and ±47.09"', () => {
+    expect(HALF * 2).toBeCloseTo(140.41, 6);
+    expect(TILE).toBeCloseTo(23.545, 6);
+    expect(2 * TILE).toBeCloseTo(47.09, 6);
   });
 
   it('has 9 Goals: 2 red + 2 blue Alliance, 4 neutral, 1 Midfield', () => {
@@ -63,24 +67,50 @@ describe('Field dimensions', () => {
     expect(quadrantOf({ x: -60, y: 0 })).toBe('R1');
   });
 
-  it('has 4 Loaders, two per Alliance', () => {
+  it('has 4 Loaders, two on each Alliance Station wall, 11.44" from the corners', () => {
     const l = buildLoaders();
     expect(l).toHaveLength(4);
-    expect(l.filter((x) => x.alliance === 'red')).toHaveLength(2);
+    for (const x of l) {
+      expect(x.wall.x).toBe(x.alliance === 'red' ? -HALF : HALF);
+      expect(HALF - Math.abs(x.pos.y)).toBeCloseTo(11.44, 2);
+      // the Match Load stands just clear of the Loader body, inside its Load Zone
+      expect(Math.abs(x.dispense.x)).toBeLessThan(HALF - x.halfSize.x * 2);
+      expect(footprintInLoadZone(x.dispense, 0, 1, 1, x.alliance)).toBe(true);
+    }
   });
 
-  it('Midfield square is the inner edge of tape centered on the ±1 tile seams', () => {
-    expect(MIDFIELD_INNER_HALF).toBeCloseTo(TILE - 1.25, 6);
-    expect(footprintInMidfield({ x: MIDFIELD_INNER_HALF + 7.9, y: 0 }, 0, 16, 16)).toBe(true);
-    expect(footprintInMidfield({ x: MIDFIELD_INNER_HALF + 8.1, y: 0 }, 0, 16, 16)).toBe(false);
+  it('Load Zones run 24.47" along the Alliance Station wall from each corner and 11.56" out', () => {
+    expect(footprintInLoadZone({ x: -HALF + 4, y: 50 }, 0, 1, 1, 'red')).toBe(true);
+    expect(footprintInLoadZone({ x: -HALF + 4, y: 44 }, 0, 1, 1, 'red')).toBe(false);
+    expect(footprintInLoadZone({ x: -57, y: 60 }, 0, 1, 1, 'red')).toBe(false);
+    expect(footprintInLoadZone({ x: 64, y: -60 }, 0, 1, 1, 'blue')).toBe(true);
   });
 
-  it('SG7 side test: red side is x+y<0; Midfield contact is not an opposing-side contact', () => {
+  it('Midfield is the diamond inside the tape through the four-tile corners', () => {
+    expect(MIDFIELD_REACH).toBeCloseTo(TILE - 0.375 * Math.SQRT2, 6);
+    // a 16" robot facing along x reaches the corner (MIDFIELD_REACH, 0) with its front edge
+    expect(footprintInMidfield({ x: MIDFIELD_REACH + 7.9, y: 0 }, 0, 16, 16)).toBe(true);
+    expect(footprintInMidfield({ x: MIDFIELD_REACH + 8.1, y: 0 }, 0, 16, 16)).toBe(false);
+    // along the diagonal the boundary is closer: |x| + |y| = MIDFIELD_REACH
+    expect(footprintInMidfield({ x: 20, y: 20 }, Math.PI / 4, 16, 16)).toBe(false);
+    expect(footprintInMidfield({ x: 16, y: 16 }, Math.PI / 4, 16, 16)).toBe(true);
+  });
+
+  it('SG7 side test: red side is x+y<0; the Autonomous Line and Midfield are shared', () => {
     expect(sideOf({ x: -30, y: -10 })).toBe('red');
     expect(sideOf({ x: 30, y: 10 })).toBe('blue');
+    expect(sideOf({ x: -40, y: 40 })).toBe('line');
+    expect(sideOf({ x: 10, y: 5 })).toBe('line'); // inside the Midfield
     expect(footprintOnOpposingSide({ x: -40, y: -40 }, 0, 16, 16, 'red')).toBe(false);
     expect(footprintOnOpposingSide({ x: 40, y: 40 }, 0, 16, 16, 'red')).toBe(true);
     expect(footprintOnOpposingSide({ x: 4, y: 4 }, 0, 16, 16, 'red')).toBe(false);
+  });
+
+  it('tape: two Autonomous Line strips 2.5" apart outside to outside, a Midfield diamond, one diagonal, four Load Zone Ls', () => {
+    const t = tapeStrips();
+    expect(t.filter((s) => s.color === 'white')).toHaveLength(4 + 4 + 2);
+    expect(t.filter((s) => s.color === 'red')).toHaveLength(4);
+    for (const s of t) for (const p of [s.a, s.b]) expect(Math.max(Math.abs(p.x), Math.abs(p.y))).toBeLessThanOrEqual(HALF + 1e-9);
   });
 });
 
@@ -109,18 +139,53 @@ describe('Object layout', () => {
     expect(fieldCups.filter((c) => c.start.where === 'field' && !c.start.grayUp)).toHaveLength(12);
   });
 
+  it('official placement: 4 crosses, 4 Midfield corners, 4 diagonal Pins in Cups, 8 wall rows', () => {
+    const field = L.pins.filter((p) => p.start.where === 'field');
+    expect(field.filter((p) => p.start.where === 'field' && p.start.lying)).toHaveLength(16);
+    expect(field.filter((p) => p.start.where === 'field' && p.start.inCup)).toHaveLength(16);
+    expect(L.pins.filter((p) => p.start.where === 'goal')).toHaveLength(5);
+    // the cross Pins point their colored end out, yellow in
+    for (const p of field) {
+      if (p.start.where !== 'field' || !p.start.lying) continue;
+      expect(p.start.upColor).toBe(p.type === 'RY' ? 'red' : 'blue');
+      expect(onAutonLine(p.start.pos, PIN.half)).toBe(true);
+    }
+    // 28 Scoring Objects start on the Autonomous Line (SG7b)
+    const onLine = [...L.pins, ...L.cups].filter((o) => o.start.where === 'field' && onAutonLine(o.start.pos, o.kind === 'pin' && (o.start as { lying?: boolean }).lying ? PIN.half : 1.58));
+    expect(onLine).toHaveLength(28);
+  });
+
   it('field objects are inside the field and clear of goals, loaders, robots and each other', () => {
+    // a Pin standing in a Cup shares its spot; lying Pins are checked as their two halves
     const pts = [
-      ...L.pins.flatMap((p) => (p.start.where === 'field' ? [{ id: p.id, pos: p.start.pos, r: 0.8 }] : [])),
-      ...L.cups.flatMap((c) => (c.start.where === 'field' ? [{ id: c.id, pos: c.start.pos, r: 1.6 }] : [])),
+      ...L.pins.flatMap((p) => {
+        const s = p.start;
+        if (s.where !== 'field' || s.inCup) return [];
+        if (!s.lying) return [{ id: p.id, pos: s.pos, r: 1.58 }];
+        const d = { x: Math.cos(s.axis ?? 0) * 1.6, y: Math.sin(s.axis ?? 0) * 1.6 };
+        return [-1, 1].map((k) => ({ id: `${p.id}${k}`, pos: { x: s.pos.x + k * d.x, y: s.pos.y + k * d.y }, r: 1.2 }));
+      }),
+      ...L.cups.flatMap((c) => (c.start.where === 'field' ? [{ id: c.id, pos: c.start.pos, r: 1.58 }] : [])),
     ];
     for (const a of pts) {
-      expect(Math.abs(a.pos.x)).toBeLessThan(HALF - 2);
-      expect(Math.abs(a.pos.y)).toBeLessThan(HALF - 2);
+      expect(Math.abs(a.pos.x)).toBeLessThanOrEqual(HALF - a.r + 1e-6);
+      expect(Math.abs(a.pos.y)).toBeLessThanOrEqual(HALF - a.r + 1e-6);
       for (const g of buildGoals()) expect(dist(a.pos, g.pos)).toBeGreaterThan(g.baseRadius + a.r + 1);
-      for (const l of buildLoaders()) expect(dist(a.pos, l.corner)).toBeGreaterThan(12);
+      for (const l of buildLoaders()) expect(dist(a.pos, l.pos)).toBeGreaterThan(12);
       for (const r of L.robots) expect(distPointToPolygon(a.pos, obbCorners(r.pos, r.heading, 18, 18))).toBeGreaterThan(a.r + 1);
-      for (const b of pts) if (a !== b) expect(dist(a.pos, b.pos)).toBeGreaterThan(a.r + b.r + 1);
+      for (const b of pts) if (a !== b) expect(dist(a.pos, b.pos)).toBeGreaterThanOrEqual(a.r + b.r - 1e-6);
+    }
+  });
+
+  it('robots start one per Quadrant against their own wall (SG1), fitted to the robot size', () => {
+    const qs = DEFAULT_ROBOT_STARTS.map((r) => quadrantOf(r.pos));
+    expect(new Set(qs).size).toBe(4);
+    for (const r of DEFAULT_ROBOT_STARTS) {
+      expect(sideOf(r.pos)).toBe(r.alliance);
+      expect(footprintInLoadZone(r.pos, r.heading, 18, 18, r.alliance)).toBe(false);
+      const f = fitStartToWall(r, 18, 18);
+      const reach = Math.max(Math.abs(f.pos.x), Math.abs(f.pos.y)) + 9;
+      expect(reach).toBeCloseTo(HALF, 6);
     }
   });
 

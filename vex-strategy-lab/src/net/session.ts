@@ -134,6 +134,11 @@ export class TeamSession {
       this.set({ role: 'host', room, transport: kind, connecting: false, roster: this.hostRoster(), status: `Room ${room} open — share the code` });
       this.snapTimer = setInterval(() => this.hostTick(), SNAP_MS);
       this.unsubRunner = this.runner.subscribe(() => {
+        // players who joined while there was no robot for them (Practice) get one now
+        if (this.pendingJoins.length && this.runner.sim && this.runner.sim !== this.lastSim) {
+          const waiting = this.pendingJoins.splice(0);
+          for (const p of waiting) if (this.state.peers.some((x) => x.peerId === p.peerId)) this.seat(p.peerId, p.name);
+        }
         // a rebuilt match (Reset, setup change) re-sends the setup and the roster
         if (this.runner.sim && this.runner.sim !== this.lastSim) this.hostTick();
         const r = this.hostRoster();
@@ -207,20 +212,13 @@ export class TeamSession {
         const info = this.runner.scenarioInfo();
         if (sim && info) this.send({ type: 'setup', from: this.state.me, to: m.from, setup: setupFrom(sim.sceneFrame(), this.state.me, info.matchType, info.params, info.layout) });
         this.keyNext = true;
-        // a joining player replaces a bot: the host's partner first, then the others
         const roster = this.hostRoster();
-        const already = Object.values(roster).some((e) => e.peerId === m.from);
-        if (!already) {
-          const mySlot = Object.keys(roster).find((s) => roster[s].peerId === this.state.me);
-          const myAlliance = mySlot ? this.runner.sim?.robots.find((r) => r.id === mySlot)?.alliance : 'red';
-          const free = Object.keys(roster).filter((s) => roster[s].peerId === null);
-          const ally = (s: string) => this.runner.sim?.robots.find((r) => r.id === s)?.alliance === myAlliance;
-          const pick = free.sort((a, b) => Number(ally(b)) - Number(ally(a)))[0];
-          if (pick) this.runner.setDriver(pick, { kind: 'remote', name: m.name, peerId: m.from });
-          // a player joined: the match starts (from the beginning if the last one is over)
-          const sim = this.runner.sim;
-          if (sim && sim.t >= sim.clock.total - 1e-9) void this.runner.rebuild().then(() => this.runner.setPlaying(true));
-          else if (!this.runner.playing) this.runner.setPlaying(true);
+        if (!Object.values(roster).some((e) => e.peerId === m.from)) {
+          if (!this.seat(m.from, m.name) && this.needMatch) {
+            // every robot is taken (Practice: only yours): switch to a match, seat them when it's built
+            this.pendingJoins.push({ peerId: m.from, name: m.name });
+            this.needMatch();
+          }
         }
         this.broadcastRoster();
         break;
@@ -247,6 +245,31 @@ export class TeamSession {
         break;
       }
     }
+  }
+
+  /**
+   * Called when a player joins and no robot is free for them (the host is in
+   * Practice): the app switches to a match; they get a robot once it's built.
+   */
+  needMatch: (() => void) | null = null;
+  private pendingJoins: { peerId: string; name: string }[] = [];
+
+  /** A joining player replaces a bot — the host's partner first, then the others — and the match starts. False if no robot is free. */
+  private seat(peerId: string, name: string): boolean {
+    const roster = this.hostRoster();
+    const mySlot = Object.keys(roster).find((s) => roster[s].peerId === this.state.me);
+    const myAlliance = mySlot ? this.runner.sim?.robots.find((r) => r.id === mySlot)?.alliance : 'red';
+    const free = Object.keys(roster).filter((s) => roster[s].peerId === null);
+    const ally = (s: string) => this.runner.sim?.robots.find((r) => r.id === s)?.alliance === myAlliance;
+    const pick = free.sort((a, b) => Number(ally(b)) - Number(ally(a)))[0];
+    if (!pick) return false;
+    this.runner.setDriver(pick, { kind: 'remote', name, peerId });
+    // a player joined: the match starts (from the beginning if the last one is over)
+    const sim = this.runner.sim;
+    if (sim && sim.t >= sim.clock.total - 1e-9) void this.runner.rebuild().then(() => this.runner.setPlaying(true));
+    else if (!this.runner.playing) this.runner.setPlaying(true);
+    this.broadcastRoster();
+    return true;
   }
 
   private releasePeer(peerId: string) {

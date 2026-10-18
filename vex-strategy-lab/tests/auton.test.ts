@@ -11,9 +11,14 @@ import { headingToTheta, liftHeightFromDegrees, liftMotorDegrees, previewPath, t
 const lm = (x: number, y: number, extra: Partial<Extract<AutonStep, { kind: 'moveToPoint' }>> = {}): AutonStep => ({ kind: 'moveToPoint', x, y, forwards: true, maxSpeed: 127, timeout: 3000, queue: true, async: true, ...extra });
 const turn = (theta: number): AutonStep => ({ kind: 'turnToHeading', theta, maxSpeed: 127, timeout: 2000, queue: true, async: true });
 
+/** Start for these tests: against the red wall, facing +x, clear of the Goals on straight runs. */
+const X0 = -62.2;
+const Y0 = -36;
+
 /** A field without Pins and Cups (Goals, Toggles and Loaders stay), so motions are measured cleanly. */
 function scenario(program: AutonProgram, matchType: 'headToHead' | 'skillsAuton' = 'skillsAuton', pieces = false): ScenarioConfig {
-  const layout = buildLayout(matchType);
+  const full = buildLayout(matchType);
+  const layout = { ...full, robots: full.robots.map((r) => (r.slot === 'red-1' ? { ...r, pos: { x: X0, y: Y0 }, heading: 0 } : r)) };
   return {
     params: cloneParams(OVERRIDE_DEFAULTS),
     layout: pieces ? layout : { ...layout, pins: layout.pins.filter((p) => p.start.where === 'preload'), cups: [] },
@@ -38,11 +43,11 @@ describe('Program frames', () => {
   });
 
   it('a relative program starts at (0, 0, 0) facing forward; setPose makes it field-centric', () => {
-    const start = { pos: { x: -61, y: -36 }, heading: 0 };
+    const start = { pos: { x: X0, y: Y0 }, heading: 0 };
     const rel = previewPath([lm(0, 24)], start);
-    expect(rel[1].pos.x).toBeCloseTo(-37, 6); // 24" straight ahead (+x)
+    expect(rel[1].pos.x).toBeCloseTo(X0 + 24, 6); // 24" straight ahead (+x)
     expect(rel[1].pos.y).toBeCloseTo(-36, 6);
-    const abs = previewPath([{ kind: 'setPose', x: -61, y: -36, theta: 90 }, lm(-30, -12)], start);
+    const abs = previewPath([{ kind: 'setPose', x: X0, y: Y0, theta: 90 }, lm(-30, -12)], start);
     const end = abs[abs.length - 1];
     expect(end.pos.x).toBeCloseTo(-30, 6);
     expect(end.pos.y).toBeCloseTo(-12, 6);
@@ -60,7 +65,7 @@ describe('Running a program on the physics robot', () => {
       name: 'square',
       slot: 'red-1',
       mode: 'skills',
-      steps: [{ kind: 'setPose', x: -61, y: -36, theta: 90 }, lm(-36, -36), turn(0), lm(-36, -12), { kind: 'waitUntilDone' }],
+      steps: [{ kind: 'setPose', x: X0, y: Y0, theta: 90 }, lm(-36, -36), turn(0), lm(-36, -12), { kind: 'waitUntilDone' }],
     };
     const { auton, r, sim } = await run(program, 12);
     const p = r.body.pose();
@@ -74,7 +79,7 @@ describe('Running a program on the physics robot', () => {
   it('a relative program (no setPose) drives from where the robot starts, backwards too', async () => {
     const { r, sim } = await run({ name: 'rel', slot: 'red-1', mode: 'skills', steps: [lm(0, 20), lm(0, 6, { forwards: false })] }, 8);
     const p = r.body.pose();
-    expect(Math.hypot(p.pos.x - (-61 + 6), p.pos.y + 36)).toBeLessThan(2.5);
+    expect(Math.hypot(p.pos.x - (X0 + 6), p.pos.y - Y0)).toBeLessThan(2.5);
     expect(Math.abs(wrapAngle(p.heading))).toBeLessThan(0.2); // backed up without turning around
     sim.dispose();
   });
@@ -91,7 +96,7 @@ describe('Running a program on the physics robot', () => {
     const { r, sim, auton } = await run({ name: 'ez', slot: 'red-1', mode: 'skills', steps }, 10);
     const p = r.body.pose();
     // 18" ahead (+x), turn right 90° (to −y), 12" more
-    expect(Math.hypot(p.pos.x - (-61 + 18), p.pos.y - (-36 - 12))).toBeLessThan(2.5);
+    expect(Math.hypot(p.pos.x - (X0 + 18), p.pos.y - (Y0 - 12))).toBeLessThan(2.5);
     expect(auton.finishedAt).not.toBeNull();
     sim.dispose();
   });
@@ -222,7 +227,7 @@ describe('PROS code export', () => {
     slot: 'red-1',
     mode: 'match',
     steps: [
-      { kind: 'setPose', x: -61, y: -36, theta: 90 },
+      { kind: 'setPose', x: X0, y: Y0, theta: 90 },
       lm(-30, -36),
       { kind: 'lift', height: 6.5 },
       turn(0),
@@ -277,7 +282,7 @@ describe('Scoring with an imported program', () => {
     const g = buildGoals().find((x) => x.id === 'G-R1a')!;
     const ahead = DEFAULT_ROBOT.intake.holderOffsetIn;
     const src = `void autonomous() {
-      chassis.setPose(-61, -36, 90);
+      chassis.setPose(${X0}, ${Y0}, 90);
       chassis.moveToPoint(${g.pos.x}, -40, 2000);
       chassis.turnToHeading(0, 1000);
       lift.move_absolute(${Math.round(liftMotorDegrees(DEFAULT_ROBOT, g.height + 1.5))}, 100);
@@ -298,14 +303,32 @@ describe('Scoring with an imported program', () => {
   });
 });
 
+describe('Plan mode routes', () => {
+  it('go around Pins and Cups on the tiles instead of through them', async () => {
+    const { routeVia } = await import('../src/auton/plan');
+    const { distToSegment } = await import('../src/core/vec');
+    const from = { x: -58, y: 0 };
+    const to = { x: -20, y: 0 };
+    const piece = { pos: { x: -39, y: -1 }, r: 1.58 };
+    expect(routeVia(from, to, DEFAULT_ROBOT, { alliance: 'red', ownSideOnly: false })).toEqual([]); // nothing else in the way
+    const via = routeVia(from, to, DEFAULT_ROBOT, { alliance: 'red', ownSideOnly: false, pieces: [piece] });
+    expect(via.length).toBeGreaterThan(0);
+    const pts = [from, ...via, to];
+    let closest = Infinity;
+    for (let i = 1; i < pts.length; i++) closest = Math.min(closest, distToSegment(piece.pos, pts[i - 1], pts[i]));
+    expect(closest).toBeGreaterThan(DEFAULT_ROBOT.chassis.widthIn / 2); // the robot's side clears it
+  });
+});
+
 describe('Plan mode sequences', () => {
   it('a click on a Goal scores the preload; a click on a Pin picks it up and the next Goal takes it', async () => {
     const { newProgram, placeSteps, pickSteps } = await import('../src/auton/plan');
     const { simulateProgram } = await import('../src/auton/simulate');
     const { buildGoals } = await import('../src/field/geometry');
-    // the preload and one standing Pin (on the full field the robot plows other pieces into the way)
+    // the preload and one standing Pin
     const full = buildLayout('headToHead');
-    const layout = { ...full, pins: full.pins.filter((p) => p.start.where === 'preload' || (p.start.where === 'field' && p.start.pos.x === -36 && p.start.pos.y === -8)), cups: [] };
+    const loose = { id: 'P99-YY', kind: 'pin' as const, type: 'YY' as const, start: { where: 'field' as const, pos: { x: -36, y: -8 }, upColor: 'yellow' as const } };
+    const layout = { ...full, pins: [...full.pins.filter((p) => p.start.where === 'preload'), loose], cups: [] };
     const start = layout.robots.find((r) => r.slot === 'red-1')!;
     const goals = buildGoals();
     let program = newProgram('two pieces', 'red-1', 'match', start);

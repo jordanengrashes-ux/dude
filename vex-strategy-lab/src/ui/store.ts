@@ -70,6 +70,10 @@ function defaultSlots(matchType: MatchType, robot: RobotConfig): SlotSetup[] {
 }
 
 function initial(): AppState {
+  return withSavedSettings(defaults());
+}
+
+function defaults(): AppState {
   const robot = cloneRobot(DEFAULT_ROBOT);
   const matchType: MatchType = 'headToHead';
   return {
@@ -103,18 +107,119 @@ function initial(): AppState {
 
 /**
  * The app opens in Practice (just you, 3rd person) unless the link says otherwise:
- * an invite link (`?room=`) or `?mode=match` opens a match.
+ * an invite link (`?room=`) or `?mode=match` opens a match; `mode=practice` (your own
+ * room, reloaded) stays in Practice.
  */
 function startsInPractice(): boolean {
   if (typeof window === 'undefined') return false;
   const q = new URLSearchParams(window.location.search);
+  if (q.get('mode') === 'practice') return true; // your own room, reloaded
   if (q.get('mode') === 'match' || q.has('room')) return false;
   return true;
 }
 
+// ------------------------------------------------------------- saved settings
+
+/** Settings kept in this browser across reloads (the field layout and results are not). */
+const SETTINGS_KEY = 'vsl-settings-v1';
+
+interface SavedSettings {
+  matchType: MatchType;
+  robot: RobotConfig;
+  params: OverrideParams;
+  userSlot: string;
+  strategies: Record<string, { strategy: Strategy; enabled: boolean }>;
+  planOptions: PlanOptions;
+  settings: OptimizerSettings;
+  uncertainty: UncertaintyConfig;
+  camera: CameraMode;
+  show: AppState['show'];
+  practice: boolean;
+}
+
+/** Saved values over the defaults: new fields keep their defaults, values of the wrong type are ignored. */
+function mergeSaved<T>(base: T, saved: unknown): T {
+  if (base === null || typeof base !== 'object') return (saved !== null && typeof saved === typeof base ? saved : base) as T;
+  if (Array.isArray(base)) return (Array.isArray(saved) ? saved : base) as T;
+  if (saved === null || typeof saved !== 'object' || Array.isArray(saved)) return base;
+  const out = { ...base } as Record<string, unknown>;
+  for (const k of Object.keys(out)) if (k in saved) out[k] = mergeSaved(out[k], (saved as Record<string, unknown>)[k]);
+  return out as T;
+}
+
+function readSaved(): Partial<SavedSettings> | null {
+  try {
+    const t = typeof localStorage !== 'undefined' ? localStorage.getItem(SETTINGS_KEY) : null;
+    return t ? (JSON.parse(t) as Partial<SavedSettings>) : null;
+  } catch {
+    return null;
+  }
+}
+
+function withSavedSettings(d: AppState): AppState {
+  const x = readSaved();
+  if (!x) return d;
+  const matchType: MatchType = x.matchType === 'headToHead' || x.matchType === 'skillsDriver' || x.matchType === 'skillsAuton' ? x.matchType : d.matchType;
+  const robot = mergeSaved(d.robot, x.robot);
+  const slots = defaultSlots(matchType, robot).map((s) => {
+    const st = x.strategies?.[s.slot];
+    return st && typeof st.strategy === 'string' ? { ...s, strategy: st.strategy, enabled: st.enabled !== false } : s;
+  });
+  const linked = !startsInPractice(); // an invite or ?mode=match link wins
+  return {
+    ...d,
+    matchType,
+    layout: matchType === d.matchType ? d.layout : buildLayout(matchType),
+    robot,
+    slots,
+    params: mergeSaved(d.params, x.params),
+    userSlot: slots.some((s) => s.slot === x.userSlot) ? x.userSlot! : d.userSlot,
+    planOptions: mergeSaved(d.planOptions, x.planOptions),
+    settings: mergeSaved(d.settings, x.settings),
+    uncertainty: mergeSaved(d.uncertainty, x.uncertainty),
+    show: mergeSaved(d.show, x.show),
+    practice: linked ? d.practice : typeof x.practice === 'boolean' ? x.practice : d.practice,
+    camera: linked ? d.camera : typeof x.camera === 'string' ? x.camera : d.camera,
+  };
+}
+
+function saveSettings(s: AppState) {
+  const out: SavedSettings = {
+    matchType: s.matchType,
+    robot: s.robot,
+    params: s.params,
+    userSlot: s.userSlot,
+    strategies: Object.fromEntries(s.slots.map((x) => [x.slot, { strategy: x.strategy, enabled: x.enabled }])),
+    planOptions: s.planOptions,
+    settings: s.settings,
+    uncertainty: s.uncertainty,
+    camera: s.camera,
+    show: s.show,
+    practice: s.practice,
+  };
+  try {
+    if (typeof localStorage !== 'undefined') localStorage.setItem(SETTINGS_KEY, JSON.stringify(out));
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+/** Forget the saved settings and go back to the defaults. */
+export function resetSettings() {
+  try {
+    localStorage.removeItem(SETTINGS_KEY);
+  } catch {
+    /* storage unavailable */
+  }
+  const d = defaults();
+  store.set((s) => ({ ...d, tab: s.tab, simVersion: s.simVersion + 1 }));
+}
+
 type Listener = () => void;
 let state: AppState = initial();
+if (typeof window !== 'undefined') window.addEventListener('pagehide', () => !state.autonRun && saveSettings(state));
 const listeners = new Set<Listener>();
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
 export const store = {
   get: () => state,
@@ -122,6 +227,14 @@ export const store = {
     const p = typeof patch === 'function' ? patch(state) : patch;
     state = { ...state, ...p };
     for (const l of listeners) l();
+    // keep the settings for the next visit (a watched auton run is not a setting); at
+    // most every 300 ms — the running match updates the store many times a second
+    if (!state.autonRun && typeof window !== 'undefined' && !saveTimer) {
+      saveTimer = setTimeout(() => {
+        saveTimer = null;
+        if (!state.autonRun) saveSettings(state);
+      }, 300);
+    }
   },
   subscribe(l: Listener): () => void {
     listeners.add(l);

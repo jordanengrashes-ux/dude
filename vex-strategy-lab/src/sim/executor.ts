@@ -1,7 +1,7 @@
 import { IN, wrapAngle } from '../core/units';
 import type { Vec2 } from '../core/vec';
 import { add, dist, distToSegment, fromAngle } from '../core/vec';
-import { MIDFIELD_INNER_HALF } from '../field/geometry';
+import { CUP, MIDFIELD_REACH, PIN } from '../field/geometry';
 import { derivePerf, type DrivePerf } from '../robot/kinematics';
 import { toggleAngle, togglePosition, toggleTargetAngle } from '../physics/field';
 import { upOf } from '../physics/frames';
@@ -237,13 +237,20 @@ export class PlanExecutor implements Controller {
   }
 
   private chooseApproach(sim: MatchSim, r: SimRobot, sense: Sensing, target: Vec2, key: string, except: { goal?: string; loader?: string; toggle?: string }, onlyHeading?: number, avoid: number[] = []) {
-    const aps = this.world.approaches(target, key, except, onlyHeading).filter((ap) => !avoid.some((h) => Math.abs(wrapAngle(ap.heading - h)) < Math.PI / 4));
+    // legal approaches only (SG7 / Load Zones), as the model plans them: a pickup reaches 3" past its stop
+    const reach = key.startsWith('dyn-') ? 3 : 0;
+    const aps = this.world
+      .approaches(target, key, except, onlyHeading)
+      .filter((ap) => !avoid.some((h) => Math.abs(wrapAngle(ap.heading - h)) < Math.PI / 4))
+      .filter((ap) => this.world.poseAllowed(ap.center, ap.heading, sim.t) && (!reach || this.world.poseAllowed(add(ap.center, fromAngle(ap.heading, reach)), ap.heading, sim.t)));
     const grid = this.world.gridAt(sim.t);
     const vg = this.world.visGraph(grid);
     let best: { ap: (typeof aps)[number]; path: Vec2[]; cost: number; esc: Escape | null } | null = null;
     const { esc, start, lead } = this.routeStart(grid, sense);
     const others = this.otherRobots(sim, r);
     let robotGrid: Grid | null = null;
+    let pieceGrid: Grid | null = null;
+    let pieces: { pos: Vec2; r: number }[] | null = null;
     this.robotInTheWay = false;
     for (const ap of aps) {
       // another robot is standing where this approach ends
@@ -260,6 +267,14 @@ export class PlanExecutor implements Controller {
         const alt = astar(robotGrid, start, ap.pre);
         if (alt) path = [start, ...alt.points.slice(1)];
         else penalty = 3; // no way around now: it may clear by the time we get there
+      }
+      // loose Pins and Cups: drive around them rather than plow them along (or knock them over)
+      pieces ??= this.loosePieces(sim, target);
+      if (pieces.some((o) => this.blocksPath({ pos: o.pos, r: o.r - 1.5 }, path!))) {
+        pieceGrid ??= new Grid({ ...grid.opts, extraObstacles: [...others.map((o) => ({ pos: o.pos, r: o.r })), ...pieces] });
+        const alt = pieceGrid.pointBlocked(ap.pre) ? null : astar(pieceGrid, start, ap.pre);
+        if (alt) path = [start, ...alt.points.slice(1)];
+        else penalty += 1;
       }
       path = [...lead, ...path];
       let len = 0;
@@ -282,6 +297,20 @@ export class PlanExecutor implements Controller {
       return undefined;
     }
     return reason;
+  }
+
+  /** Loose pieces on the tiles as circles (a lying piece reaches half its length), except those at `target`. */
+  private loosePieces(sim: MatchSim, target: Vec2): { pos: Vec2; r: number }[] {
+    const out: { pos: Vec2; r: number }[] = [];
+    for (const o of sim.objects.objects.values()) {
+      if (o.mode !== 'free' || !o.body) continue;
+      const t = o.body.translation();
+      const pos = { x: t.x / IN, y: -t.z / IN };
+      if (t.y / IN > 9 || dist(pos, target) < 3) continue;
+      const lying = Math.abs(upOf(o.body.rotation()).y) < 0.7;
+      out.push({ pos, r: lying ? (o.kind === 'pin' ? PIN.half : CUP.half) : (o.kind === 'pin' ? PIN.diameter : CUP.diameter) / 2 });
+    }
+    return out;
   }
 
   /** The other robots as circles (center, radius of their footprint). */
@@ -480,7 +509,8 @@ export class PlanExecutor implements Controller {
           let robotGrid: Grid | null = null;
           for (let k = 0; k < 8; k++) {
             const h = (k / 8) * 2 * Math.PI;
-            const pos = fromAngle(h + Math.PI, MIDFIELD_INNER_HALF + L / 2 - 4);
+            const edge = MIDFIELD_REACH / (Math.abs(Math.cos(h)) + Math.abs(Math.sin(h)));
+            const pos = fromAngle(h + Math.PI, edge + L / 2 - 4);
             if (!this.world.poseClear(pos, h)) continue;
             if (others.some((o) => dist(o.pos, pos) < o.r + this.world.clearance - 2)) continue; // spot taken
             let path = grid.segmentClear(start, pos) ? [start, pos] : vg.path(start, pos);
@@ -778,6 +808,9 @@ export class PlanExecutor implements Controller {
       case 'parked': {
         r.body.cmd = { left: 0, right: 0 };
         a.holderTarget = cfg.lift.holderMinHeightIn;
+        // parked early (nothing else looked doable, e.g. both Loaders blocked a moment ago):
+        // look again now and then — there may be work by now
+        if (t < this.world.clock.endgameStart - 8 && t - a.phaseT0 > 8) return true;
         return undefined; // stays parked to the end
       }
       default:

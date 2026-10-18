@@ -2,8 +2,8 @@ import type { Collider, ImpulseJoint, RigidBody, World } from '@dimforge/rapier3
 import { IN } from '../core/units';
 import { CUP, PIN, type GoalGeom } from '../field/geometry';
 import type { HalfColor } from '../rules/ruleset';
-import { CG, quatFromTo, quatMul, rotateV, slerp, toWorld, upOf, yawQuat, headingOf, type Quat, type V3 } from './frames';
-import { cupColliders, pinColliders } from './elementShapes';
+import { CG, quatConj, quatFromTo, quatMul, rotateV, slerp, toWorld, upOf, yawQuat, headingOf, type Quat, type V3 } from './frames';
+import { CUP_SEGMENTS, cupColliders, pinColliders, RING } from './elementShapes';
 import type { Rapier } from './rapier';
 
 /**
@@ -56,8 +56,8 @@ export interface SimObject {
   introducedAt?: number;
   /** Dropped by an easy-mode driver: Goals capture it within `funnel.assistRadius`. */
   assist?: boolean;
-  /** Last time (s) a running intake saw this Pin standing (within the claw's tilt limit). */
-  uprightAt?: number;
+  /** A Pin standing in a loose Cup, held to it as one piece (see ObjectManager.bond). */
+  bond?: { other: SimObject; joint: ImpulseJoint };
 }
 
 export interface CarriageFrame {
@@ -128,19 +128,36 @@ export class ObjectManager {
   }
 
   /** Create an object on the field (upright) or off-field (Match Load). */
-  add(o: { id: string; kind: 'pin' | 'cup'; colors?: [HalfColor, HalfColor]; matchloadAlliance?: 'red' | 'blue' }, place?: { x: number; y: number; z: number; flipped: boolean; yaw?: number }) {
+  add(o: { id: string; kind: 'pin' | 'cup'; colors?: [HalfColor, HalfColor]; matchloadAlliance?: 'red' | 'blue' }, place?: { x: number; y: number; z: number; flipped: boolean; yaw?: number; lie?: number }) {
     const obj: SimObject = { id: o.id, kind: o.kind, colors: o.colors, body: null, collider: null, mode: 'offfield', matchloadAlliance: o.matchloadAlliance };
     this.objects.set(o.id, obj);
     if (place) this.spawn(obj, place);
     return obj;
   }
 
-  /** Put an off-field object onto the field at rest (start of match or Match Load introduction). */
-  spawn(obj: SimObject, place: { x: number; y: number; z: number; flipped: boolean; yaw?: number }, t = 0) {
+  /**
+   * Put an off-field object onto the field at rest (start of match or Match Load
+   * introduction): standing with its bottom at height `z`, or lying on its side with
+   * its local +Y end toward field heading `lie`.
+   */
+  spawn(obj: SimObject, place: { x: number; y: number; z: number; flipped: boolean; yaw?: number; lie?: number }, t = 0) {
     const L = (obj.kind === 'pin' ? PIN.length : CUP.length) / 2;
-    const p = toWorld(place.x, place.y, place.z + L);
-    let q = yawQuat(place.yaw ?? 0);
-    if (place.flipped) q = quatMul(q, { x: 1, y: 0, z: 0, w: 0 }); // 180° about local X
+    let p: V3;
+    let q: Quat;
+    if (place.lie !== undefined) {
+      // roll about the long axis so a flat face of the polygonal hull is down: it starts at rest
+      const n = obj.kind === 'pin' ? RING : CUP_SEGMENTS;
+      const q0 = quatFromTo({ x: 0, y: 1, z: 0 }, { x: Math.cos(place.lie), y: 0, z: -Math.sin(place.lie) });
+      const g = rotateV(quatConj(q0), { x: 0, y: -1, z: 0 });
+      const beta = Math.PI / n - Math.atan2(g.z, g.x);
+      q = quatMul(q0, { x: 0, y: Math.sin(beta / 2), z: 0, w: Math.cos(beta / 2) });
+      // the solver rests contacts about 1 mm deep
+      p = toWorld(place.x, place.y, place.z + ((obj.kind === 'pin' ? PIN.diameter : CUP.diameter) / 2) * Math.cos(Math.PI / n) - 0.04);
+    } else {
+      p = toWorld(place.x, place.y, place.z + L);
+      q = yawQuat(place.yaw ?? 0);
+      if (place.flipped) q = quatMul(q, { x: 1, y: 0, z: 0, w: 0 }); // 180° about local X
+    }
     const { body, collider } = this.makeBody(obj.kind, p, q, obj.kind === 'pin' ? PIN.massKg : CUP.massKg);
     obj.body = body;
     obj.collider = collider;
@@ -201,8 +218,37 @@ export class ObjectManager {
     if (st.pending === obj) st.pending = null;
   }
 
+  /**
+   * A piece nested on a loose one (a Pin standing in a Cup, a Cup over a Pin) moves
+   * with it as one piece — two resting rigid bodies in a ring-on-rim contact jitter
+   * and creep across the tiles — until either is picked up or caught by a Goal, or
+   * the pair tips far enough for the top piece to fall off.
+   */
+  bond(base: SimObject, top: SimObject) {
+    const a = base.body!;
+    const b = top.body!;
+    const pa = a.translation();
+    const pb = b.translation();
+    const inv = quatConj(a.rotation());
+    const lp = rotateV(inv, { x: pb.x - pa.x, y: pb.y - pa.y, z: pb.z - pa.z });
+    const lq = quatMul(inv, b.rotation());
+    const joint = this.world.createImpulseJoint(this.R.JointData.fixed(lp, lq, { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0, w: 1 }), a, b, true);
+    joint.setContactsEnabled(false);
+    base.bond = { other: top, joint };
+    top.bond = { other: base, joint };
+  }
+
+  unbond(obj: SimObject) {
+    const bd = obj.bond;
+    if (!bd) return;
+    this.world.removeImpulseJoint(bd.joint, true);
+    obj.bond = undefined;
+    bd.other.bond = undefined;
+  }
+
   /** Start a mechanism-driven motion (carriage or world frame). */
   animate(obj: SimObject, frame: 'carriage' | 'world', from: { p: V3; q: Quat }, to: { p: V3; q: Quat }, t: number, dur: number, then: 'held' | 'stacked') {
+    this.unbond(obj);
     const b = obj.body!;
     if (b.bodyType() !== this.R.RigidBodyType.KinematicPositionBased) b.setBodyType(this.R.RigidBodyType.KinematicPositionBased, true);
     setObjectGroups(obj, CG.held);
@@ -227,6 +273,8 @@ export class ObjectManager {
    * `attach` is called when an intake/index motion completes.
    */
   stepAnimations(t: number, carriage: (robotId: string) => CarriageFrame | null, attach: (obj: SimObject) => void) {
+    // a pair tipped past 35° comes apart (the top piece falls off)
+    for (const obj of this.objects.values()) if (obj.bond && obj.body && Math.abs(upOf(obj.body.rotation()).y) < 0.82) this.unbond(obj);
     for (const obj of this.objects.values()) {
       const a = obj.anim;
       if (!a || !obj.body) continue;
@@ -285,6 +333,7 @@ export class ObjectManager {
         const seat = this.nextBottom(st);
         if (bottomIn < seat - this.funnel.below || bottomIn > seat + this.funnel.above) continue;
         // capture: guided down the funnel onto the axis, keeping which end is up
+        this.unbond(obj);
         const flipped = up.y < 0;
         const yaw = headingOf(b.rotation());
         const target = this.seatPose(st, obj.kind, flipped, yaw);

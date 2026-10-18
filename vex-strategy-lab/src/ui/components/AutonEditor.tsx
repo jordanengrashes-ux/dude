@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
 import type { Vec2 } from '../../core/vec';
 import { dist } from '../../core/vec';
-import { buildGoals } from '../../field/geometry';
+import { buildGoals, CUP, HALF, PIN } from '../../field/geometry';
+import { startProblems, type FieldLayout } from '../../field/layout';
 import { DEFAULT_SPEED, moveStep, newProgram, pickSteps, placeSteps, turnStep } from '../../auton/plan';
-import { isMotion, previewPath, stepLabel, toField, toProgram, type AutonMode, type AutonStep, type PreviewPoint } from '../../auton/program';
+import { headingToTheta, isMotion, previewPath, stepLabel, thetaToHeading, toField, toProgram, type AutonMode, type AutonStep, type PreviewPoint } from '../../auton/program';
 import { LIFT_PRESETS } from '../../sim/driver';
 import { useApp, watchAuton } from '../store';
-import { deleteSaved, ensureStart, layoutFor, plan, quickRun, retarget, saveProgram, setProgram, startFor, usePlan } from '../planState';
+import { deleteSaved, ensureStart, layoutFor, plan, quickRun, retarget, saveProgram, setProgram, setStart, startFor, usePlan } from '../planState';
 import { FIELD_COLORS, FieldText, PlanField, RobotGhost } from './PlanField';
 import { ExportDialog, ImportDialog } from './CodeDialogs';
 
@@ -17,6 +18,17 @@ import { ExportDialog, ImportDialog } from './CodeDialogs';
  */
 
 type ClickMode = 'smart' | 'drive' | 'back' | 'turn';
+
+/** Pins and Cups on the tiles as circles for routing (a lying Pin reaches half its length), except the one at `target`. */
+function piecesOnTiles(layout: FieldLayout, target?: Vec2): { pos: Vec2; r: number }[] {
+  const out: { pos: Vec2; r: number }[] = [];
+  for (const o of [...layout.pins, ...layout.cups]) {
+    if (o.start.where !== 'field' || (target && dist(o.start.pos, target) < 3)) continue;
+    const lying = 'lying' in o.start && o.start.lying;
+    out.push({ pos: o.start.pos, r: lying ? PIN.half : o.kind === 'pin' ? PIN.diameter / 2 : CUP.diameter / 2 });
+  }
+  return out;
+}
 
 const SLOTS = ['red-1', 'red-2', 'blue-1', 'blue-2'];
 
@@ -32,6 +44,8 @@ export function AutonEditor() {
   useApp((s) => s.layout); // redraw when the field layout changes
   const [clickMode, setClickMode] = useState<ClickMode>('smart');
   const [drag, setDrag] = useState<{ step: number; moved: boolean } | null>(null);
+  // dragging the starting robot: move it (grabbed `off` from its center) or turn it by its handle
+  const [startDrag, setStartDrag] = useState<{ kind: 'move'; off: Vec2 } | { kind: 'turn' } | null>(null);
   const layout = layoutFor(program.mode);
   const start = startFor(program);
   const preview = useMemo(() => (start ? previewPath(program.steps, start) : []), [program, start]);
@@ -60,17 +74,18 @@ export function AutonEditor() {
   };
   const insert = (steps: AutonStep[]) => insertWith(() => steps);
 
-  // smart sequences route around Goal posts and Loaders, and stay on this side in a match autonomous
-  const route = { alliance: program.slot.startsWith('blue') ? ('blue' as const) : ('red' as const), ownSideOnly: program.mode === 'match' };
+  // smart sequences route around Goal posts, Loaders and the pieces on the tiles (so
+  // they aren't knocked over), and stay on this side in a match autonomous
+  const route = (target?: Vec2) => ({ alliance: program.slot.startsWith('blue') ? ('blue' as const) : ('red' as const), ownSideOnly: program.mode === 'match', pieces: piecesOnTiles(layout, target) });
   const onFieldClick = (p: Vec2, shift: boolean) =>
     insertWith((here) => {
       const frame = here.frame;
       if (clickMode === 'turn') return [turnStep(frame, Math.atan2(p.y - here.pos.y, p.x - here.pos.x))];
       if (clickMode === 'smart' && !shift) {
         const goal = buildGoals().find((g) => dist(g.pos, p) < g.baseRadius + 2);
-        if (goal) return placeSteps(frame, here.pos, goal, robot, route);
+        if (goal) return placeSteps(frame, here.pos, goal, robot, route());
         const piece = [...layout.pins, ...layout.cups].find((o) => o.start.where === 'field' && dist(o.start.pos, p) < 3);
-        if (piece && piece.start.where === 'field') return pickSteps(frame, here.pos, piece.start.pos, robot, route);
+        if (piece && piece.start.where === 'field') return pickSteps(frame, here.pos, piece.start.pos, robot, route(piece.start.pos));
       }
       return [moveStep(frame, p, !(shift || clickMode === 'back'), DEFAULT_SPEED)];
     });
@@ -84,6 +99,34 @@ export function AutonEditor() {
     const r = (v: number) => Math.round(v * 10) / 10;
     setProgram((pr) => ({ ...pr, steps: pr.steps.map((s, k) => (k === i && (s.kind === 'moveToPoint' || s.kind === 'moveToPose' || s.kind === 'turnToPoint') ? { ...s, x: r(q.x), y: r(q.y) } : s)) }));
   };
+
+  const L = robot.chassis.lengthIn;
+  const W = robot.chassis.widthIn;
+  const handle = start ? { x: start.pos.x + Math.cos(start.heading) * (L / 2 + 4), y: start.pos.y + Math.sin(start.heading) * (L / 2 + 4) } : null;
+  /** A start pose kept inside the field; within 1.5" of a wall it snaps against it. */
+  const placeStart = (pos: Vec2, heading: number) => {
+    const c = Math.abs(Math.cos(heading));
+    const s = Math.abs(Math.sin(heading));
+    const hx = (c * L + s * W) / 2;
+    const hy = (s * L + c * W) / 2;
+    const fit = (v: number, h: number) => {
+      const lim = HALF - h;
+      const v1 = Math.max(-lim, Math.min(lim, v));
+      return Math.abs(Math.abs(v1) - lim) < 1.5 ? Math.sign(v1) * lim : v1;
+    };
+    const r = (v: number) => Math.round(v * 10) / 10;
+    setStart({ x: r(fit(pos.x, hx)), y: r(fit(pos.y, hy)), heading });
+  };
+  const onStart = (p: Vec2): 'move' | 'turn' | null => {
+    if (!start) return null;
+    if (handle && dist(p, handle) < 2.4) return 'turn';
+    const dx = p.x - start.pos.x;
+    const dy = p.y - start.pos.y;
+    const along = dx * Math.cos(start.heading) + dy * Math.sin(start.heading);
+    const across = -dx * Math.sin(start.heading) + dy * Math.cos(start.heading);
+    return Math.abs(along) < L / 2 && Math.abs(across) < W / 2 ? 'move' : null;
+  };
+  const problems = start ? startProblems(start.pos, start.heading, L, W, start.alliance, program.mode === 'skills' ? 'skillsAuton' : 'headToHead') : [];
 
   const color = program.slot.startsWith('blue') ? FIELD_COLORS.blue : FIELD_COLORS.red;
   const motionPts = preview.filter((p) => p.step >= 0 && program.steps[p.step] && isMotion(program.steps[p.step]));
@@ -123,14 +166,34 @@ export function AutonEditor() {
         <PlanField
           layout={layout}
           highlightSlot={program.slot}
-          cursor={drag ? 'grabbing' : 'crosshair'}
+          cursor={drag || startDrag ? 'grabbing' : 'crosshair'}
           pointer={{
-            move: (p) => {
+            down: (p, e) => {
+              const hit = onStart(p);
+              if (!hit || !start) return;
+              (e.currentTarget as SVGSVGElement).setPointerCapture(e.pointerId);
+              setStartDrag(hit === 'turn' ? { kind: 'turn' } : { kind: 'move', off: { x: p.x - start.pos.x, y: p.y - start.pos.y } });
+            },
+            move: (p, e) => {
+              if (startDrag && start) {
+                if (startDrag.kind === 'move') placeStart({ x: p.x - startDrag.off.x, y: p.y - startDrag.off.y }, start.heading);
+                else {
+                  // 15° steps; Shift turns freely
+                  const a = Math.atan2(p.y - start.pos.y, p.x - start.pos.x);
+                  const step = Math.PI / 12;
+                  placeStart(start.pos, e.shiftKey ? a : Math.round(a / step) * step);
+                }
+                return;
+              }
               if (!drag) return;
               setDrag({ ...drag, moved: true });
               dragTo(drag.step, p);
             },
             up: (p, e) => {
+              if (startDrag) {
+                setStartDrag(null);
+                return;
+              }
               if (drag) {
                 const wasDrag = drag.moved;
                 setDrag(null);
@@ -153,7 +216,17 @@ export function AutonEditor() {
             <polyline points={preview.map((p) => `${p.pos.x},${p.pos.y}`).join(' ')} fill="none" stroke={color} strokeWidth={0.9} strokeLinejoin="round" style={{ pointerEvents: 'none' }} />
           )}
           {last && <RobotGhost pos={last.pos} heading={last.heading} color={color} opacity={0.55} dashed />}
-          {start && <RobotGhost pos={start.pos} heading={start.heading} color={color} />}
+          {start && <RobotGhost pos={start.pos} heading={start.heading} color={problems.length ? '#ff9f1a' : color} />}
+          {start && handle && (
+            <g style={{ cursor: 'grab' }}>
+              <title>Drag the robot to move its start; drag this handle to turn it (Shift: any angle)</title>
+              <line x1={start.pos.x} y1={start.pos.y} x2={handle.x} y2={handle.y} stroke={color} strokeWidth={0.4} strokeDasharray="1 0.8" style={{ pointerEvents: 'none' }} />
+              <circle cx={handle.x} cy={handle.y} r={1.6} fill="#1d1e20" stroke={color} strokeWidth={0.5} />
+              <FieldText x={handle.x} y={handle.y} size={2} fill={FIELD_COLORS.ink}>
+                ⟳
+              </FieldText>
+            </g>
+          )}
           {badges.map((b) => {
             const key = `${b.pos.x.toFixed(1)},${b.pos.y.toFixed(1)}`;
             const k = badgeOffset.get(key) ?? 0;
@@ -207,6 +280,7 @@ export function AutonEditor() {
       </div>
       <aside className="plan-side">
         {programCard()}
+        {startCard()}
         {runCard()}
         {stepsCard()}
       </aside>
@@ -282,6 +356,28 @@ export function AutonEditor() {
             </button>
           )}
         </div>
+      </section>
+    );
+  }
+
+  function startCard() {
+    if (!start) return null;
+    const theta = headingToTheta(start.heading);
+    return (
+      <section className="card">
+        <h4>Starting position</h4>
+        <div className="row small" style={{ gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+          x <NumIn value={start.pos.x} onChange={(x) => placeStart({ x, y: start.pos.y }, start.heading)} /> y{' '}
+          <NumIn value={start.pos.y} onChange={(y) => placeStart({ x: start.pos.x, y }, start.heading)} /> θ{' '}
+          <NumIn value={Math.round(theta * 10) / 10} step={15} onChange={(t) => placeStart(start.pos, thetaToHeading(t))} title="Heading in degrees, 0° = up, clockwise" />
+          {program.start && (
+            <button className="link" onClick={() => setStart(null)}>
+              Back to the {program.slot} tile
+            </button>
+          )}
+        </div>
+        <p className="small muted">Drag the robot on the field to move it, its ⟳ handle to turn it. The program's setPose follows.</p>
+        {problems.length > 0 && <p className="small warn">Not a legal start (SG1): {problems.join('; ')}.</p>}
       </section>
     );
   }

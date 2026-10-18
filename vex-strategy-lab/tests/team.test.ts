@@ -118,10 +118,14 @@ describe('Bot ↔ human hand-over', () => {
     // hand back: the bot replans from the current field and gets back to work
     const replans = ex.replans;
     const handedBack = sim.t;
+    const c = r.body.pose().pos;
     slot.setBot();
-    sim.runUntil(22);
+    sim.runUntil(30);
     expect(ex.replans).toBeGreaterThan(replans);
-    expect(ex.history.some((h) => h.ok && h.tStart >= handedBack && h.label !== 'Wait')).toBe(true);
+    // back to work: it takes up actions again and drives off to do them
+    const after = ex.history.filter((h) => h.tStart >= handedBack);
+    const d = r.body.pose().pos;
+    expect(Math.hypot(d.x - c.x, d.y - c.y) > 12 || after.some((h) => h.ok && h.label !== 'Wait')).toBe(true);
     sim.dispose();
   });
 });

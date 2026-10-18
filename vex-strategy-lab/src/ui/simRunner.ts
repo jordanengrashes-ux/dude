@@ -116,7 +116,10 @@ export class SimRunner {
       // an autonomous program on its own: that robot only, from its starting tile
       const p = s.autonRun;
       const matchType = p.mode === 'skills' ? 'skillsAuton' : 'headToHead';
-      const layout = matchType === s.matchType ? s.layout : buildLayout(matchType);
+      const base = matchType === s.matchType ? s.layout : buildLayout(matchType);
+      // a start moved in the Plan tab replaces the slot's tile
+      const st = p.start;
+      const layout = st ? { ...base, robots: base.robots.map((r) => (r.slot === p.slot ? { ...r, pos: { x: st.x, y: st.y }, heading: st.heading, exact: true } : r)) } : base;
       return {
         params: s.params,
         layout,

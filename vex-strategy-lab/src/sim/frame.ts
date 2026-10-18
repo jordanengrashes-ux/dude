@@ -12,11 +12,14 @@ import type { MatchSim } from './match';
 /**
  * state 0: near the Goal, not lined up; 1: lined up but held too low (raise it);
  * 2: lined up and high enough — open the claw and it drops in. `top`: stack top (in).
+ * `at` set: the target is a loose piece standing on the tiles (`goal` is its id) — a
+ * Cup the held Pin would drop into, or a Pin the held Cup would drop over.
  */
 export interface AlignHint {
   goal: string;
   state: 0 | 1 | 2;
   top: number;
+  at?: { x: number; y: number };
 }
 
 export interface SceneFrame {

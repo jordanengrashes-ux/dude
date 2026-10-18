@@ -125,7 +125,8 @@ function DriveHint({ period, t }: { period: string; t: number }) {
   const me = guest ? team.session?.frameAt()?.robots.find((r) => r.id === mine) : runner.sim?.sceneFrame().robots.find((r) => r.id === mine);
   const held = me ? [me.holding & 1 ? 'Pin' : null, me.holding & 2 ? 'Cup' : null].filter(Boolean).join(' + ') : '';
   const a = me?.align ?? null;
-  const align = !a ? null : a.state === 2 ? `over ${a.goal}: open the claw` : a.state === 1 ? `lined up on ${a.goal}: raise the arm` : `line up over ${a.goal}`;
+  const over = !a ? '' : a.at ? (me && me.holding & 1 ? 'the Cup' : 'the Pin') : a.goal;
+  const align = !a ? null : a.state === 2 ? `over ${over}: open the claw` : a.state === 1 ? `lined up on ${over}: raise the arm` : `line up over ${over}`;
   return (
     <div className="small drive-hint">
       <div>

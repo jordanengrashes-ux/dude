@@ -123,7 +123,9 @@ export class RobotBody {
       this.colliders.push(col);
       return col;
     };
-    const railHalfH = (frameH - clear) / 2;
+    // drive modules (rails, wheels, motors) from the slot out to the sides, as tall as
+    // the wheels — the same blocks the 3D model draws (ui/three/assets/robot.ts)
+    const railHalfH = (Math.min(frameH, 2 * rw) - clear) / 2;
     const railY = clear + railHalfH;
     // side rails (local −Z = robot left)
     box(0, railY, -(W / 2 - railW / 2), L / 2, railHalfH, railW / 2);
@@ -297,17 +299,30 @@ export class RobotBody {
     // correction); cap at the robot's weight, keep reductions (bumps, lift-off, tipping).
     const support = Math.min(measured, mTot * GRAV);
     if (this.direct) {
+      // No momentum: the same motors, wheels and top speeds, but no coasting. Let go
+      // and the robot stops dead; ease off and it slows at once; reverse and it stops first.
       const vMax = groupFreeSpeed(d.left, vb) * rw * this.motorScale;
-      const vL = this.cmd.left * d.left.direction * vMax;
-      const vR = this.cmd.right * d.right.direction * vMax;
-      const v = (vL + vR) / 2;
-      const w = (vR - vL) / (d.trackWidthIn * IN); // + = counterclockwise (left turn)
+      const uL = this.cmd.left * d.left.direction;
+      const uR = this.cmd.right * d.right.direction;
+      const uF = (uL + uR) / 2;
+      const uT = (uR - uL) / 2; // + = counterclockwise (left turn)
       const lv = this.chassis.linvel();
       const av = this.chassis.angvel();
-      this.chassis.setLinvel({ x: fh.x * v, y: lv.y, z: fh.z * v }, true);
-      this.chassis.setAngvel({ x: av.x, y: w, z: av.z }, true);
+      const cap = (cur: number, u: number, max: number) => {
+        if (Math.abs(u) < 0.02) return cur * 0.85; // this axis let go (the other still driving): gone in a blink, walls can still push
+        if (Math.sign(cur) !== Math.sign(u)) return Math.abs(cur) > 0.05 ? 0 : cur; // reversing: stop first
+        return Math.sign(cur) * Math.min(Math.abs(cur), Math.abs(u) * max);
+      };
+      const v0 = lv.x * fh.x + lv.z * fh.z;
+      const vSide = lv.x * lh.x + lv.z * lh.z;
+      const vf = cap(v0, uF, vMax);
+      const w = cap(av.y, uT, (2 * vMax) / (d.trackWidthIn * IN));
+      const still = Math.abs(uF) < 0.02 && Math.abs(uT) < 0.02;
+      const vs = still ? 0 : vSide;
+      this.chassis.setLinvel({ x: still ? 0 : fh.x * vf + lh.x * vs, y: lv.y, z: still ? 0 : fh.z * vf + lh.z * vs }, true);
+      this.chassis.setAngvel({ x: av.x, y: still ? 0 : w, z: av.z }, true);
     }
-    if (!this.direct) this.wheelPos.forEach((wp, i) => {
+    this.wheelPos.forEach((wp, i) => {
       const N = grounded[i] && shareSum > 1e-6 ? (support * share[i]) / shareSum : 0;
       const w = this.wheels[i];
       w.load = N;

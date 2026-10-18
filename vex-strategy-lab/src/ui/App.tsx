@@ -31,24 +31,23 @@ const TABS: { id: Tab; label: string }[] = [
 function useAutoTeam() {
   const t = useTeam();
   const practice = useApp((s) => s.practice);
-  const watching = useApp((s) => s.autonRun !== null);
   useEffect(() => {
-    // practice and autonomous tests are only you: no room
-    if (practice || watching) {
-      void team.session?.leave();
-      return;
-    }
+    // the room is always open (Practice too): someone opening the invite link switches
+    // a practicing host to a match and takes a robot
+    if (team.session) team.session.needMatch = () => setPractice(false);
     const room = new URLSearchParams(window.location.search).get('room');
     void team.session?.autoStart(savedPlayerName(), room ? room.trim().toUpperCase() : null);
-  }, [practice, watching]);
+  }, []);
   useEffect(() => {
     if (!t.room && t.connecting) return;
     const url = new URL(window.location.href);
     if (t.room) url.searchParams.set('room', t.room);
     else url.searchParams.delete('room');
-    // practice is the default; a match says so, so a reload stays in the match
-    if (practice) url.searchParams.delete('mode');
-    else if (!t.room) url.searchParams.set('mode', 'match');
+    // a reload stays where you were: a room link alone joins a match, so practice says so
+    if (practice) {
+      if (t.room) url.searchParams.set('mode', 'practice');
+      else url.searchParams.delete('mode');
+    } else if (!t.room) url.searchParams.set('mode', 'match');
     else url.searchParams.delete('mode');
     if (url.href !== window.location.href) window.history.replaceState(null, '', url);
   }, [t.room, t.connecting, practice]);
@@ -101,10 +100,10 @@ export function App() {
         </nav>
         <div className="quick">
           <div className="segmented" role="group" aria-label="Mode">
-            <button className={!practice && !watching ? 'on' : ''} onClick={() => setPractice(false)} title="Bots and players on both alliances; a team room opens">
+            <button className={!practice && !watching ? 'on' : ''} onClick={() => setPractice(false)} title="Bots and players on both alliances">
               Match
             </button>
-            <button className={practice && !watching ? 'on' : ''} onClick={() => setPractice(true)} title="Only your robot on the field; you drive from the start">
+            <button className={practice && !watching ? 'on' : ''} onClick={() => setPractice(true)} title="Only your robot on the field; you drive from the start (your room stays open: a friend joining switches to a match)">
               Practice
             </button>
             {watching && (

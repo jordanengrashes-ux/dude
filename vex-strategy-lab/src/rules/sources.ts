@@ -53,6 +53,16 @@ export const SOURCES: Record<string, Source> = {
     accessed: LAST_CHECKED,
     accessMethod: 'web-search extract',
   },
+  manualPdf11: {
+    id: 'manualPdf11',
+    title: 'V5RC Override Game Manual v1.1 (PDF with the Appendix A field drawings; marked obsolete)',
+    url: 'https://content.vexrobotics.com/docs/2026-2027/override/files/override-v1.1-obs.pdf',
+    publisher: 'VEX Robotics',
+    official: true,
+    version: '1.1',
+    accessed: '2026-10-18',
+    accessMethod: 'direct', // downloaded PDF; dimensions measured on the drawings
+  },
   appendixA: {
     id: 'appendixA',
     title: 'Appendix A — Field Overview, VEX V5 Override v2.1',

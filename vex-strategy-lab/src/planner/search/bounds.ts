@@ -1,5 +1,5 @@
 import { dist } from '../../core/vec';
-import { MIDFIELD_INNER_HALF } from '../../field/geometry';
+import { MIDFIELD_REACH } from '../../field/geometry';
 import type { Alliance, HalfColor } from '../../rules/ruleset';
 import { enumerateHalves } from '../../rules/scoring';
 import { ST_FIELD, ST_HELD, ST_MATCHLOAD, type PlanState, type PlanWorld } from '../model';
@@ -107,13 +107,19 @@ export function upperBoundAdd(w: PlanWorld, s: PlanState): number {
   let minHalf = Infinity;
 
   // Candidate pins with (value, time)
-  const items: { v: number; c: number; lo: number }[] = [];
+  const items: { v: number; c: number; lo: number; paired: boolean }[] = [];
+  const heldPair = w.heldPair(s);
   for (const o of w.objs) {
     if (o.kind !== 'pin') continue;
     const st = s.status[o.idx];
     let pos: { x: number; y: number } | null = null;
     let extra = 0;
-    if (st === ST_FIELD && o.startPos) pos = o.startPos;
+    // a Pin in a Cup goes onto a Goal with its Cup in one trip (no separate Cup cycle)
+    const paired = (st === ST_FIELD && o.nest !== undefined && s.status[o.nest] === ST_FIELD) || (st === ST_HELD && heldPair);
+    if (st === ST_FIELD && o.startPos) {
+      if (o.lying && R.intake.maxPinTiltDeg < 90) continue; // the claw can't take it
+      pos = o.startPos;
+    }
     else if (st === ST_MATCHLOAD) {
       if (w.isAutonomous(s.t) && !cfg.params.matchLoads.allowedInAutonomous && cfg.tEnd <= (w.clock.autonomousEnd ?? 0)) continue;
       const ls = w.loaders.filter((l) => isSkills || l.alliance === alliance);
@@ -131,7 +137,7 @@ export function upperBoundAdd(w: PlanWorld, s: PlanState): number {
     const d1 = Math.max(0, Math.min(dist(holder, pos), dm) - reach);
     const d2 = Math.max(0, dm - reach);
     const c = Math.max(0.05, minMech + extra + (st === ST_HELD ? legLB(d2) : legLB(d1) + legLB(d2)));
-    items.push({ v, c, lo: Math.min(h0, h1) });
+    items.push({ v, c, lo: Math.min(h0, h1), paired });
   }
   if (!isFinite(minHalf)) minHalf = 0;
   // Fractional knapsack. The first `freeSockets` Pins need no Cup; every further Pin
@@ -145,13 +151,15 @@ export function upperBoundAdd(w: PlanWorld, s: PlanState): number {
   let budget = remaining;
   let gain = 0;
   let used = 0;
+  let single = 0;
   let cupsLeft = cupsAvail;
   for (const it of ranked) {
     if (used >= slots) break;
     let v = it.v;
     let c = it.c;
-    if (used >= freeSockets) {
-      if (cupsLeft <= 0 || !isFinite(extraCost)) break;
+    // optimistic for a pair: full value, no Cup cycle, no free socket used
+    if (!it.paired && single++ >= freeSockets) {
+      if (cupsLeft <= 0 || !isFinite(extraCost)) continue; // pairs further down still fit
       v = Math.max(0, it.v - minHalf);
       c = it.c + extraCost;
       cupsLeft--;
@@ -187,7 +195,7 @@ export function upperBoundAdd(w: PlanWorld, s: PlanState): number {
 
   // Midfield
   if (cfg.allowPark && !s.parked) {
-    const dMid = Math.max(0, Math.max(Math.abs(s.pos.x), Math.abs(s.pos.y)) - MIDFIELD_INNER_HALF - R.chassis.lengthIn / 2);
+    const dMid = Math.max(0, (Math.abs(s.pos.x) + Math.abs(s.pos.y) - MIDFIELD_REACH) / Math.SQRT2 - Math.hypot(R.chassis.lengthIn, R.chassis.widthIn) / 2);
     if (dMid / vmax <= remaining) {
       gain += P.robotInMidfield;
       const mi = w.goals.findIndex((g) => g.type === 'midfield');

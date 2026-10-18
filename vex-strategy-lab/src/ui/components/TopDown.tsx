@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { buildGoals, buildLoaders, buildToggles, CUP, HALF, LOAD_ZONE_SIZE, PIN, TILE } from '../../field/geometry';
+import { buildGoals, buildLoaders, buildToggles, CUP, HALF, loadZones, PIN, TAPE_WIDTH, tapeStrips, TILE } from '../../field/geometry';
 import { PIN_COLORS, type FieldLayout } from '../../field/layout';
 import { obbCorners, type Vec2 } from '../../core/vec';
 import type { StepInfo } from '../../planner/model';
@@ -79,9 +79,9 @@ export function TopDown({ steps, editable, height = 420 }: { steps?: StepInfo[] 
     g.fillRect(a.x, a.y, 2 * HALF * k, 2 * HALF * k);
     g.strokeStyle = '#3a3b3e';
     g.lineWidth = 1;
-    for (let i = 1; i < 6; i++) {
-      const x = P({ x: -HALF + i * TILE, y: 0 }).x;
-      const y = P({ x: 0, y: -HALF + i * TILE }).y;
+    for (let i = -2; i <= 2; i++) {
+      const x = P({ x: i * TILE, y: 0 }).x;
+      const y = P({ x: 0, y: i * TILE }).y;
       g.beginPath();
       g.moveTo(x, a.y);
       g.lineTo(x, a.y + 2 * HALF * k);
@@ -90,36 +90,31 @@ export function TopDown({ steps, editable, height = 420 }: { steps?: StepInfo[] 
       g.stroke();
     }
     if (show.zones)
-      for (const l of buildLoaders()) {
-        const sx = Math.sign(l.corner.x);
-        const sy = Math.sign(l.corner.y);
-        const p1 = P({ x: sx * HALF, y: sy * HALF });
-        const p2 = P({ x: sx * (HALF - LOAD_ZONE_SIZE), y: sy * (HALF - LOAD_ZONE_SIZE) });
-        g.fillStyle = l.alliance === 'red' ? 'rgba(217,83,79,0.22)' : 'rgba(59,130,246,0.22)';
+      for (const z of loadZones()) {
+        const p1 = P({ x: z.aabb[0], y: z.aabb[1] });
+        const p2 = P({ x: z.aabb[2], y: z.aabb[3] });
+        g.fillStyle = z.alliance === 'red' ? 'rgba(217,83,79,0.22)' : 'rgba(59,130,246,0.22)';
         g.fillRect(Math.min(p1.x, p2.x), Math.min(p1.y, p2.y), Math.abs(p2.x - p1.x), Math.abs(p2.y - p1.y));
-        const c = P(l.corner);
-        g.fillStyle = l.alliance === 'red' ? '#7a2e2c' : '#24477e';
-        const F = l.footprint * k;
-        g.fillRect(c.x - (sx > 0 ? F : 0), c.y - (sy > 0 ? 0 : F), F, F);
       }
+    for (const l of buildLoaders()) {
+      const p1 = P({ x: l.pos.x - l.halfSize.x, y: l.pos.y - l.halfSize.y });
+      const p2 = P({ x: l.pos.x + l.halfSize.x, y: l.pos.y + l.halfSize.y });
+      g.fillStyle = l.alliance === 'red' ? '#b4423f' : '#3866b0';
+      g.fillRect(Math.min(p1.x, p2.x), Math.min(p1.y, p2.y), Math.abs(p2.x - p1.x), Math.abs(p2.y - p1.y));
+    }
     // tape
-    g.strokeStyle = 'rgba(242,242,242,0.85)';
-    g.lineWidth = 2.5 * k;
-    g.beginPath();
-    for (const [x, y] of [
-      [-1, -1],
-      [1, 1],
-      [-1, 1],
-      [1, -1],
-    ]) {
-      const s1 = P({ x: x * HALF, y: y * HALF });
-      const s2 = P({ x: x * TILE, y: y * TILE });
+    g.lineWidth = Math.max(1, TAPE_WIDTH * k);
+    g.lineCap = 'square';
+    for (const t of tapeStrips()) {
+      g.strokeStyle = t.color === 'white' ? 'rgba(242,242,242,0.85)' : t.color === 'red' ? C.red : C.blue;
+      const s1 = P(t.a);
+      const s2 = P(t.b);
+      g.beginPath();
       g.moveTo(s1.x, s1.y);
       g.lineTo(s2.x, s2.y);
+      g.stroke();
     }
-    const m1 = P({ x: -TILE, y: TILE });
-    g.rect(m1.x, m1.y, 2 * TILE * k, 2 * TILE * k);
-    g.stroke();
+    g.lineCap = 'butt';
     g.strokeStyle = '#9aa0a6';
     g.lineWidth = 3;
     g.strokeRect(a.x, a.y, 2 * HALF * k, 2 * HALF * k);
@@ -178,6 +173,20 @@ export function TopDown({ steps, editable, height = 420 }: { steps?: StepInfo[] 
       g.fill();
     }
     // objects
+    /** A Pin lying along `dir` (unit, game frame): `ends[1]` toward +dir. */
+    const drawLyingPin = (p: Vec2, dir: Vec2, ends: [string, string]) => {
+      const w = Math.max(2.5, PIN.diameter * k * 0.8);
+      for (const s of [-1, 1]) {
+        const a = P(p);
+        const b = P({ x: p.x + dir.x * PIN.half * s, y: p.y + dir.y * PIN.half * s });
+        g.strokeStyle = hc(ends[s < 0 ? 0 : 1]);
+        g.lineWidth = w;
+        g.beginPath();
+        g.moveTo(a.x, a.y);
+        g.lineTo(b.x, b.y);
+        g.stroke();
+      }
+    };
     const drawPin = (p: Vec2, colors: [string, string], up: boolean, lying: boolean) => {
       const c = P(p);
       const r = Math.max(2.5, (PIN.diameter / 2) * k * (lying ? 0.8 : 0.9));
@@ -203,15 +212,22 @@ export function TopDown({ steps, editable, height = 420 }: { steps?: StepInfo[] 
         if (!o.p || !o.q || o.stacked) continue;
         const p = { x: o.p.x / IN, y: -o.p.z / IN };
         const up = upOf(o.q);
-        if (o.kind === 'pin') drawPin(p, o.colors!, up.y >= 0, Math.abs(up.y) < 0.7);
+        if (o.kind === 'pin' && Math.abs(up.y) < 0.7) drawLyingPin(p, { x: up.x / Math.hypot(up.x, up.z), y: -up.z / Math.hypot(up.x, up.z) }, o.colors!);
+        else if (o.kind === 'pin') drawPin(p, o.colors!, up.y >= 0, false);
         else drawCup(p, up.y >= 0);
       }
     } else {
       drawLayout(layout);
     }
     function drawLayout(L: FieldLayout) {
-      for (const pn of L.pins) if (pn.start.where === 'field') drawPin(pn.start.pos, PIN_COLORS[pn.type], pn.start.upColor === PIN_COLORS[pn.type][1], false);
       for (const c of L.cups) if (c.start.where === 'field') drawCup(c.start.pos, c.start.grayUp);
+      for (const pn of L.pins) {
+        const s = pn.start;
+        if (s.where !== 'field') continue;
+        const [c0, c1] = PIN_COLORS[pn.type];
+        if (s.lying) drawLyingPin(s.pos, { x: Math.cos(s.axis ?? 0), y: Math.sin(s.axis ?? 0) }, [s.upColor === c1 ? c0 : c1, s.upColor]);
+        else drawPin(s.pos, PIN_COLORS[pn.type], s.upColor === c1, false);
+      }
     }
     // planned route
     if (show.route && steps) {
@@ -317,7 +333,9 @@ export function TopDown({ steps, editable, height = 420 }: { steps?: StepInfo[] 
     }
     for (const c of L.cups) if (c.start.where === 'field') {
       const d = Math.hypot(c.start.pos.x - f.x, c.start.pos.y - f.y);
-      if (d < 3 && (!best || d < best.d)) best = { kind: 'cup', id: c.id, d };
+      // a Pin standing in this Cup: grab the pair (shift-drag takes the Pin out)
+      const pair = best?.kind === 'pin' && L.pins.some((p) => p.id === best!.id && p.start.where === 'field' && p.start.inCup === c.id);
+      if (d < 3 && (!best || d < best.d || (pair && !e.shiftKey))) best = { kind: 'cup', id: c.id, d };
     }
     for (const r of L.robots) {
       const d = Math.hypot(r.pos.x - f.x, r.pos.y - f.y);
@@ -335,9 +353,13 @@ export function TopDown({ steps, editable, height = 420 }: { steps?: StepInfo[] 
     const f = toField(e.clientX - rect.left, e.clientY - rect.top);
     const clampP = (p: Vec2) => ({ x: Math.max(-HALF + 2, Math.min(HALF - 2, Math.round(p.x * 2) / 2)), y: Math.max(-HALF + 2, Math.min(HALF - 2, Math.round(p.y * 2) / 2)) });
     const L = { ...store.get().layout };
-    if (drag.kind === 'pin') L.pins = L.pins.map((p) => (p.id === drag.id && p.start.where === 'field' ? { ...p, start: { ...p.start, pos: clampP(f) } } : p));
-    else if (drag.kind === 'cup') L.cups = L.cups.map((c) => (c.id === drag.id && c.start.where === 'field' ? { ...c, start: { ...c.start, pos: clampP(f) } } : c));
-    else L.robots = L.robots.map((r) => (r.slot === drag.id ? { ...r, pos: clampP(f) } : r));
+    // a Pin dragged out of its Cup stands on the tiles; a Cup carries the Pin standing in it
+    if (drag.kind === 'pin') L.pins = L.pins.map((p) => (p.id === drag.id && p.start.where === 'field' ? { ...p, start: { ...p.start, pos: clampP(f), inCup: undefined } } : p));
+    else if (drag.kind === 'cup') {
+      L.cups = L.cups.map((c) => (c.id === drag.id && c.start.where === 'field' ? { ...c, start: { ...c.start, pos: clampP(f) } } : c));
+      L.pins = L.pins.map((p) => (p.start.where === 'field' && p.start.inCup === drag.id ? { ...p, start: { ...p.start, pos: clampP(f) } } : p));
+    }
+    else L.robots = L.robots.map((r) => (r.slot === drag.id ? { ...r, pos: clampP(f), exact: true } : r));
     store.set({ layout: L });
   };
   const onUp = () => {

@@ -67,7 +67,19 @@ export function layoutFor(mode: AutonMode): FieldLayout {
 
 export function startFor(p: AutonProgram): RobotStart | undefined {
   const l = layoutFor(p.mode);
-  return l.robots.find((r) => r.slot === p.slot) ?? l.robots[0];
+  const tile = l.robots.find((r) => r.slot === p.slot) ?? l.robots[0];
+  if (p.start && tile) return { slot: p.slot, alliance: tile.alliance, pos: { x: p.start.x, y: p.start.y }, heading: p.start.heading, exact: true };
+  return tile;
+}
+
+/** Move the program's starting pose (null: back to its slot's tile); its setPose follows. */
+export function setStart(start: { x: number; y: number; heading: number } | null) {
+  setProgram((p) => {
+    const next: AutonProgram = { ...p, start: start ?? undefined };
+    const st = startFor(next);
+    if (next.steps[0]?.kind === 'setPose' && st) return { ...next, steps: [newProgram(p.name, p.slot, p.mode, st).steps[0], ...next.steps.slice(1)] };
+    return next;
+  });
 }
 
 function initialProgram(): AutonProgram {
@@ -135,7 +147,7 @@ export function ensureStart(p: AutonProgram): AutonProgram {
 
 /** Move the program to another starting tile / mode: its setPose follows. */
 export function retarget(p: AutonProgram, slot: string, mode: AutonMode): AutonProgram {
-  const next = { ...p, slot: mode === 'skills' ? 'red-1' : slot, mode };
+  const next = { ...p, slot: mode === 'skills' ? 'red-1' : slot, mode, start: undefined };
   const first = next.steps[0];
   const start = startFor(next);
   if (first?.kind === 'setPose' && start) {
