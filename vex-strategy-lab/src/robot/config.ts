@@ -98,8 +98,13 @@ export interface RobotConfig {
     captureHalfWidthIn: number;
     intakeTimeSec: number;
     releaseTimeSec: number;
-    /** Two-pocket holder: one Pin + one Cup. 'single' carries one object. */
+    /**
+     * 'single': a claw that holds one piece (a Pin + Cup nested on it rides along and
+     * is dropped with it). 'pinAndCup': a two-pocket holder, one Pin + one Cup.
+     */
     capacity: 'single' | 'pinAndCup';
+    /** The claw only grabs Pins within this many degrees of upright. */
+    maxPinTiltDeg: number;
     indexTimeSec: number;
     canReorient: boolean;
     reorientTimeSec: number;
@@ -180,7 +185,8 @@ export const DEFAULT_ROBOT: RobotConfig = {
     captureHalfWidthIn: 2.2,
     intakeTimeSec: 0.35,
     releaseTimeSec: 0.25,
-    capacity: 'pinAndCup',
+    capacity: 'single',
+    maxPinTiltDeg: 20,
     indexTimeSec: 0.35,
     canReorient: true,
     reorientTimeSec: 0.4,
@@ -212,7 +218,8 @@ export const ASSUMED_FIELDS: { path: string; label: string; why: string }[] = [
   { path: 'lift.minAngleDeg', label: 'DR4B bar angles −25° to 50°', why: 'Typical hard-stop range; not specified.' },
   { path: 'lift.motor.gearRatio', label: 'DR4B: 2 × 200 rpm motors, 1:7', why: 'Common 12T:84T DR4B gearing; not specified.' },
   { path: 'lift.barMassLb', label: 'Bar mass 0.8 lb', why: 'Eight aluminum bars plus knee brackets, estimated.' },
-  { path: 'intake.capacity', label: 'Holds 1 Pin + 1 Cup', why: 'Matches the possession limit; mechanism design assumed.' },
+  { path: 'intake.capacity', label: 'Claw holds one piece', why: 'A claw grips one piece; a Pin + Cup nested on it rides along. The two-pocket holder (1 Pin + 1 Cup) is selectable.' },
+  { path: 'intake.maxPinTiltDeg', label: 'Grabs Pins up to 20° from upright', why: 'The claw closes around a standing Pin; lying Pins slip out.' },
   { path: 'chassis.slotWidthIn', label: 'U-chassis 6" front slot', why: 'Lets a Goal post enter the footprint so the robot stays 16" × 16".' },
 ];
 

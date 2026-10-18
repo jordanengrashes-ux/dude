@@ -57,6 +57,9 @@ export function Field3D({ steps }: { steps: StepInfo[] | null }) {
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
+    localInput.onViewReset = () => sc.resetView();
+    localInput.onToggleFirstPerson = () => sc.toggleFirstPerson();
+    localInput.onCameraStick = (x, y) => sc.orbitBy(x, y);
     // Browsers pause animation frames in hidden tabs; a team-mode host keeps the
     // match running from (throttled, ~1 Hz) timers so the guests' game goes on.
     let lastBg = performance.now();
@@ -68,6 +71,8 @@ export function Field3D({ steps }: { steps: StepInfo[] | null }) {
     return () => {
       clearInterval(bg);
       cancelAnimationFrame(raf);
+      localInput.onViewReset = localInput.onToggleFirstPerson = null;
+      localInput.onCameraStick = null;
       ro.disconnect();
       sc.dispose();
     };
@@ -81,6 +86,8 @@ export function Field3D({ steps }: { steps: StepInfo[] | null }) {
   }, [steps, userSlot, slots]);
 
   const onClick = (e: React.MouseEvent) => {
+    // the end of a drag (looking around / orbiting) is not a click
+    if (sceneRef.current?.wasDrag()) return;
     // driving: left click opens / closes the claw; otherwise it inspects
     if (drivingSlot()) {
       localInput.toggleClaw();

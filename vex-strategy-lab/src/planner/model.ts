@@ -170,6 +170,8 @@ export interface PlanConfig {
   patrolToggles?: boolean;
   /** Toggle ids this robot will not actuate (e.g. contested ones the executor just failed on). */
   blockedToggles?: string[];
+  /** Loader ids this robot will not load from (e.g. a piece blocks the mouth). */
+  blockedLoaders?: string[];
 }
 
 const APPROACH = 9; // straight-in distance before pickup/placement (in)
@@ -797,10 +799,44 @@ export class PlanWorld {
     return true;
   }
 
-  private canHold(s: PlanState, kind: ObjKind): boolean {
-    const cap = this.cfg.robot.intake.capacity;
-    if (cap === 'single') return s.heldPin < 0 && s.heldCup < 0;
-    return kind === 'pin' ? s.heldPin < 0 : s.heldCup < 0;
+  /**
+   * Whether the robot can take this piece. A one-piece claw lets go of what it holds
+   * first, which is only worth it for a different piece (the other kind, or a Pin of
+   * other colors).
+   */
+  private canTake(s: PlanState, o: StaticObj): boolean {
+    if (this.cfg.robot.intake.capacity !== 'single') return o.kind === 'pin' ? s.heldPin < 0 : s.heldCup < 0;
+    const hi = s.heldPin >= 0 ? s.heldPin : s.heldCup;
+    if (hi < 0) return true;
+    const h = this.objs[hi];
+    return h.kind !== o.kind || (o.kind === 'pin' && h.pinType !== o.pinType);
+  }
+
+  /**
+   * A one-piece claw holding something before a pick / load: lower the lift, let it
+   * go where the robot stands and back away. Returns the time it takes (0 if empty).
+   * The dropped piece is left out of this plan; a replan sees it on the tiles again.
+   */
+  private dropFirst(s: PlanState): number {
+    const R = this.cfg.robot;
+    const oi = s.heldPin >= 0 ? s.heldPin : s.heldCup;
+    if (R.intake.capacity !== 'single' || oi < 0) return 0;
+    const t = liftTime(this.perf, s.holderH, R.lift.holderMinHeightIn) + R.intake.releaseTimeSec + straightTime(this.perf, 10);
+    s.holderH = R.lift.holderMinHeightIn;
+    s.status[oi] = ST_UNAVAILABLE;
+    if (oi === s.heldPin) s.heldPin = -1;
+    else s.heldCup = -1;
+    // Holding it kept another robot's predicted placement of it from happening; on the
+    // tiles again, that robot still gets it (no "take it and drop it" denial).
+    const ev = this.cfg.externalEvents.slice(0, s.eventsApplied).find((e) => e.kind === 'place' && e.obj === oi && e.goal !== undefined);
+    if (ev) {
+      const gi = this.goals.findIndex((g) => g.id === this.goalIdFromIndex(ev.goal!));
+      if (gi >= 0 && this.nextKind(s, gi) === this.objs[oi].kind) {
+        s.stacks[gi].push(oi * 2 + (ev.bit ?? 0));
+        s.status[oi] = ST_PLACED;
+      }
+    }
+    return t;
   }
 
   legalActions(s: PlanState): Action[] {
@@ -810,11 +846,10 @@ export class PlanWorld {
     const K = this.cfg.candidateK;
     const hp = this.holderPoint(s.pos, s.heading);
     for (const kind of ['pin', 'cup'] as ObjKind[]) {
-      if (!this.canHold(s, kind)) continue;
       // field objects, nearest first
       const cands: { i: number; d: number }[] = [];
       for (const o of this.objs) {
-        if (o.kind !== kind || s.status[o.idx] !== ST_FIELD || !o.startPos) continue;
+        if (o.kind !== kind || s.status[o.idx] !== ST_FIELD || !o.startPos || !this.canTake(s, o)) continue;
         if (auto && this.cfg.matchType === 'headToHead' && sideOf(o.startPos) !== this.cfg.alliance && !(Math.abs(o.startPos.x) < MIDFIELD_INNER_HALF && Math.abs(o.startPos.y) < MIDFIELD_INNER_HALF)) continue;
         cands.push({ i: o.idx, d: dist(hp, o.startPos) });
       }
@@ -825,12 +860,13 @@ export class PlanWorld {
       if (mlAllowed) {
         const seenTypes = new Set<string>();
         for (const o of this.objs) {
-          if (o.kind !== kind || s.status[o.idx] !== ST_MATCHLOAD) continue;
+          if (o.kind !== kind || s.status[o.idx] !== ST_MATCHLOAD || !this.canTake(s, o)) continue;
           const key = o.pinType ?? 'cup';
           if (seenTypes.has(key)) continue;
           seenTypes.add(key);
           this.loaders.forEach((l, li) => {
             if (this.cfg.matchType === 'headToHead' && l.alliance !== this.cfg.alliance) return;
+            if (this.cfg.blockedLoaders?.includes(l.id)) return;
             out.push({ type: 'load', obj: o.idx, loader: li });
           });
         }
@@ -935,8 +971,10 @@ export class PlanWorld {
       const near: { pre: Vec2; center: Vec2; heading: number }[] = [];
       for (const tgt of Array.isArray(target) ? target : [target]) {
         const direct = Math.atan2(tgt.y - s.pos.y, tgt.x - s.pos.x);
+        // a pickup drives a little past its approach to capture: keep that inside the legal area too
+        const reach = key.startsWith('o') ? 3 : 0;
         for (const ap of this.approaches(tgt, key, except, onlyHeading)
-          .filter((ap) => this.poseAllowed(ap.center, ap.heading, s.t))
+          .filter((ap) => this.poseAllowed(ap.center, ap.heading, s.t) && (!reach || this.poseAllowed(add(ap.center, fromAngle(ap.heading, reach)), ap.heading, s.t)))
           .map((ap) => ({ ap, dh: Math.abs(wrapAngle(ap.heading - direct)) }))
           .sort((x, y) => x.dh - y.dh)
           .slice(0, 5))
@@ -975,9 +1013,11 @@ export class PlanWorld {
     switch (a.type) {
       case 'pick': {
         const o = this.objs[a.obj];
-        if (s.status[a.obj] !== ST_FIELD || !o.startPos || !this.canHold(s, o.kind)) return null;
+        if (s.status[a.obj] !== ST_FIELD || !o.startPos || !this.canTake(s, o)) return null;
+        const dropT = this.dropFirst(s);
         if (!moveTo(o.startPos, `o${a.obj}`, {}, minH)) return null;
-        mechT = R.intake.intakeTimeSec + R.execution.pickOverheadSec + (R.intake.capacity === 'pinAndCup' && (s.heldPin >= 0 || s.heldCup >= 0) ? R.intake.indexTimeSec : 0);
+        mechT = dropT + R.intake.intakeTimeSec + R.execution.pickOverheadSec + (R.intake.capacity === 'pinAndCup' && (s.heldPin >= 0 || s.heldCup >= 0) ? R.intake.indexTimeSec : 0);
+        if (dropT) notes.push('dropped the held piece first (the claw holds one)');
         s.status[a.obj] = ST_HELD;
         if (o.kind === 'pin') s.heldPin = a.obj;
         else s.heldCup = a.obj;
@@ -987,17 +1027,19 @@ export class PlanWorld {
       case 'load': {
         const o = this.objs[a.obj];
         const l = this.loaders[a.loader];
-        if (s.status[a.obj] !== ST_MATCHLOAD || !this.canHold(s, o.kind)) return null;
+        if (s.status[a.obj] !== ST_MATCHLOAD || !this.canTake(s, o)) return null;
         if (this.isAutonomous(s.t) && !cfg.params.matchLoads.allowedInAutonomous) return null;
         const lh = Math.atan2(-l.outward.y, -l.outward.x);
+        const dropT = this.dropFirst(s);
         if (!moveTo(l.dispense, `l${a.loader}`, { loader: l.id }, minH, lh)) return null;
-        const arrive = s0.t + travelTime;
+        if (dropT) notes.push('dropped the held piece first (the claw holds one)');
+        const arrive = s0.t + dropT + travelTime;
         // The Drive Team can introduce the next Match Load while the robot travels;
         // never before Driver Control unless loading in Autonomous is allowed.
         const earliest = cfg.matchType === 'headToHead' && !cfg.params.matchLoads.allowedInAutonomous ? (this.clock.autonomousEnd ?? 0) : cfg.tStart;
         const ready = Math.max(s.loaderFreeAt[a.loader], earliest) + cfg.params.matchLoads.humanLoadSec;
         waitT = Math.max(0, ready - arrive);
-        mechT = R.intake.intakeTimeSec + R.execution.loadOverheadSec + (R.intake.capacity === 'pinAndCup' && (s.heldPin >= 0 || s.heldCup >= 0) ? R.intake.indexTimeSec : 0);
+        mechT = dropT + R.intake.intakeTimeSec + R.execution.loadOverheadSec + (R.intake.capacity === 'pinAndCup' && (s.heldPin >= 0 || s.heldCup >= 0) ? R.intake.indexTimeSec : 0);
         s.status[a.obj] = ST_HELD;
         s.up[a.obj] = 1; // drive team loads it with the preferred side up (default yellow / gray up)
         if (o.kind === 'pin') s.heldPin = a.obj;

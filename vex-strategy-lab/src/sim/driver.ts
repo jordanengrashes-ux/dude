@@ -24,6 +24,8 @@ export interface DriverInput {
   claw: boolean;
   /** Easy mode: the claw grabs whatever the robot drives into (and Goals capture more loosely). */
   easy: boolean;
+  /** No momentum: the robot goes exactly as fast as the sticks say and stops when released. */
+  noMomentum: boolean;
   /** Toggle arm engaged while held (works the nearest Toggle toward this robot's color). */
   toggle: boolean;
   /** Press counters. */
@@ -33,7 +35,7 @@ export interface DriverInput {
   load: number;
 }
 
-export const zeroInput = (): DriverInput => ({ forward: 0, turn: 0, lift: 0, preset: null, claw: false, easy: false, toggle: false, drop: 0, index: 0, flip: 0, load: 0 });
+export const zeroInput = (): DriverInput => ({ forward: 0, turn: 0, lift: 0, preset: null, claw: false, easy: false, noMomentum: false, toggle: false, drop: 0, index: 0, flip: 0, load: 0 });
 
 /** Lift presets (holder-bottom height, in): floor, Alliance Goal, short Goal, tall Goal. */
 export const LIFT_PRESETS = [
@@ -95,6 +97,7 @@ export class DriverController implements Controller {
   update(sim: MatchSim, r: SimRobot, sense: Sensing) {
     const inp = this.input() ?? zeroInput();
     r.body.cmd = arcade(inp.forward, inp.turn);
+    r.body.direct = inp.noMomentum;
     // lift: analog overrides, a preset runs to its height, otherwise hold where it stopped
     const minH = r.cfg.lift.holderMinHeightIn;
     if (inp.preset !== this.last.preset && inp.preset !== null) this.presetH = Math.max(minH, inp.preset);
@@ -121,7 +124,7 @@ export class DriverController implements Controller {
     let opened = false;
     if (inp.claw !== this.last.claw) {
       this.clawClosed = !this.clawClosed;
-      if (this.clawClosed) this.grabUntil = sim.t + 0.7;
+      if (this.clawClosed) this.grabUntil = sim.t + 0.3; // the jaws closing
       else opened = true;
     }
     if (inp.drop > this.last.drop) {
@@ -136,6 +139,8 @@ export class DriverController implements Controller {
     const auto = inp.easy && sim.t >= this.easyHoldOff;
     r.req.intake = sim.t < this.grabUntil || auto;
     if (auto && !(sim.t < this.grabUntil)) r.req.noDescore = true;
+    // a real claw takes only what is between its jaws; easy mode keeps the wide grab
+    r.req.precise = !inp.easy;
     r.easy = inp.easy;
     r.clawClosed = this.clawClosed;
     if (inp.index > this.last.index) r.req.index = true;
@@ -219,6 +224,7 @@ export class SlotController implements Controller {
       r.body.liftManual = null;
       r.clawClosed = null;
       r.easy = false;
+      r.body.direct = false;
     }
     if (this.botStale) {
       this.botStale = false;

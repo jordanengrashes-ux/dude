@@ -63,6 +63,11 @@ export class RobotBody {
   cmd: DriveCommand = { left: 0, right: 0 };
   liftTarget: number; // holder height target (in)
   liftManual: number | null = null; // manual command [-1, 1]
+  /**
+   * No momentum (an arcade driving mode): the chassis moves at exactly the commanded
+   * wheel speeds — no acceleration, coasting or sliding. Collisions still apply.
+   */
+  direct = false;
   wheels: WheelState[] = [];
   telemetry: RobotTelemetry = { speed: 0, yawRate: 0, accel: 0, utilLeft: 0, utilRight: 0, utilLift: 0, liftHeight: 0, slipping: 0, tilt: 0 };
   /** Performance scale factors (uncertainty sampling). */
@@ -291,7 +296,18 @@ export class RobotBody {
     // The solver's summed contact impulse slightly over-reports support (penetration
     // correction); cap at the robot's weight, keep reductions (bumps, lift-off, tipping).
     const support = Math.min(measured, mTot * GRAV);
-    this.wheelPos.forEach((wp, i) => {
+    if (this.direct) {
+      const vMax = groupFreeSpeed(d.left, vb) * rw * this.motorScale;
+      const vL = this.cmd.left * d.left.direction * vMax;
+      const vR = this.cmd.right * d.right.direction * vMax;
+      const v = (vL + vR) / 2;
+      const w = (vR - vL) / (d.trackWidthIn * IN); // + = counterclockwise (left turn)
+      const lv = this.chassis.linvel();
+      const av = this.chassis.angvel();
+      this.chassis.setLinvel({ x: fh.x * v, y: lv.y, z: fh.z * v }, true);
+      this.chassis.setAngvel({ x: av.x, y: w, z: av.z }, true);
+    }
+    if (!this.direct) this.wheelPos.forEach((wp, i) => {
       const N = grounded[i] && shareSum > 1e-6 ? (support * share[i]) / shareSum : 0;
       const w = this.wheels[i];
       w.load = N;

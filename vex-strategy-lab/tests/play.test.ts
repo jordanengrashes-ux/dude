@@ -21,16 +21,18 @@ const preloadOnly: FieldLayout = { ...skills, pins: skills.pins.filter((p) => p.
  * Like a driver placing a piece: raise the arm above the Goal first, then creep
  * forward until the claw is over the Goal's axis (along the robot's heading).
  */
-function creepTo(sim: MatchSim, inp: DriverInput, goalX: number, height: number) {
+function creepTo(sim: MatchSim, inp: DriverInput, goalX: number, height: number, slow = false) {
   const r = sim.robots[0];
   inp.preset = height;
   sim.runUntil(sim.t + 1.5);
+  // on the floor, slower: an overshoot pushes the piece over with the carriage
+  const [maxF, gain, tol] = slow ? [0.12, 0.05, 0.4] : [0.3, 0.08, 0.25];
   for (let i = 0; i < 200; i++) {
     const p = r.body.pose();
     const holderX = p.pos.x + Math.cos(p.heading) * DEFAULT_ROBOT.intake.holderOffsetIn;
     const err = goalX - holderX;
-    if (Math.abs(err) < 0.25 && Math.abs(r.body.telemetry.speed) < 1) break;
-    inp.forward = Math.max(-0.3, Math.min(0.3, err * 0.08));
+    if (Math.abs(err) < tol && Math.abs(r.body.telemetry.speed) < 1) break;
+    inp.forward = Math.max(-maxF, Math.min(maxF, err * gain));
     sim.runUntil(sim.t + 0.05);
   }
   inp.forward = 0;
@@ -143,7 +145,107 @@ describe('Claw state and aligner', () => {
   });
 });
 
+describe('Claw: one piece, between the jaws, standing Pins', () => {
+  const floor = DEFAULT_ROBOT.lift.holderMinHeightIn;
+  const ahead = -40 + DEFAULT_ROBOT.intake.holderOffsetIn + 6;
+  const held = (sim: MatchSim) => [sim.robots[0].primary?.id, sim.robots[0].secondary?.id].filter(Boolean);
+  /** Drive up to a piece at (ahead, lat) and click the claw closed. */
+  async function closeOn(place: (sim: MatchSim) => void, lat = 0) {
+    const inp = zeroInput();
+    const sim = await driven(inp, { pos: { x: -40, y: -lat }, heading: 0 });
+    place(sim);
+    sim.runUntil(1.0);
+    creepTo(sim, inp, ahead, floor, true);
+    inp.claw = !inp.claw;
+    sim.runUntil(sim.t + 1.0);
+    return { sim, inp };
+  }
+  const pin = (sim: MatchSim, id = 'P', z = 0) => sim.objects.add({ id, kind: 'pin', colors: ['red', 'yellow'] }, { x: ahead, y: 0, z, flipped: false });
+
+  it('grabs a standing Pin between its jaws, not one 1.4" to the side, not one lying down', async () => {
+    let { sim } = await closeOn((s) => pin(s));
+    expect(held(sim)).toEqual(['P']);
+    sim.dispose();
+    ({ sim } = await closeOn((s) => pin(s), 1.4)); // the robot is 1.4" off the Pin's line (it still fits the 6" slot)
+    expect(held(sim)).toEqual([]);
+    expect(sim.objects.objects.get('P')!.body!.translation().y / IN).toBeGreaterThan(PIN.half - 0.3); // still standing beside the jaws (the old wide grab took it)
+    sim.dispose();
+    ({ sim } = await closeOn((s) => pin(s, 'P', 2).body!.setRotation({ x: Math.SQRT1_2, y: 0, z: 0, w: Math.SQRT1_2 }, true))); // lying on its side
+    expect(held(sim)).toEqual([]);
+    sim.dispose();
+  });
+
+  it('a Pin standing in a Cup comes along with it, and both drop together', async () => {
+    const { sim, inp } = await closeOn((s) => {
+      s.objects.add({ id: 'C', kind: 'cup' }, { x: ahead, y: 0, z: 0, flipped: false });
+      pin(s, 'P', 7.5); // falls into the Cup
+    });
+    expect(held(sim).sort()).toEqual(['C', 'P']);
+    const r = sim.robots[0];
+    expect(r.primary!.id).toBe('C'); // the claw grips the Cup; the Pin rides in it
+    inp.claw = !inp.claw; // open
+    sim.runUntil(sim.t + 1.0);
+    expect(held(sim)).toEqual([]);
+    expect(sim.objects.objects.get('P')!.mode).toBe('free');
+    sim.dispose();
+  });
+
+  it('holds one piece: holding a Pin, driving into a Cup in easy mode does not take it', async () => {
+    const inp = { ...zeroInput(), easy: true };
+    const sim = await driven(inp, { pos: { x: -40, y: 0 }, heading: 0 }, preloadOnly);
+    const r = sim.robots[0];
+    sim.objects.add({ id: 'C', kind: 'cup' }, { x: -40 + DEFAULT_ROBOT.intake.holderOffsetIn + 9, y: 0, z: 0, flipped: false });
+    sim.runUntil(0.5);
+    expect(held(sim).length).toBe(1);
+    inp.forward = 0.35;
+    sim.runUntil(2.5);
+    expect(held(sim).length).toBe(1);
+    expect(r.secondary).toBeNull();
+    expect(sim.objects.objects.get('C')!.mode).toBe('free');
+    sim.dispose();
+  });
+});
+
+describe('No momentum', () => {
+  it('the robot is at speed at once and stops the moment you let go', async () => {
+    const coast: number[] = [];
+    for (const noMomentum of [false, true]) {
+      const inp = { ...zeroInput(), noMomentum };
+      const sim = await driven(inp, { pos: { x: -55, y: -10 }, heading: 0 });
+      const r = sim.robots[0];
+      inp.forward = 1;
+      sim.runUntil(0.15);
+      if (noMomentum) expect(r.body.telemetry.speed).toBeGreaterThan(40); // in/s, right away
+      sim.runUntil(0.8);
+      inp.forward = 0;
+      const a = r.body.pose().pos.x;
+      sim.runUntil(1.6);
+      coast.push(r.body.pose().pos.x - a);
+      sim.dispose();
+    }
+    expect(coast[1]).toBeLessThan(1.5);
+    expect(coast[0]).toBeGreaterThan(coast[1] * 2);
+  });
+});
+
 describe('Practice', () => {
+  it('has no time limit: the clock counts up and the match never ends', async () => {
+    const sc = new SimRunner().scenarioFrom({ ...store.get(), practice: true });
+    const inp = zeroInput();
+    const built = await buildMatch({ ...sc, params: cloneParams(OVERRIDE_DEFAULTS), layout: empty }, () => inp, undefined, new Map());
+    const sim = built.sim;
+    expect(sim.clock.total).toBe(Infinity);
+    sim.runUntil(130); // past a whole match
+    const { hudData } = await import('../src/sim/frame');
+    expect(hudData(sim).clock).toBe('2:10');
+    const r = sim.robots[0];
+    const p0 = r.body.pose().pos;
+    inp.forward = 1;
+    sim.runUntil(131);
+    expect(Math.hypot(r.body.pose().pos.x - p0.x, r.body.pose().pos.y - p0.y)).toBeGreaterThan(10); // still driving
+    sim.dispose();
+  });
+
   it('only your robot, driven by you from the first second, without rule checks', async () => {
     const sc = new SimRunner().scenarioFrom({ ...store.get(), practice: true });
     expect(sc.slots.map((s) => [s.slot, s.strategy])).toEqual([['red-1', 'manual']]);

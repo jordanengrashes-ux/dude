@@ -132,7 +132,8 @@ export function RobotPanel() {
       <section className="card">
         <h3>Mechanism & start</h3>
         <div className="form-grid">
-          {F('intake.capacity', 'Holder capacity', { options: ['pinAndCup', 'single'] })}
+          {F('intake.capacity', 'Holder capacity', { options: ['single', 'pinAndCup'] })}
+          {F('intake.maxPinTiltDeg', 'Grabs Pins tipped up to', { unit: '°', step: 5 })}
           {F('intake.holderOffsetIn', 'Holder axis offset', { unit: 'in' })}
           {F('intake.intakeTimeSec', 'Intake time', { unit: 's', step: 0.05 })}
           {F('intake.releaseTimeSec', 'Release time', { unit: 's', step: 0.05 })}

@@ -56,6 +56,8 @@ export interface SimObject {
   introducedAt?: number;
   /** Dropped by an easy-mode driver: Goals capture it within `funnel.assistRadius`. */
   assist?: boolean;
+  /** Last time (s) a running intake saw this Pin standing (within the claw's tilt limit). */
+  uprightAt?: number;
 }
 
 export interface CarriageFrame {

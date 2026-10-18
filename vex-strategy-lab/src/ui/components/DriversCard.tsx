@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { runner } from '../simRunner';
-import { localInput, KEY_HELP, PAD_HELP } from '../input';
+import { ACTIONS, keyName, localInput, padName, type ActionId, type PadLayout } from '../input';
 import { team, useTeam } from '../../net/session';
 import { useApp } from '../store';
 
@@ -63,21 +63,76 @@ export function DriversCard() {
         Robots run their autonomous programs during Autonomous; drivers take over in Driver Control (all match in Driver Skills).{' '}
         {pad ? <>Gamepad: {pad.slice(0, 32)}.</> : <>Connect a gamepad or use the keyboard.</>}
       </p>
-      <details className="small">
-        <summary>Controls</summary>
-        <table className="table small keys">
-          <tbody>
-            {(pad ? PAD_HELP : KEY_HELP).map(([k, v]) => (
-              <tr key={k}>
-                <td>
-                  <kbd>{k}</kbd>
-                </td>
-                <td>{v}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </details>
+      <ControlsEditor pad={pad} />
     </div>
+  );
+}
+
+/** Every action with its two keys and controller button; click one and press the new key / button. */
+function ControlsEditor({ pad }: { pad: string | null }) {
+  const [, tick] = useState(0);
+  useEffect(() => localInput.onBindings(() => tick((x) => x + 1)), []);
+  useEffect(() => () => localInput.startCapture(null), []);
+  const b = localInput.bindings;
+  const cap = localInput.capture;
+  const cell = (action: ActionId, which: 0 | 1 | 'pad') => {
+    const waiting = cap !== null && cap.action === action && (which === 'pad' ? cap.kind === 'pad' : cap.kind === 'key' && cap.slot === which);
+    const bound = which === 'pad' ? b.pad[action] !== null : b.keys[action][which] !== null;
+    const name = which === 'pad' ? padName(b.pad[action]) : keyName(b.keys[action][which]);
+    return (
+      <td>
+        <button
+          className={`bind${waiting ? ' waiting' : ''}${bound ? '' : ' unbound'}`}
+          title={waiting ? 'Esc cancels · Delete clears' : 'Click, then press the new ' + (which === 'pad' ? 'controller button' : 'key')}
+          onClick={(e) => {
+            e.currentTarget.blur(); // Space / Enter must not click it again
+            localInput.startCapture(waiting ? null : which === 'pad' ? { kind: 'pad', action } : { kind: 'key', action, slot: which });
+          }}
+        >
+          {waiting ? (which === 'pad' ? 'press a button…' : 'press a key…') : name}
+        </button>
+      </td>
+    );
+  };
+  return (
+    <details className="small controls">
+      <summary>Controls (click one to change it)</summary>
+      <table className="table small keys">
+        <thead>
+          <tr>
+            <th>Action</th>
+            <th>Key</th>
+            <th>Key 2</th>
+            <th>Controller</th>
+          </tr>
+        </thead>
+        <tbody>
+          {ACTIONS.map((a) => (
+            <tr key={a.id}>
+              <td>{a.label}</td>
+              {cell(a.id, 0)}
+              {cell(a.id, 1)}
+              {cell(a.id, 'pad')}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="row controls-foot">
+        <label>
+          Controller sticks{' '}
+          <select value={b.padLayout} onChange={(e) => localInput.setPadLayout(e.target.value as PadLayout)}>
+            <option value="split">Split: left stick drives, right stick turns</option>
+            <option value="single">One stick: left stick drives and turns, right stick looks around</option>
+          </select>
+        </label>
+        <button className="link" onClick={() => localInput.resetBindings()}>
+          Reset to defaults
+        </button>
+      </div>
+      <p className="muted">
+        Mouse: left click opens / closes the claw, drag looks around, the wheel zooms (all the way in: first person). Triggers raise / lower the arm
+        proportionally. {pad ? `Controller: ${pad.slice(0, 40)}.` : 'No controller connected (press any button on it).'} Saved in this browser.
+      </p>
+    </details>
   );
 }

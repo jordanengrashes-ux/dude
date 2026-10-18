@@ -65,7 +65,8 @@ export function hudData(sim: MatchSim): HudData {
   const r = sim.result;
   return {
     period: per === 'ended' ? (sim.opts.practice ? 'Practice over' : 'Match over') : sim.opts.practice ? 'Practice' : per === 'autonomous' ? 'Autonomous' : per === 'driver' ? (isEndgame(sim.clock, sim.t) ? 'Endgame' : 'Driver Control') : 'Robot Skills',
-    clock: formatClock(per === 'autonomous' && !sim.opts.practice ? autoLeft : rem),
+    // practice: no time limit, the clock counts up
+    clock: formatClock(sim.opts.practice ? Math.floor(sim.t) : per === 'autonomous' ? autoLeft : rem),
     t: sim.t,
     headToHead: sim.clock.matchType === 'headToHead',
     totals: { red: totals.red, blue: totals.blue },

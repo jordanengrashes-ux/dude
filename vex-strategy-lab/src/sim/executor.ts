@@ -49,7 +49,7 @@ interface Active {
   retries: number;
   backFrom?: Vec2;
   /** Straight-line escape from a tight spot before following the route. */
-  esc?: Escape & { from?: Vec2 };
+  esc?: Escape & { from?: Vec2; t1?: number };
   backHeading?: number;
   progress: { t: number; d: number };
   stuckCount: number;
@@ -64,6 +64,11 @@ interface Active {
   waitUntil?: number;
   /** Toggle: spot along the bar being used, and spots that turned out out of reach. */
   toggleSpot?: number;
+  /** A one-piece claw letting go of this piece before the pick / load (which then gets 2 s more). */
+  dropId?: string;
+  dropped?: boolean;
+  /** More time for a long first drive (s). */
+  extraTime?: number;
   badSpots?: number[];
 }
 
@@ -92,6 +97,7 @@ export class PlanExecutor implements Controller {
   private avoidGoals = new Map<string, number>();
   private avoidObjects = new Map<string, number>();
   private avoidToggles = new Map<string, number>();
+  private avoidLoaders = new Map<string, number>();
   private lastReplan = 0;
   private tuning: DriveTuning;
 
@@ -187,6 +193,7 @@ export class PlanExecutor implements Controller {
       if (a.goalId) this.avoidGoals.set(a.goalId, sim.t + 20);
       if (a.objId && (a.action.type === 'pick' || a.action.type === 'load')) this.avoidObjects.set(a.objId, sim.t + 20);
       if (a.toggleId) this.avoidToggles.set(a.toggleId, sim.t + 20);
+      if (a.loaderId) this.avoidLoaders.set(a.loaderId, sim.t + 20);
       if (this.mpc.enabled) this.replan(sim, r, reason ?? 'failure');
     }
   }
@@ -201,7 +208,7 @@ export class PlanExecutor implements Controller {
   /** Re-optimize the rest of the window from the current physical state. */
   replan(sim: MatchSim, r: SimRobot, reason: string) {
     const pose = r.body.pose();
-    const layout = sim.layoutNow();
+    const layout = sim.layoutNow(r);
     const cfg: Partial<PlanConfig> = {
       layout,
       tStart: sim.t,
@@ -218,6 +225,8 @@ export class PlanExecutor implements Controller {
     if (avoidO.size) cfg.objectFilter = (o) => !avoidO.has(o.id) && (!baseObj || baseObj(o));
     const avoidT = [...this.avoidToggles].filter(([, until]) => until > now).map(([id]) => id);
     cfg.blockedToggles = [...(this.base.blockedToggles ?? []), ...avoidT];
+    const avoidL = [...this.avoidLoaders].filter(([, until]) => until > now).map(([id]) => id);
+    if (avoidL.length) cfg.blockedLoaders = [...(this.base.blockedLoaders ?? []), ...avoidL];
     const w = this.world.fork({ config: cfg });
     const res = beamSearch(w, { width: this.mpc.beamWidth, alpha: 0.3 }, { maxMs: Infinity, maxExpansions: this.mpc.maxExpansions });
     this.world = w;
@@ -351,6 +360,12 @@ export class PlanExecutor implements Controller {
 
   /** Enter the route phase, escaping first when the route starts from a tight spot. */
   private beginRoute(a: Active, t: number, esc: Active['esc']) {
+    // a long drive shouldn't use up the time the robot has to do the job at the end of it
+    if (a.ps && a.extraTime === undefined) {
+      let len = 0;
+      for (let i = 1; i < a.ps.path.length; i++) len += dist(a.ps.path[i - 1], a.ps.path[i]);
+      a.extraTime = Math.min(4, Math.max(0, len / Math.max(0.5 * this.perf.vCruise, 1) - 2)); // turns and speed-ups: about half cruise on average
+    }
     this.setPhase(a, esc ? 'escape' : 'route', t);
   }
 
@@ -367,7 +382,7 @@ export class PlanExecutor implements Controller {
     const cfg = r.cfg;
     const t = sim.t;
     r.body.liftTarget = a.holderTarget;
-    if (t - a.t0 > 9 && act.type !== 'wait' && a.phase !== 'parked') return 'timed out';
+    if (t - a.t0 > 9 + (a.dropped ? 2 : 0) + (a.extraTime ?? 0) && act.type !== 'wait' && a.phase !== 'parked') return 'timed out';
     switch (a.phase) {
       case 'start': {
         if (a.waitUntil !== undefined && t < a.waitUntil) {
@@ -376,6 +391,14 @@ export class PlanExecutor implements Controller {
         }
         if (act.type === 'wait') {
           this.setPhase(a, 'wait', t);
+          return undefined;
+        }
+        if ((act.type === 'pick' || act.type === 'load') && cfg.intake.capacity === 'single' && r.primary) {
+          // a one-piece claw lets go of what it holds first (the plan gave up on placing it)
+          a.dropId = r.primary.id;
+          a.dropped = true;
+          a.holderTarget = cfg.lift.holderMinHeightIn;
+          this.setPhase(a, 'release', t);
           return undefined;
         }
         if (act.type === 'pick') {
@@ -487,12 +510,17 @@ export class PlanExecutor implements Controller {
         if (!e.from) {
           const turn = turnTo(this.perf, sense, e.heading, this.tuning, 0.06);
           r.body.cmd = { left: turn.left, right: turn.right };
-          if (turn.done || e.rot < 0.06 || t - a.phaseT0 > 1.5) e.from = sense.pos;
+          if (turn.done || e.rot < 0.06 || t - a.phaseT0 > 1.5) {
+            e.from = sense.pos;
+            e.t1 = t;
+          }
           return undefined;
         }
         const out = driveStraight(this.perf, sense, e.from, e.dist, e.heading, e.reverse ? -1 : 1, tw, this.tuning);
         r.body.cmd = { left: out.left, right: out.right };
-        if (out.done || t - a.phaseT0 > 3) {
+        // pinned (pieces or a wall in the way): don't push for the full 3 s, go on with the route
+        const pinned = t - (e.t1 ?? a.phaseT0) > 0.6 && dist(sense.pos, e.from) < 1 && Math.abs(sense.speed) < 2;
+        if (out.done || pinned || t - a.phaseT0 > 3) {
           a.progress = { t, d: Infinity };
           this.setPhase(a, 'route', t);
         }
@@ -504,6 +532,7 @@ export class PlanExecutor implements Controller {
           const obj = sim.objects.objects.get(a.objId);
           if (!obj || obj.mode !== 'free') return `${a.objId} was taken or moved`;
         }
+        if (this.intakeEarly(r, sense, a, t)) return undefined;
         const out = pursue(this.perf, sense, a.ps!, tw, this.tuning, act.type === 'park' ? 1.5 : 2.0);
         r.body.cmd = { left: out.left, right: out.right };
         // Yield to a robot in the way: slow down, stop short of it, and re-route if it
@@ -559,6 +588,7 @@ export class PlanExecutor implements Controller {
         return undefined;
       }
       case 'align': {
+        if (this.intakeEarly(r, sense, a, t)) return undefined;
         const aimAt = this.aimPoint(sim, a);
         const aimHeading = aimAt && act.type !== 'toggle' ? Math.atan2(aimAt.y - sense.pos.y, aimAt.x - sense.pos.x) : a.ap!.heading;
         const out = turnTo(this.perf, sense, aimHeading, this.tuning, 0.05);
@@ -666,6 +696,8 @@ export class PlanExecutor implements Controller {
       case 'release': {
         r.body.cmd = { left: 0, right: 0 };
         if (t < r.busyUntil) return undefined;
+        // a drop lets go near the tiles, so the piece doesn't bounce away
+        if (a.dropId && r.body.holderHeight() > cfg.lift.holderMinHeightIn + 0.6 && t - a.phaseT0 < 1.5) return undefined;
         r.req.release = true;
         this.setPhase(a, 'settle', t);
         return undefined;
@@ -673,6 +705,15 @@ export class PlanExecutor implements Controller {
       case 'settle': {
         r.body.cmd = { left: 0, right: 0 };
         const obj = sim.objects.objects.get(a.objId!);
+        if (a.dropId) {
+          if (r.primary?.id === a.dropId) return t - a.phaseT0 > 1.0 ? `${a.dropId} did not let go` : undefined;
+          // back away from it, then go for the pick
+          a.dropId = undefined;
+          a.backFrom = sense.pos;
+          a.backHeading = sense.heading;
+          this.setPhase(a, 'backoff', t);
+          return undefined;
+        }
         if (obj && (obj.mode === 'seating' || obj.mode === 'stacked')) {
           if (obj.mode === 'stacked' || t - a.phaseT0 > 0.25) {
             a.backFrom = sense.pos;
@@ -742,6 +783,21 @@ export class PlanExecutor implements Controller {
       default:
         return undefined;
     }
+  }
+
+  /**
+   * Closing in on a pick / load: the intake already runs, so a piece the robot
+   * reaches early is taken rather than knocked over. True once it has something new
+   * (the approach phase then finishes the action).
+   */
+  private intakeEarly(r: SimRobot, sense: Sensing, a: Active, t: number): boolean {
+    const act = a.action;
+    if ((act.type !== 'pick' && act.type !== 'load') || !a.ap || dist(sense.pos, a.ap.center) > 14) return false;
+    r.req.intake = true;
+    r.req.intakeKind = this.world.objs[act.obj].kind;
+    if (![r.primary, r.secondary].some((o) => o && !a.heldAtStart?.includes(o.id))) return false;
+    this.setPhase(a, 'approach', t);
+    return true;
   }
 
   /** Point the holder must reach for the current action (live object/goal position). */

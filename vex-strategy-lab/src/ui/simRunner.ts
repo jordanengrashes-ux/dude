@@ -256,7 +256,7 @@ export class SimRunner {
 
   /** Run to the end of the match headless (fast-forward). */
   runToEnd() {
-    if (!this.sim) return;
+    if (!this.sim || !Number.isFinite(this.sim.clock.total)) return; // practice never ends
     this.sim.runUntil(this.sim.clock.total + DT);
     this.playing = false;
     this.emit();

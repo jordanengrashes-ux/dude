@@ -32,6 +32,10 @@ export const COLORS = {
   yellow: new THREE.Color(PALETTE.yellow),
 };
 
+/** First person: tilted down so the claw is in view at the bottom of the screen (rad), and its vertical field of view (deg). */
+const FP_PITCH = -0.5;
+const FP_FOV = 70;
+
 const halfColor = (c: HalfColor) => (c === 'red' ? COLORS.red : c === 'blue' ? COLORS.blue : COLORS.yellow);
 
 export interface PickInfo {
@@ -56,8 +60,17 @@ export class FieldScene {
   /** 3rd-person camera: the robot it follows and its distance (m). */
   private chaseId: string | null = null;
   private chaseDist = 1.0;
+  /** 3rd person: angle around the robot (rad, 0 = behind it) and above it. */
+  private chaseYaw = 0;
+  private chasePitch = 0.42;
+  /** Zoomed all the way in: the robot's-eye view, looking around with fpYaw / fpPitch. */
+  firstPerson = false;
+  private fpYaw = 0;
+  private fpPitch = FP_PITCH;
   private chaseLook = new THREE.Vector3();
   private chaseInit = false;
+  /** Pointer drag on the canvas (a drag is not a click: no claw toggle, no inspect). */
+  private drag = { x: 0, y: 0, moved: 0, active: false, endedAt: -1e9 };
   private mode: CameraMode = 'iso';
   private toggleMeshes = new Map<string, THREE.Object3D>();
   private routeGroup = new THREE.Group();
@@ -122,15 +135,54 @@ export class FieldScene {
     this.gridHelper = this.buildGrid();
     this.scene.add(this.gridHelper);
     this.setCamera('iso');
+    // 3rd person: scroll zooms; all the way in switches to first person, out again back
     canvas.addEventListener(
       'wheel',
       (e) => {
         if (this.mode !== 'chase') return;
         e.preventDefault();
-        this.chaseDist = Math.min(2.6, Math.max(0.55, this.chaseDist * Math.exp(e.deltaY * 0.001)));
+        if (this.firstPerson) {
+          if (e.deltaY > 0) {
+            this.firstPerson = false;
+            this.chaseDist = 0.6;
+            this.chaseInit = false;
+          }
+          return;
+        }
+        const d = this.chaseDist * Math.exp(e.deltaY * 0.001);
+        if (d < 0.5) {
+          this.firstPerson = true;
+          this.fpYaw = 0;
+          this.fpPitch = FP_PITCH;
+          this.chaseInit = false;
+        } else this.chaseDist = Math.min(3, d);
       },
       { passive: false },
     );
+    // drag to look around (3rd person: orbit the robot; first person: turn your head)
+    canvas.addEventListener('pointerdown', (e) => {
+      this.drag = { x: e.clientX, y: e.clientY, moved: 0, active: true, endedAt: this.drag.endedAt };
+    });
+    canvas.addEventListener('pointermove', (e) => {
+      if (!this.drag.active || !e.buttons) return;
+      const dx = e.clientX - this.drag.x;
+      const dy = e.clientY - this.drag.y;
+      this.drag.x = e.clientX;
+      this.drag.y = e.clientY;
+      this.drag.moved += Math.abs(dx) + Math.abs(dy);
+      if (this.mode !== 'chase' || this.drag.moved < 4) return;
+      if (this.firstPerson) {
+        this.fpYaw -= dx * 0.006;
+        this.fpPitch = Math.max(-1.2, Math.min(0.6, this.fpPitch - dy * 0.005));
+      } else {
+        this.chaseYaw -= dx * 0.008;
+        this.chasePitch = Math.max(0.08, Math.min(1.45, this.chasePitch + dy * 0.006));
+      }
+    });
+    window.addEventListener('pointerup', () => {
+      if (this.drag.active && this.drag.moved >= 4) this.drag.endedAt = performance.now();
+      this.drag.active = false;
+    });
     void applyCadOverrides(this).then((o) => (this.cad = o));
   }
 
@@ -293,7 +345,12 @@ export class FieldScene {
     this.mode = mode;
     this.controls.enabled = mode !== 'chase';
     this.chaseInit = false;
+    this.showOwnFrame();
     if (mode === 'chase') return;
+    if (this.camera.fov !== 42) {
+      this.camera.fov = 42;
+      this.camera.updateProjectionMatrix();
+    }
     const followed = this.chaseId ? this.robots.get(this.chaseId) : undefined;
     followed?.chassis.traverse((o) => o.userData.isLabel && (o.visible = this.showLabels));
     const c = this.camera;
@@ -332,13 +389,67 @@ export class FieldScene {
   setFollow(id: string | null) {
     if (id !== this.chaseId) {
       this.chaseInit = false;
+      this.showOwnFrame();
       const prev = this.chaseId ? this.robots.get(this.chaseId) : undefined;
       prev?.chassis.traverse((o) => o.userData.isLabel && (o.visible = this.showLabels));
     }
     this.chaseId = id;
   }
 
-  /** Place the 3rd-person camera behind and above the followed robot, smoothed. */
+  /** First person: the followed robot's own towers, brace and lift bars (they'd fill the view) are hidden. */
+  private fpHidden: THREE.Object3D[] = [];
+  private hideOwnFrame(m: RobotModel | undefined) {
+    if (this.fpHidden.length || !m) return;
+    for (const o of m.chassis.children) {
+      if (!o.visible || o.userData.isLabel || o.position.y < 4.5 * IN) continue;
+      o.visible = false;
+      this.fpHidden.push(o);
+    }
+  }
+  private showOwnFrame() {
+    for (const o of this.fpHidden) o.visible = true;
+    this.fpHidden = [];
+  }
+
+  /** True right after a drag ended (the click that follows it is not a click); consumes it. */
+  wasDrag(): boolean {
+    const d = performance.now() - this.drag.endedAt < 300;
+    this.drag.endedAt = -1e9;
+    return d;
+  }
+
+  /** Camera back behind the robot (3rd person) / looking straight ahead (first person). */
+  resetView() {
+    this.chaseYaw = 0;
+    this.chasePitch = 0.42;
+    this.fpYaw = 0;
+    this.fpPitch = FP_PITCH;
+  }
+
+  /** Switch between the robot's-eye view and 3rd person (key / controller button). */
+  toggleFirstPerson() {
+    if (this.mode !== 'chase') return;
+    this.firstPerson = !this.firstPerson;
+    if (this.firstPerson) {
+      this.fpYaw = 0;
+      this.fpPitch = FP_PITCH;
+    } else this.chaseDist = Math.max(this.chaseDist, 0.6);
+    this.chaseInit = false;
+  }
+
+  /** Look around with a stick (x, y in -1..1, per animation frame). */
+  orbitBy(x: number, y: number) {
+    if (this.mode !== 'chase') return;
+    if (this.firstPerson) {
+      this.fpYaw -= x * 0.04;
+      this.fpPitch = Math.max(-1.2, Math.min(0.6, this.fpPitch - y * 0.03));
+    } else {
+      this.chaseYaw -= x * 0.05;
+      this.chasePitch = Math.max(0.08, Math.min(1.45, this.chasePitch + y * 0.035));
+    }
+  }
+
+  /** Place the 3rd-person (or first-person) camera on the followed robot, smoothed. */
   private updateChase() {
     const m = this.chaseId ? this.robots.get(this.chaseId) : undefined;
     if (this.mode !== 'chase' || !m) return;
@@ -349,15 +460,41 @@ export class FieldScene {
     fwd.normalize();
     // your own name tag would sit right in front of the camera
     m.chassis.traverse((o) => o.userData.isLabel && (o.visible = false));
+    const heading = Math.atan2(-fwd.z, fwd.x);
+    // first person: a wide view, so the claw shows at the bottom and the field ahead above it
+    const fov = this.firstPerson ? FP_FOV : 42;
+    if (this.camera.fov !== fov) {
+      this.camera.fov = fov;
+      this.camera.updateProjectionMatrix();
+    }
+    if (this.firstPerson) this.hideOwnFrame(m);
+    else this.showOwnFrame();
+    if (this.firstPerson) {
+      // the robot's eye: above the chassis, behind the claw, looking ahead and down
+      const eye = new THREE.Vector3(-3 * IN, 15 * IN, 0).applyQuaternion(m.chassis.quaternion).add(pos);
+      const yaw = heading + this.fpYaw;
+      const c = Math.cos(this.fpPitch);
+      const dir = new THREE.Vector3(Math.cos(yaw) * c, Math.sin(this.fpPitch), -Math.sin(yaw) * c);
+      const k = this.chaseInit ? 0.5 : 1;
+      this.chaseInit = true;
+      this.camera.position.lerp(eye, k);
+      this.chaseLook.copy(this.camera.position).add(dir);
+      this.camera.lookAt(this.chaseLook);
+      return;
+    }
     const d = this.chaseDist;
-    const want = new THREE.Vector3(pos.x - fwd.x * d, pos.y + 0.32 + d * 0.38, pos.z - fwd.z * d);
+    const yaw = heading + Math.PI + this.chaseYaw; // 0 = behind the robot
+    const horiz = d * Math.cos(this.chasePitch);
+    const want = new THREE.Vector3(pos.x + Math.cos(yaw) * horiz, pos.y + 0.18 + d * Math.sin(this.chasePitch), pos.z - Math.sin(yaw) * horiz);
     // stay inside the perimeter: backed against a wall, the camera rises instead
     const lim = HALF * IN - 0.12;
     const over = Math.max(0, Math.abs(want.x) - lim, Math.abs(want.z) - lim);
     want.x = Math.max(-lim, Math.min(lim, want.x));
     want.z = Math.max(-lim, Math.min(lim, want.z));
     want.y += over * 1.2;
-    const look = new THREE.Vector3(pos.x + fwd.x * 0.35, pos.y + 0.12, pos.z + fwd.z * 0.35);
+    // look a little ahead of the robot when behind it, at the robot when beside or in front
+    const ahead = 0.35 * Math.max(0, Math.cos(this.chaseYaw));
+    const look = new THREE.Vector3(pos.x + fwd.x * ahead, pos.y + 0.12, pos.z + fwd.z * ahead);
     const k = this.chaseInit ? 0.14 : 1;
     this.chaseInit = true;
     this.camera.position.lerp(want, k);

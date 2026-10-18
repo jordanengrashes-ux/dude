@@ -6,7 +6,7 @@ import { store, useApp, type CameraMode } from '../store';
 import { Field3D } from './Field3D';
 import { TopDown } from './TopDown';
 import { DriversCard } from './DriversCard';
-import { localInput } from '../input';
+import { localInput, type ActionId } from '../input';
 import { team, useTeam } from '../../net/session';
 import { hudData } from '../../sim/frame';
 
@@ -90,7 +90,10 @@ function DriveHint({ period, t }: { period: string; t: number }) {
   const tm = useTeam();
   const guest = tm.role === 'guest';
   const mine = guest ? (team.session?.mySlot() ?? null) : runner.localSlot;
-  if (!mine) return <div className="small muted">Press W A S D to drive your robot (3rd person).</div>;
+  // the first key bound to each action (all of them are in the Controls table)
+  const k = (a: ActionId) => localInput.keysFor(a).split(' / ')[0] || 'unbound';
+  const drive = [k('forward'), k('left'), k('back'), k('right')].join(' ');
+  if (!mine) return <div className="small muted">Press {drive} to drive your robot (3rd person).</div>;
   const playing = guest ? team.session?.hostPlaying : runner.playing;
   const auto = /auto/i.test(period);
   const practice = store.get().practice;
@@ -98,10 +101,10 @@ function DriveHint({ period, t }: { period: string; t: number }) {
     !playing && t === 0
       ? guest
         ? 'waiting for the host to start the match.'
-        : 'press P (or start driving) to start.'
+        : `press ${k('playPause')} (or start driving) to start.`
       : auto && !practice
         ? 'Autonomous: its program runs; you take over at Driver Control.'
-        : 'W A S D drive · Space / Shift arm up / down · click the claw.';
+        : `${drive} drive · ${k('armUp')} / ${k('armDown')} arm up / down · click or ${k('claw')} the claw · drag to look around, scroll to zoom (all the way in: first person), ${k('viewReset')} resets.`;
   const me = guest ? team.session?.frameAt()?.robots.find((r) => r.id === mine) : runner.sim?.sceneFrame().robots.find((r) => r.id === mine);
   const held = me ? [me.holding & 1 ? 'Pin' : null, me.holding & 2 ? 'Cup' : null].filter(Boolean).join(' + ') : '';
   const a = me?.align ?? null;
@@ -112,13 +115,16 @@ function DriveHint({ period, t }: { period: string; t: number }) {
         You drive <strong>{mine}</strong> — {msg}
       </div>
       <div className="row claw-row">
-        <span className={`claw-chip ${me?.claw ? 'closed' : 'open'}`} title="Left click or C opens / closes the claw">
+        <span className={`claw-chip ${me?.claw ? 'closed' : 'open'}`} title={`Left click or ${k('claw')} opens / closes the claw`}>
           Claw {me?.claw ? 'closed' : 'open'}
           {held ? ` · holding ${held}` : ''}
         </span>
         {align && <span className={`align-chip s${a!.state}`}>{align}</span>}
-        <label className="easy" title="The claw grabs whatever you drive into, and Goals catch your drops more easily (G)">
+        <label className="easy" title={`The claw grabs whatever you drive into, and Goals catch your drops more easily (${k('easy')})`}>
           <input type="checkbox" checked={localInput.state.easy} onChange={(e) => localInput.setEasy(e.target.checked)} /> Easy claw
+        </label>
+        <label className="easy" title={`The robot goes exactly as fast as you steer and stops the moment you let go (${k('momentum')})`}>
+          <input type="checkbox" checked={localInput.state.noMomentum} onChange={(e) => localInput.setNoMomentum(e.target.checked)} /> No momentum
         </label>
       </div>
     </div>
@@ -157,7 +163,9 @@ function SimControls() {
           Step
         </button>
         <button disabled={!sim} onClick={() => runner.stepOnce(12)}>+0.1 s</button>
-        <button disabled={!sim} onClick={() => runner.runToEnd()}>Run to end</button>
+        <button disabled={!sim || !Number.isFinite(sim.clock.total)} onClick={() => runner.runToEnd()}>
+          Run to end
+        </button>
         <button disabled={guest} onClick={() => runner.rebuild()}>Reset match</button>
         {guest && <span className="small muted">The host runs the match clock.</span>}
       </div>

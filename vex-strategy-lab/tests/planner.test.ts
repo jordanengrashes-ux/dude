@@ -6,7 +6,7 @@ import { cloneRobot, DEFAULT_ROBOT } from '../src/robot/config';
 import { OVERRIDE_DEFAULTS } from '../src/rules/ruleset';
 import { astar } from '../src/planner/astar';
 import { Grid } from '../src/planner/grid';
-import { PlanWorld, type PlanConfig, type StaticObj } from '../src/planner/model';
+import { PlanWorld, ST_UNAVAILABLE, type PlanConfig, type StaticObj } from '../src/planner/model';
 import { DEFAULT_SETTINGS, optimize } from '../src/planner/optimizer';
 import { beamSearch } from '../src/planner/search/beam';
 import { upperBoundAdd } from '../src/planner/search/bounds';
@@ -154,12 +154,27 @@ describe('Model legality and physical feasibility', () => {
     expect(w.apply(s, { type: 'place', goal: gi, bit: 0 })).toBeNull();
   });
 
-  it('respects the possession limit (1 Pin + 1 Cup)', () => {
-    const w = new PlanWorld(baseCfg());
+  it('respects the possession limit (two-pocket holder: 1 Pin + 1 Cup)', () => {
+    const robot = cloneRobot(DEFAULT_ROBOT);
+    robot.intake.capacity = 'pinAndCup';
+    const w = new PlanWorld(baseCfg({ robot }));
     const s = w.initialState();
     expect(s.heldPin).toBeGreaterThanOrEqual(0); // preload
     expect(w.legalActions(s).some((a) => a.type === 'pick' && w.objs[a.obj].kind === 'pin')).toBe(false);
     expect(w.legalActions(s).some((a) => a.type === 'pick' && w.objs[a.obj].kind === 'cup')).toBe(true);
+  });
+
+  it('a one-piece claw holds one piece: a pick while holding drops the held piece first', () => {
+    const w = new PlanWorld(baseCfg());
+    const s = w.initialState();
+    const pin = s.heldPin;
+    expect(pin).toBeGreaterThanOrEqual(0); // preload
+    const pick = w.legalActions(s).find((a) => a.type === 'pick' && w.objs[a.obj].kind === 'cup')!;
+    const r = w.apply(s, pick, true)!;
+    expect(r.s.heldPin).toBe(-1);
+    expect(r.s.heldCup).toBe((pick as { obj: number }).obj);
+    expect(r.s.status[pin]).toBe(ST_UNAVAILABLE); // left on the tiles
+    expect(r.step.notes.join(' ')).toMatch(/dropped/);
   });
 });
 

@@ -63,7 +63,7 @@ export function explainPlan(w: PlanWorld, actions: Action[], opts: { alternative
     const a = st.action;
     if (a.type === 'pick' || a.type === 'load') {
       const o = w.objs[a.obj];
-      why = `Collects ${o.id}${o.colors ? ` (${o.colors.join('/')})` : ''} for a later placement; holding ≤ 1 Pin + 1 Cup (possession limit).`;
+      why = `Collects ${o.id}${o.colors ? ` (${o.colors.join('/')})` : ''} for a later placement; ${w.cfg.robot.intake.capacity === 'single' ? 'the claw holds one piece' : 'holding ≤ 1 Pin + 1 Cup (possession limit)'}.`;
     } else if (added.length || removed.length) {
       const parts = added.map((l) => `+${l.points} ${l.explanation} [${l.ruleId}]`);
       const lost = removed.map((l) => `−${l.points} ${l.explanation} [${l.ruleId}]`);

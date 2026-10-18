@@ -41,6 +41,8 @@ export interface MechanismRequest {
   intakeKind?: 'pin' | 'cup' | null;
   /** Only pick up loose objects, never the top of a Goal stack. */
   noDescore?: boolean;
+  /** A driver's claw: only a piece between the jaws as they close (not a capture zone). */
+  precise?: boolean;
   /** Release the object in the primary pocket. */
   release: boolean;
   /** Swap primary and secondary pockets. */
@@ -174,6 +176,11 @@ export class MatchSim {
   constructor(opts: SimOptions) {
     this.opts = opts;
     this.clock = buildClock(opts.layout.matchType, opts.params);
+    if (opts.practice) {
+      // practice has no time limit: one driver period that never ends
+      const per = this.clock.phases[this.clock.phases.length - 1].period;
+      this.clock = { matchType: this.clock.matchType, phases: [{ period: per, start: 0, end: Infinity }], total: Infinity, autonomousEnd: null, endgameStart: Infinity };
+    }
     this.rng = new Rng(opts.seed);
     this.t = opts.t0 ?? 0;
   }
@@ -267,8 +274,14 @@ export class MatchSim {
 
   private pocketPose(r: SimRobot, obj: SimObject, pocket: 'primary' | 'secondary', flipped: boolean): { p: V3; q: Quat } {
     const L = ((obj.kind === 'pin' ? PIN.length : CUP.length) / 2) * IN;
-    const p = pocket === 'primary' ? { x: 0, y: L + 0.05 * IN, z: 0 } : { x: -0.4 * IN, y: L + 0.05 * IN, z: 3.4 * IN };
-    void r;
+    let p: V3;
+    if (pocket === 'primary') p = { x: 0, y: L + 0.05 * IN, z: 0 };
+    else if (r.cfg.intake.capacity === 'single') {
+      // a claw holds one piece; a second one rides nested on it, its middle at the gripped piece's top end
+      const below = r.primary ?? obj;
+      const Lb = ((below.kind === 'pin' ? PIN.length : CUP.length) / 2) * IN;
+      p = { x: 0, y: 2 * Lb + 0.05 * IN, z: 0 };
+    } else p = { x: -0.4 * IN, y: L + 0.05 * IN, z: 3.4 * IN };
     const q: Quat = flipped ? { x: 1, y: 0, z: 0, w: 0 } : { x: 0, y: 0, z: 0, w: 1 };
     return { p, q };
   }
@@ -310,6 +323,7 @@ export class MatchSim {
 
   log(e: SimEvent) {
     this.events.push(e);
+    if (this.events.length > 6000) this.events.splice(0, 2000); // endless practice
     if (this.events.length > 5000) this.events.splice(0, 1000);
   }
 
@@ -405,10 +419,14 @@ export class MatchSim {
     // release
     if (req.release && r.primary && !busy) {
       const obj = r.primary;
+      // a claw lets go of a nested pair together
+      const rider = cfg.intake.capacity === 'single' ? r.secondary : null;
       this.objects.release(obj, t, r.easy);
+      if (rider) this.objects.release(rider, t, r.easy);
       r.primary = null;
+      if (rider) r.secondary = null;
       r.body.setPayload(r.secondary ? massOf(r.secondary) : 0);
-      this.log({ t, type: 'release', robotId: r.id, text: `${r.id} releases ${obj.id} at holder height ${r.body.holderHeight().toFixed(1)}"` });
+      this.log({ t, type: 'release', robotId: r.id, text: `${r.id} releases ${obj.id}${rider ? ` with ${rider.id}` : ''} at holder height ${r.body.holderHeight().toFixed(1)}"` });
     }
     // index (swap pockets)
     if (req.index && !busy && cfg.intake.capacity === 'pinAndCup' && (r.primary || r.secondary)) {
@@ -495,6 +513,12 @@ export class MatchSim {
       let bestD = Infinity;
       for (const obj of this.objects.objects.values()) {
         if (obj.mode !== 'free' || !obj.body || !canTake(obj.kind)) continue;
+        // the claw closes around a standing Pin; one lying down slips out (one tipping
+        // over as the robot reaches it, standing a moment ago, is still caught)
+        if (obj.kind === 'pin') {
+          if (tiltDeg(obj) <= cfg.intake.maxPinTiltDeg) obj.uprightAt = this.t;
+          else if (!(this.t - (obj.uprightAt ?? -Infinity) < 0.5)) continue;
+        }
         const p = obj.body.translation();
         if (p.y / IN > 5) continue;
         const gx = p.x / IN;
@@ -503,8 +527,13 @@ export class MatchSim {
         const dy = gy - pose.pos.y;
         const fwdD = dx * fwd.x + dy * fwd.y;
         const lat = -dx * fwd.y + dy * fwd.x;
-        if (fwdD < cfg.intake.holderOffsetIn - 2.5 || fwdD > cfg.intake.holderOffsetIn + cfg.intake.captureDepthIn) continue;
-        if (Math.abs(lat) > cfg.intake.captureHalfWidthIn) continue;
+        if (r.req.precise) {
+          // a driver's claw takes only what is between its jaws as they close
+          if (Math.abs(lat) > 1.1 || Math.abs(fwdD - cfg.intake.holderOffsetIn) > 1.6) continue;
+        } else {
+          if (fwdD < cfg.intake.holderOffsetIn - 2.5 || fwdD > cfg.intake.holderOffsetIn + cfg.intake.captureDepthIn) continue;
+          if (Math.abs(lat) > cfg.intake.captureHalfWidthIn) continue;
+        }
         const d = Math.hypot(gx - holder.x, gy - holder.y);
         if (d < bestD) {
           bestD = d;
@@ -512,7 +541,16 @@ export class MatchSim {
         }
       }
       if (best) {
+        // a nested pair comes along together (drivers' claws; bots take what their plan picks):
+        // the claw grips the bottom piece, the one nested on it rides
+        let rider: SimObject | null = null;
+        if (single && !r.req.intakeKind) {
+          const under = this.nestedOn(best, -1);
+          if (under) [best, rider] = [under, best];
+          else rider = this.nestedOn(best, 1);
+        }
         this.beginIntake(r, best, fr);
+        if (rider) this.beginIntake(r, rider, fr, true);
         return;
       }
     }
@@ -537,9 +575,23 @@ export class MatchSim {
     }
   }
 
-  private beginIntake(r: SimRobot, obj: SimObject, fr: { p: V3; q: Quat }) {
-    const pocket: 'primary' | 'secondary' = r.primary ? 'secondary' : 'primary';
-    if (pocket === 'secondary' && r.cfg.intake.capacity === 'single') return;
+  /** A free piece of the other kind nested on top of `base` (dir 1: Pin in a Cup, Cup on a Pin) or under it (dir -1). */
+  private nestedOn(base: SimObject, dir: 1 | -1): SimObject | null {
+    const b = base.body!.translation();
+    for (const o of this.objects.objects.values()) {
+      if (o === base || o.mode !== 'free' || !o.body || o.kind === base.kind) continue;
+      const p = o.body.translation();
+      if (Math.hypot(p.x - b.x, p.z - b.z) / IN > 0.9) continue;
+      const dy = (dir * (p.y - b.y)) / IN;
+      if (dy < 2.2 || dy > 4.3 || tiltDeg(o) > 25) continue;
+      return o;
+    }
+    return null;
+  }
+
+  private beginIntake(r: SimRobot, obj: SimObject, fr: { p: V3; q: Quat }, nested = false) {
+    const pocket: 'primary' | 'secondary' = nested || r.primary ? 'secondary' : 'primary';
+    if (pocket === 'secondary' && r.cfg.intake.capacity === 'single' && !nested) return;
     obj.robotId = r.id;
     obj.pocket = pocket;
     const from = ObjectManager.toLocal(fr, obj.body!.translation(), obj.body!.rotation());
@@ -752,7 +804,10 @@ export class MatchSim {
       });
       const last = r.trail[r.trail.length - 1];
       if (!last || Math.hypot(last.x - p.pos.x, last.y - p.pos.y) > 1) r.trail.push({ t: this.t, x: p.pos.x, y: p.pos.y });
+      if (r.trail.length > 4000) r.trail.splice(0, 1000);
     }
+    // endless practice: keep recent history only (a 2-minute match stays well below)
+    if (this.telemetry.length > 40000) this.telemetry.splice(0, 10000);
   }
 
   /** Deterministic fingerprint of all body poses (determinism tests / replay check). */
@@ -838,13 +893,16 @@ export class MatchSim {
   }
 
   /** Current physical state as a FieldLayout (for MPC replanning). */
-  layoutNow(): FieldLayout {
+  layoutNow(forRobot?: SimRobot): FieldLayout {
     const L = this.opts.layout;
     const pins: FieldLayout['pins'] = [];
     const cups: FieldLayout['cups'] = [];
+    // a Pin tipped past what this robot's claw can grab is out of its reach
+    const maxTilt = forRobot?.cfg.intake.maxPinTiltDeg ?? 90;
     for (const spec of L.pins) {
       const o = this.objects.objects.get(spec.id)!;
-      pins.push({ ...spec, start: this.objStart(o) as FieldLayout['pins'][number]['start'] });
+      const tipped = o.mode === 'free' && !!o.body && tiltDeg(o) > maxTilt;
+      pins.push({ ...spec, start: (tipped ? { where: 'unavailable' } : this.objStart(o)) as FieldLayout['pins'][number]['start'] });
     }
     for (const spec of L.cups) {
       const o = this.objects.objects.get(spec.id)!;
@@ -895,7 +953,12 @@ export class MatchSim {
 }
 
 function emptyReq(): MechanismRequest {
-  return { intake: false, intakeKind: null, noDescore: false, release: false, index: false, reorient: false, toggle: null, matchLoad: null };
+  return { intake: false, intakeKind: null, noDescore: false, precise: false, release: false, index: false, reorient: false, toggle: null, matchLoad: null };
+}
+
+/** Degrees from upright (either end up). */
+function tiltDeg(obj: SimObject): number {
+  return (Math.acos(Math.min(1, Math.abs(upOf(obj.body!.rotation()).y))) * 180) / Math.PI;
 }
 
 function massOf(o: SimObject) {

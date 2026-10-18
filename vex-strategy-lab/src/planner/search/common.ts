@@ -151,7 +151,9 @@ export function rolloutStep(w: PlanWorld, s: PlanState, rng: Rng | null, eps: nu
     const r = w.apply(s, a);
     if (!r) continue;
     const v = w.value(r.s);
-    const pickBonus = a.type === 'pick' || a.type === 'load' ? 2 : 0;
+    // collecting is worth a little; trading what a one-piece claw holds for another piece is not
+    const swap = w.cfg.robot.intake.capacity === 'single' && (s.heldPin >= 0 || s.heldCup >= 0);
+    const pickBonus = (a.type === 'pick' || a.type === 'load') && !swap ? 2 : 0;
     const rate = (v - v0 + pickBonus) / Math.max(0.1, r.s.t - s.t) + (rng ? rng.next() * 0.01 : 0);
     if (rate > bestRate) {
       bestRate = rate;

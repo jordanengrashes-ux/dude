@@ -78,25 +78,56 @@ open; if it is hidden, the match keeps running on timer ticks.
 ## Controls
 
 Press W A S D on the field to take over your robot (your slot, or the first one a
-bot drives); the camera locks behind it in 3rd person (mouse wheel: distance).
+bot drives); the camera locks behind it in 3rd person. Drag to look around the robot
+(the camera keeps that angle and turns with the robot), scroll to zoom; zoom all the
+way in (or press B) and you are in first person: the robot's eye behind the claw,
+a wide view with the claw at the bottom and the field ahead (your own lift towers
+are hidden so they don't fill the view; drag to look around). Scroll out or press B
+to go back. V puts the camera behind the robot again.
 
-| Action | Keyboard / mouse | Gamepad |
+Every action can be rebound: open **Controls** in the Drivers card, click a key or
+controller cell and press the new key or button (Esc cancels, Delete clears it).
+Each action takes two keys and one controller button; a key or button does one
+thing, so binding it moves it off any other action. Bindings are saved in this
+browser; **Reset to defaults** brings these back:
+
+| Action | Keyboard / mouse | Controller |
 |---|---|---|
-| Drive / turn (arcade) | W/S, A/D or arrows | left stick Y / right stick X |
-| Arm up / down (DR4B) | Space / Shift (also R / F) | RT / LT |
+| Drive / turn (arcade) | W/S, A/D or arrows | left stick Y / right stick X (split) |
+| Arm up / down (DR4B) | Space / Shift (also R / F) | RT / LT (analog) |
 | Arm presets: floor, Alliance Goal, short Goal, tall Goal | 1 2 3 4 | D-pad ↓ ← → ↑ |
-| Claw: each click closes it (grabs what is in front) or opens it (lets go) | left click or C | A |
+| Claw: each press closes it (grabs what is between the jaws) or opens it (lets go) | left click or C | A |
 | Open the claw (drop) | E | B |
+| Look around / zoom (all the way in: first person) | drag / mouse wheel | right stick (one-stick layout) |
+| First / third person | B | L3 |
+| Camera back behind the robot | V | R3 |
 | Easy claw on / off | G | Back |
+| No momentum on / off | M | — |
 | Toggle arm (hold) | T | X |
-| Swap pockets | Q | LB |
+| Swap pockets (two-pocket holder only) | Q | LB |
 | Flip the held object | X | Y |
 | Request a Match Load | L | RB |
 | Play / pause (host or offline) | P | Start |
 
+Controllers use the standard mapping (Xbox / PlayStation / most USB pads; press a
+button once so the browser sees it). **Split** sticks: left stick drives, right
+stick turns. **One stick**: the left stick drives and turns and the right stick
+moves the camera. The triggers raise and lower the arm in proportion to how far
+they are pressed.
+
 Turning works at speed: when forward + turn would exceed full power, both sides
 scale down together so the turn is kept, and the turn grows with speed (in place it
-stays gentle for aiming).
+stays gentle for aiming). **No momentum** (checkbox in the HUD, or M) sets the
+robot's speed straight from the sticks: it is at speed at once and stops the moment
+you let go, with no coasting or sliding.
+
+**The claw** holds one piece and closes on what is between its jaws: a piece within
+about 1" of the claw's center line, at the claw. Driving into a piece with the claw
+open pushes it; it does not suck it in. A Pin has to be standing: it grabs a Pin
+tipped up to 20° from upright (not below 70° from the tiles); one lying down slips
+out. A piece already nested on the one it grabs (a Pin standing in a Cup, a Cup on a
+Pin) comes along, riding on top, and both drop together. Holding one piece, the
+claw can't take a second one beside it.
 
 The HUD shows the claw (closed / open, and what it holds; the light on the carriage
 is green when closed, amber when open) and the **aligner**: a ring on the Goal your
@@ -106,15 +137,17 @@ within 1.0" of their axis and a Cup within 1.1" (the tapered Pin half centers it
 in the opening).
 
 **Easy claw** (checkbox in the HUD, or G): the claw grabs whatever the robot drives
-into, never takes a scored piece off a Goal, waits 1.5 s after a drop before grabbing
-again, and Goals catch your drops within 2.5". It is a per-player setting; a team
-host applies each player's choice.
+into (still one piece, still standing Pins), never takes a scored piece off a Goal,
+waits 1.5 s after a drop before grabbing again, and Goals catch your drops within
+2.5". It is a per-player setting, like No momentum; a team host applies each
+player's choice.
 
 ## Practice
 
 **Practice** (header switch, or `?mode=practice`) puts only your robot on the full
-Head-to-Head field: no bots, no team room, you drive from the first second (no
-Autonomous wait) and no rule checks. The clock starts when you start driving.
+Head-to-Head field: no bots, no team room, no time limit, you drive from the first
+second (no Autonomous wait) and no rule checks. The clock starts when you start
+driving and counts up.
 
 ## The bots
 
@@ -144,6 +177,14 @@ another robot occupies their target, and back off and re-route when blocked. A
 virtual fence keeps them out of poses that break SG7 in Autonomous or enter the
 opposing Load Zones in Driver Control; violations left are from being pushed.
 
+The bots drive the same robot you do: one piece in the claw, standing Pins only.
+When a plan trades the held piece for a different one (say, a Cup it can't place
+yet for a Pin), the bot sets it down and backs away first. Their intake runs as they
+close in, so a Pin they reach is caught rather than knocked over; a Pin that does
+tip over stays on the tiles for good, and Loaders or Goals blocked by such pieces
+are avoided for a while. With one piece per trip the bots score about half of what
+the earlier two-pocket holder did.
+
 ## The robot
 
 The default robot is the given 16 × 16 in four-wheel drive with a **double reverse
@@ -153,6 +194,8 @@ Unknowns are labeled as assumptions and editable:
 - 2 × 200 rpm lift motors at 1:7
 - 3.25 in wheels on 450 rpm
 - 15 lb
+- a claw that holds one piece and grabs Pins tipped up to 20° (the two-pocket
+  holder, 1 Pin + 1 Cup, and the tilt limit are settings in the Robot tab)
 
 The DR4B end effector rises straight up, h = h(θmin) + 2L(sin θ − sin θmin). The
 motor sees an effective radius of 2L·cos θ, so the lift is fastest with the bars
@@ -235,6 +278,8 @@ The official STEP files can replace any of them: `docs/CAD.md` covers
 - Plans are optimal only within the macro-action model and its candidate limits. On
   the full field the optimizer reports best found with a gap, not a proof.
 - Physical execution falls short of the model: objects get plowed, wedged or knocked
-  over, and other robots interfere. Physics trials quantify the gap.
+  over, and other robots interfere. Physics trials quantify the gap. The bots don't
+  clear tipped-over pieces: Pins they knock over pile up near walls, Goals and
+  Loaders, and the bots work around them.
 - Online play depends on Supabase Realtime reachability and quotas. The host's
   device runs the physics for everyone.
