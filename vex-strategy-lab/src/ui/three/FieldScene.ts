@@ -163,7 +163,13 @@ export class FieldScene {
     canvas.addEventListener('pointerdown', (e) => {
       this.drag = { x: e.clientX, y: e.clientY, moved: 0, active: true, endedAt: this.drag.endedAt };
     });
+    // cursor locked to the view (while driving): moving the mouse looks around
+    canvas.addEventListener('mousemove', (e) => {
+      if (!this.pointerLocked || this.mode !== 'chase') return;
+      this.look(e.movementX, e.movementY);
+    });
     canvas.addEventListener('pointermove', (e) => {
+      if (this.pointerLocked) return;
       if (!this.drag.active || !e.buttons) return;
       const dx = e.clientX - this.drag.x;
       const dy = e.clientY - this.drag.y;
@@ -171,13 +177,7 @@ export class FieldScene {
       this.drag.y = e.clientY;
       this.drag.moved += Math.abs(dx) + Math.abs(dy);
       if (this.mode !== 'chase' || this.drag.moved < 4) return;
-      if (this.firstPerson) {
-        this.fpYaw -= dx * 0.006;
-        this.fpPitch = Math.max(-1.2, Math.min(0.6, this.fpPitch - dy * 0.005));
-      } else {
-        this.chaseYaw -= dx * 0.008;
-        this.chasePitch = Math.max(0.08, Math.min(1.45, this.chasePitch + dy * 0.006));
-      }
+      this.look(dx, dy);
     });
     window.addEventListener('pointerup', () => {
       if (this.drag.active && this.drag.moved >= 4) this.drag.endedAt = performance.now();
@@ -362,28 +362,56 @@ export class FieldScene {
     this.controls.update();
   }
 
-  private alignRing: THREE.Mesh | null = null;
+  private aligner: { group: THREE.Group; ring: THREE.Mesh; zone: THREE.Mesh; dot: THREE.Mesh; line: THREE.Line } | null = null;
   private goalPos = new Map(buildGoals().map((g) => [g.id, g.pos]));
 
-  /** Aligner ring over the Goal (or loose Cup / Pin) the followed robot would drop on (white near, orange too low, green: release). */
+  /**
+   * Aligner over the Goal (or loose Cup / Pin) the followed robot would drop on: a
+   * ring on the opening, a disc showing how far off its axis a drop still goes in,
+   * and a dot where the held piece's axis is now (dropped from the claw to the rim).
+   * White: not lined up; orange: lined up but too low to clear the rim; green: open
+   * the claw now and it drops in.
+   */
   private updateAligner(frame: SceneFrame) {
     const r = this.chaseId ? frame.robots.find((x) => x.id === this.chaseId) : undefined;
     const a = r?.align ?? null;
-    if (!this.alignRing) {
-      this.alignRing = new THREE.Mesh(new THREE.TorusGeometry(1.9 * IN, 0.12 * IN, 10, 40), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.85, toneMapped: false, depthTest: false }));
-      this.alignRing.rotation.x = Math.PI / 2;
-      this.alignRing.renderOrder = 11;
-      this.scene.add(this.alignRing);
+    if (!this.aligner) {
+      const mat = (opacity: number) => new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity, toneMapped: false, depthTest: false, side: THREE.DoubleSide });
+      const group = new THREE.Group();
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(1.9 * IN, 0.1 * IN, 10, 40), mat(0.85));
+      ring.rotation.x = Math.PI / 2;
+      const zone = new THREE.Mesh(new THREE.CircleGeometry(1 * IN, 40), mat(0.28));
+      zone.rotation.x = -Math.PI / 2;
+      const dot = new THREE.Mesh(new THREE.CircleGeometry(0.22 * IN, 20), mat(0.95));
+      dot.rotation.x = -Math.PI / 2;
+      const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), new THREE.LineBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.7, toneMapped: false, depthTest: false }));
+      for (const o of [ring, zone, dot, line]) {
+        o.renderOrder = 11;
+        group.add(o);
+      }
+      this.scene.add(group);
+      this.aligner = { group, ring, zone, dot, line };
     }
-    const ring = this.alignRing;
+    const al = this.aligner;
     const g = a ? (a.at ?? this.goalPos.get(a.goal)) : undefined;
-    ring.visible = !!(a && g);
+    al.group.visible = !!(a && g);
     if (!a || !g) return;
-    const w = toWorld(g.x, g.y, a.top + 0.4);
-    ring.position.set(w.x, w.y, w.z);
-    (ring.material as THREE.MeshBasicMaterial).color.set(a.state === 2 ? '#39d353' : a.state === 1 ? '#ff9f1a' : '#ffffff');
-    // a loose piece is smaller than a Goal's socket
-    ring.scale.setScalar((a.state === 2 ? 1.15 : 1) * (a.at ? 0.95 : 1));
+    const color = a.state === 2 ? '#39d353' : a.state === 1 ? '#ff9f1a' : '#ffffff';
+    for (const o of [al.ring, al.zone, al.dot]) ((o as THREE.Mesh).material as THREE.MeshBasicMaterial).color.set(color);
+    (al.line.material as THREE.LineBasicMaterial).color.set(color);
+    const w = toWorld(g.x, g.y, a.top + 0.05);
+    al.ring.position.set(w.x, w.y, w.z);
+    // the opening: a Goal socket's bore or a loose piece's rim
+    al.ring.scale.setScalar(a.at ? 0.85 : 0.7);
+    al.zone.position.set(w.x, w.y + 0.002, w.z);
+    al.zone.scale.setScalar(Math.max(0.15, a.tol ?? 0.6));
+    const f = a.from ?? g;
+    const d = toWorld(f.x, f.y, a.top + 0.05);
+    al.dot.position.set(d.x, d.y + 0.004, d.z);
+    // a plumb line from the held piece down to where it would land
+    const held = r!.carriage.p;
+    const pts = [new THREE.Vector3(d.x, held.y, d.z), new THREE.Vector3(d.x, d.y, d.z)];
+    al.line.geometry.setFromPoints(pts);
   }
 
   /** Robot the 3rd-person camera follows (null: none). */
@@ -410,6 +438,38 @@ export class FieldScene {
   private showOwnFrame() {
     for (const o of this.fpHidden) o.visible = true;
     this.fpHidden = [];
+  }
+
+  /** Turn the 3rd-person / first-person view by a mouse movement (px). */
+  private look(dx: number, dy: number) {
+    if (this.firstPerson) {
+      this.fpYaw -= dx * 0.006;
+      this.fpPitch = Math.max(-1.2, Math.min(0.6, this.fpPitch - dy * 0.005));
+    } else {
+      this.chaseYaw -= dx * 0.008;
+      this.chasePitch = Math.max(0.08, Math.min(1.45, this.chasePitch + dy * 0.006));
+    }
+  }
+
+  /** The cursor is locked to the 3D view (mouse look); Esc frees it. */
+  get pointerLocked(): boolean {
+    return typeof document !== 'undefined' && document.pointerLockElement === this.canvas;
+  }
+
+  /** Lock the cursor to the view for mouse look (3rd / 1st person only). True if it asked. */
+  lockPointer(): boolean {
+    if (this.mode !== 'chase' || this.pointerLocked || !this.canvas.requestPointerLock) return false;
+    try {
+      const p = this.canvas.requestPointerLock() as unknown as Promise<void> | undefined;
+      p?.catch?.(() => undefined); // refused (e.g. right after Esc): stays unlocked
+    } catch {
+      return false;
+    }
+    return true;
+  }
+
+  unlockPointer() {
+    if (this.pointerLocked) document.exitPointerLock();
   }
 
   /** True right after a drag ended (the click that follows it is not a click); consumes it. */
@@ -575,7 +635,7 @@ export class FieldScene {
       m.carriage.position.set(r.carriage.p.x, r.carriage.p.y, r.carriage.p.z);
       m.carriage.quaternion.set(r.carriage.q.x, r.carriage.q.y, r.carriage.q.z, r.carriage.q.w);
       m.setLift(r.holderH - r.cfg.lift.holderMinHeightIn);
-      m.setClaw(r.claw);
+      m.setClaw(r.claw, r.rollers ?? 0);
     }
     this.updateAligner(frame);
     const mtx = new THREE.Matrix4();

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FieldScene } from '../three/FieldScene';
 import { runner } from '../simRunner';
 import { localInput } from '../input';
@@ -15,6 +15,8 @@ export function Field3D({ steps }: { steps: StepInfo[] | null }) {
   const show = useApp((s) => s.show);
   const userSlot = useApp((s) => s.userSlot);
   const slots = useApp((s) => s.slots);
+  const [locked, setLocked] = useState(false);
+  const [driving, setDriving] = useState(false);
 
   useEffect(() => {
     const sc = new FieldScene(canvas.current!);
@@ -48,8 +50,12 @@ export function Field3D({ steps }: { steps: StepInfo[] | null }) {
         if (mine !== following) {
           following = mine;
           sc.setFollow(mine);
+          setDriving(!!mine);
           if (mine) store.set({ camera: 'chase' });
-          else if (store.get().camera === 'chase') store.set({ camera: 'iso' });
+          else {
+            sc.unlockPointer();
+            if (store.get().camera === 'chase') store.set({ camera: 'iso' });
+          }
         }
         if (trailTick++ % 10 === 0) sc.setTrails(frame.robots.map((r) => ({ id: r.id, alliance: r.alliance, pts: r.trail })));
       }
@@ -60,6 +66,14 @@ export function Field3D({ steps }: { steps: StepInfo[] | null }) {
     localInput.onViewReset = () => sc.resetView();
     localInput.onToggleFirstPerson = () => sc.toggleFirstPerson();
     localInput.onCameraStick = (x, y) => sc.orbitBy(x, y);
+    const lockChange = () => {
+      setLocked(sc.pointerLocked);
+      if (!sc.pointerLocked) localInput.setMouseIntake(false);
+    };
+    document.addEventListener('pointerlockchange', lockChange);
+    // the right mouse button runs the rollers in while it is held (driving)
+    const up = (e: PointerEvent) => e.button === 2 && localInput.setMouseIntake(false);
+    window.addEventListener('pointerup', up);
     // Browsers pause animation frames in hidden tabs; a team-mode host keeps the
     // match running from (throttled, ~1 Hz) timers so the guests' game goes on.
     let lastBg = performance.now();
@@ -69,6 +83,9 @@ export function Field3D({ steps }: { steps: StepInfo[] | null }) {
       lastBg = now;
     }, 250);
     return () => {
+      document.removeEventListener('pointerlockchange', lockChange);
+      window.removeEventListener('pointerup', up);
+      sc.unlockPointer();
       clearInterval(bg);
       cancelAnimationFrame(raf);
       localInput.onViewReset = localInput.onToggleFirstPerson = null;
@@ -88,13 +105,18 @@ export function Field3D({ steps }: { steps: StepInfo[] | null }) {
   const onClick = (e: React.MouseEvent) => {
     // the end of a drag (looking around / orbiting) is not a click
     if (sceneRef.current?.wasDrag()) return;
-    // driving: left click opens / closes the claw; otherwise it inspects
+    // driving: the first click locks the cursor to the view (mouse look); then left
+    // click opens / closes the claw. Otherwise a click inspects.
     if (drivingSlot()) {
+      if (!sceneRef.current?.pointerLocked && sceneRef.current?.lockPointer()) return;
       localInput.toggleClaw();
       return;
     }
     const pick = sceneRef.current?.pick(e.clientX, e.clientY) ?? null;
     store.set({ selection: pick });
+  };
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (e.button === 2 && drivingSlot()) localInput.setMouseIntake(true);
   };
 
   return (
@@ -102,9 +124,15 @@ export function Field3D({ steps }: { steps: StepInfo[] | null }) {
       <canvas
         ref={canvas}
         onClick={onClick}
+        onPointerDown={onPointerDown}
         onContextMenu={(e) => drivingSlot() && e.preventDefault()}
-        aria-label="3D field view — drag to rotate, scroll to zoom, right-drag to pan, click to inspect; while driving, click opens and closes the claw"
+        aria-label="3D field view — drag to rotate, scroll to zoom, right-drag to pan, click to inspect; while driving, click locks the mouse for looking around, then click opens and closes the claw and the right button runs the rollers in"
       />
+      {driving && (
+        <div className={`lock-hint${locked ? ' on' : ''}`}>
+          {locked ? 'Mouse looks around · left click: claw · hold right button: rollers in · Esc frees the cursor' : 'Click the field to lock the mouse for looking around'}
+        </div>
+      )}
     </div>
   );
 }

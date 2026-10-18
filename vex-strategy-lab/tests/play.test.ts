@@ -90,7 +90,7 @@ describe('Pin into a loose Cup', () => {
     sim.runUntil(sim.t + 1.5);
     expect(pin.mode).toBe('free');
     const dy = (pin.body!.translation().y - cup.body!.translation().y) / IN;
-    expect(pin.bond?.other, `dy ${dy.toFixed(2)} pin v ${JSON.stringify(pin.body!.linvel())} up ${JSON.stringify(pin.body!.rotation())}`).toBe(cup); // resting in the Cup, held to it
+    expect(pin.bonds[0]?.other, `dy ${dy.toFixed(2)} pin v ${JSON.stringify(pin.body!.linvel())} up ${JSON.stringify(pin.body!.rotation())}`).toBe(cup); // resting in the Cup, held to it
     expect(pin.body!.translation().y / IN).toBeGreaterThan(CUP.length);
     sim.dispose();
   });
@@ -162,10 +162,19 @@ describe('Claw state and aligner', () => {
     expect(fr.align?.state).toBe(2); // over it and high enough: open the claw
     const { decodeSnap, encodeSnap, setupFrom } = await import('../src/net/protocol');
     const { hudData } = await import('../src/sim/frame');
+    inp.intake = true; // rollers running (already holding: they just grip)
+    sim.step();
     const frame = sim.sceneFrame();
+    expect(frame.robots[0].rollers).toBe(1);
     const setup = setupFrom(frame, 'host', 'skillsDriver', OVERRIDE_DEFAULTS, preloadOnly);
     const d = decodeSnap(encodeSnap(frame, hudData(sim), 0, true, new Map(), false), setup, null, new Map());
-    expect(d.robots[0]).toMatchObject({ claw: true, holding: 1, align: { goal: g.id, state: 2 } });
+    expect(d.robots[0]).toMatchObject({ claw: true, holding: 1, rollers: 1, align: { goal: g.id, state: 2 } });
+    // the aligner's zone and the held piece's dot travel too
+    const a = frame.robots[0].align!;
+    expect(a.tol).toBeCloseTo(sim.objects.funnel.socket, 2); // an empty Goal: the socket's funnel
+    expect(d.robots[0].align!.tol).toBeCloseTo(a.tol!, 2);
+    expect(d.robots[0].align!.from!.x).toBeCloseTo(a.from!.x, 1);
+    expect(d.robots[0].align!.from!.y).toBeCloseTo(a.from!.y, 1);
     sim.dispose();
   });
 });

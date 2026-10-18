@@ -6,7 +6,7 @@ import { zeroInput, type DriverInput } from '../src/sim/driver';
 import { hudData } from '../src/sim/frame';
 import { buildMatch, planScenario, type ScenarioConfig } from '../src/sim/scenario';
 import { decodeSnap, encodeSnap, setupFrom } from '../src/net/protocol';
-import { TeamSession } from '../src/net/session';
+import { PUBLIC_ROOM, TeamSession } from '../src/net/session';
 import { LocalTransport } from '../src/net/transport';
 import { SimRunner } from '../src/ui/simRunner';
 import { store } from '../src/ui/store';
@@ -191,6 +191,7 @@ describe('Team session over the local transport', () => {
     await host.autoStart('Hosty', null);
     expect(host.role).toBe('host');
     const room = host.state.room!;
+    expect(room).toBe(PUBLIC_ROOM); // no link: the public game everyone shares
     await new Promise((r) => setTimeout(r, 600));
     expect(sent).toBe(0); // nobody to stream to
     // opening the invite link joins the room; the guest replaces a bot and the match starts
@@ -208,6 +209,36 @@ describe('Team session over the local transport', () => {
     await Promise.all([guest.leave(), host.leave(), late.leave()]);
     hostRunner.sim?.dispose();
   }, 30000);
+
+  it('the public game: a fifth player is told it is full and can start a private game; a guest takes over when the host leaves', async () => {
+    const hostRunner = new SimRunner();
+    await hostRunner.rebuild({ ...store.get(), practice: false }); // a match: four robots
+    const host = new TeamSession(hostRunner, () => new LocalTransport());
+    await host.host('Hosty', 'local', 'PUBT');
+    host.claimSlot('red-1');
+    let offset = 0;
+    const guests = [0, 1, 2].map((i) => new TeamSession(new SimRunner(), () => new LocalTransport(), i === 0 ? () => performance.now() + offset : undefined));
+    for (const [i, g] of guests.entries()) {
+      await g.join('PUBT', `G${i}`, 'local');
+      await wait(() => g.mySlot() !== null);
+    }
+    // every robot has a driver: the next one is asked to watch or go private
+    const fifth = new TeamSession(new SimRunner(), () => new LocalTransport());
+    await fifth.join('PUBT', 'Fifi', 'local');
+    await wait(() => fifth.state.full !== null);
+    expect(fifth.state.full).toBe(4);
+    expect(fifth.mySlot()).toBeNull();
+    await fifth.goPrivate();
+    expect(fifth.role).toBe('host');
+    expect(fifth.state.room).not.toBe('PUBT');
+    // the host leaves: a guest hosts the same room from then on
+    await host.leave();
+    await new Promise((r) => setTimeout(r, 300));
+    offset = 20000; // its absence outlasts the grace period
+    await wait(() => guests.some((g) => g.role === 'host' && g.state.room === 'PUBT'), 15000);
+    await Promise.all([...guests, fifth].map((g) => g.leave()));
+    hostRunner.sim?.dispose();
+  }, 40000);
 
   it('a joining player replaces a bot, drives it, and the bot takes over again when they leave', async () => {
     const hostRunner = new SimRunner();

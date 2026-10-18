@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { team, useTeam } from '../../net/session';
+import { PUBLIC_ROOM, team, useTeam } from '../../net/session';
 import { DriversCard } from './DriversCard';
 import { store } from '../store';
 
@@ -17,11 +17,11 @@ export function savedPlayerName(): string {
   }
 }
 
-/** Link that joins this room. */
+/** Link that joins this room (the public game: the site itself). */
 export function inviteLink(room: string): string {
   const u = new URL(window.location.href);
   u.search = '';
-  u.searchParams.set('room', room);
+  if (room !== PUBLIC_ROOM) u.searchParams.set('room', room);
   return u.href;
 }
 
@@ -46,7 +46,7 @@ export function TeamPanel() {
       <section className="card">
         <h3>Team mode</h3>
         <p className="small">
-          Your room is open as soon as the page loads — in Practice too, nothing to create. Send the invite link and whoever opens it joins (if you're practicing, the app switches to a match for both of you). Every robot is driven by its bot until a player takes it: a joining player replaces a bot (your partner first) and the match starts; when they leave, the bot takes the robot back and replans from where things stand. Press W A S D on the field to drive your own robot in 3rd person. Robots run their autonomous programs during Autonomous; drivers take over at Driver Control.
+          Everyone who opens the site joins one shared public game — in Practice too, nothing to create (if you're practicing when someone joins, the app switches to a match for both of you). When the public game is full you can watch it or start a private game: its invite link brings your friends in. Every robot is driven by its bot until a player takes it: a joining player replaces a bot (your partner first) and the match starts; when they leave, the bot takes the robot back and replans from where things stand. Press W A S D on the field to drive your own robot in 3rd person. Robots run their autonomous programs during Autonomous; drivers take over at Driver Control.
         </p>
         {!inRoom ? (
           <>
@@ -77,13 +77,22 @@ export function TeamPanel() {
         ) : (
           <>
             <div className="status verified-optimum">
-              Room <strong style={{ letterSpacing: '0.12em' }}>{t.room}</strong> · {t.transport === 'online' ? 'online' : 'this browser'} · you are the {t.role}
+              {t.room === PUBLIC_ROOM ? <strong>Public game</strong> : <>Private room <strong style={{ letterSpacing: '0.12em' }}>{t.room}</strong></>} · {t.transport === 'online' ? 'online' : 'this browser'} · you are the {t.role}
             </div>
             <div className="row">
               <input aria-label="Invite link" readOnly value={inviteLink(t.room ?? '')} onFocus={(e) => e.target.select()} style={{ flex: 1, minWidth: 0 }} />
               <button onClick={() => navigator.clipboard?.writeText(inviteLink(t.room ?? ''))}>Copy invite link</button>
             </div>
             <div className="row">
+              {t.room === PUBLIC_ROOM ? (
+                <button onClick={() => void s?.goPrivate(name || 'Host')} title="A new room of your own: send its invite link to friends">
+                  Start a private game
+                </button>
+              ) : (
+                <button onClick={() => void s?.leave().then(() => s?.autoStart(name || 'Player', null))} title="Back to the game everyone shares">
+                  Join the public game
+                </button>
+              )}
               <button onClick={() => void s?.leave()}>Leave room</button>
               <button className="primary" onClick={() => store.set({ tab: 'field' })}>
                 Go to the field

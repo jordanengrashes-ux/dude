@@ -8,20 +8,23 @@ import {
   footprintInMidfield,
   footprintOnOpposingSide,
   CUP,
+  nestOffset,
   PIN,
   pinSeatLift,
+  stackTop,
   type LoaderGeom,
 } from '../field/geometry';
 import { fitStartToWall, PIN_COLORS, type FieldLayout } from '../field/layout';
 import type { RobotConfig } from '../robot/config';
+import { CLAW } from '../robot/claw';
 import { robotTopHeight } from '../robot/kinematics';
 import type { FieldState, GoalState, Period, StackElement, TogglePosition, Violation } from '../rules/fieldState';
 import type { Alliance, OverrideParams } from '../rules/ruleset';
 import { computeScore, evaluateMatch, type MatchResult, type ScoreReport } from '../rules/scoring';
 import { buildClock, isEndgame, periodAt, type MatchClock } from '../rules/timing';
 import { buildField, stepToggle, toggleAngle, togglePosition, toggleTargetAngle, type FieldBodies } from '../physics/field';
-import { CG, headingOf, toWorld, upOf, yawQuat, quatMul, type Quat, type V3 } from '../physics/frames';
-import { ObjectManager, objectColliders, setObjectGroups, type SimObject } from '../physics/objects';
+import { headingOf, rotateV, toWorld, upOf, yawQuat, quatMul, type Quat, type V3 } from '../physics/frames';
+import { bottomIn, halfLenIn, ObjectManager, objectColliders, tiltDeg, type SimObject } from '../physics/objects';
 import { loadRapier, type Rapier } from '../physics/rapier';
 import { RobotBody } from '../physics/robot';
 import type { AlignHint, SceneFrame } from './frame';
@@ -37,14 +40,17 @@ import type { AlignHint, SceneFrame } from './frame';
 export const DT = 1 / 120;
 
 export interface MechanismRequest {
+  /** Run the claw's rollers inward: a piece between the jaws is pulled in and gripped. */
   intake: boolean;
+  /** Run the rollers outward: what the claw holds is pushed out the front. */
+  outtake: boolean;
   /** Run only the pocket for this kind (a controlled intake); null = whatever fits. */
   intakeKind?: 'pin' | 'cup' | null;
   /** Only pick up loose objects, never the top of a Goal stack. */
   noDescore?: boolean;
-  /** A driver's claw: only a piece between the jaws as they close (not a capture zone). */
+  /** A driver's claw: only a piece right at the jaws (not a bot's wider capture zone). */
   precise?: boolean;
-  /** Release the object in the primary pocket. */
+  /** Open the claw: everything it holds drops. */
   release: boolean;
   /** Swap primary and secondary pockets. */
   index: boolean;
@@ -81,8 +87,13 @@ export interface SimRobot {
   body: RobotBody;
   controller: Controller;
   req: MechanismRequest;
+  /** The gripped piece (a claw) / first pocket, and the next one (nested on it / second pocket). */
   primary: SimObject | null;
   secondary: SimObject | null;
+  /** Everything held: a claw's stack bottom first (the gripped piece, then each one nested on it). */
+  held: SimObject[];
+  /** Claw rollers this step: 1 in, −1 out, 0 stopped. */
+  rollers: -1 | 0 | 1;
   /** Busy mechanism (intake/index/reorient) until this time. */
   busyUntil: number;
   /** Sensor noise state. */
@@ -219,6 +230,8 @@ export class MatchSim {
         req: emptyReq(),
         primary: null,
         secondary: null,
+        held: [],
+        rollers: 0,
         busyUntil: 0,
         noise: { pos: rs.sensorSd?.pos ?? 0, heading: rs.sensorSd?.heading ?? 0, driftX: 0, driftY: 0 },
         trail: [],
@@ -286,45 +299,96 @@ export class MatchSim {
     this.recordScore(true);
   }
 
-  private pocketPose(r: SimRobot, obj: SimObject, pocket: 'primary' | 'secondary', flipped: boolean): { p: V3; q: Quat } {
-    const L = ((obj.kind === 'pin' ? PIN.length : CUP.length) / 2) * IN;
-    let p: V3;
-    if (pocket === 'primary') p = { x: 0, y: L + 0.05 * IN, z: 0 };
-    else if (r.cfg.intake.capacity === 'single') {
-      // a claw holds one piece; a second one rides nested on it, its middle at the gripped piece's top end
-      const below = r.primary ?? obj;
-      const Lb = ((below.kind === 'pin' ? PIN.length : CUP.length) / 2) * IN;
-      p = { x: 0, y: 2 * Lb + 0.05 * IN, z: 0 };
-    } else p = { x: -0.4 * IN, y: L + 0.05 * IN, z: 3.4 * IN };
-    const q: Quat = flipped ? { x: 1, y: 0, z: 0, w: 0 } : { x: 0, y: 0, z: 0, w: 1 };
-    return { p, q };
+  /** Upright (keeping whichever end is up and the yaw it has in the claw). */
+  private static upright(q: Quat): Quat {
+    return ObjectManager.uprightRotation(q, headingOf(q));
+  }
+
+  /**
+   * Where each held piece belongs in the holder (carriage frame): a claw grips the
+   * bottom piece with its base just above the holder bottom and every piece nested on
+   * it sits one nesting step higher; a two-pocket holder has a pocket beside the first.
+   */
+  private retarget(r: SimRobot, speed: number = CLAW.surfaceSpeed, rate = 6) {
+    const single = r.cfg.intake.capacity === 'single';
+    let cy = 0;
+    r.held.forEach((o, i) => {
+      const h = o.hold!;
+      const L = halfLenIn(o.kind);
+      let p: V3;
+      if (single) {
+        cy = i === 0 ? L + 0.05 : cy + nestOffset();
+        p = { x: 0, y: cy * IN, z: 0 };
+      } else p = o.pocket === 'secondary' ? { x: -0.4 * IN, y: (L + 0.05) * IN, z: 3.4 * IN } : { x: 0, y: (L + 0.05) * IN, z: 0 };
+      // taken off a stack: held where it was gripped until it is clear of the stack
+      if (h.clearOf) p = { ...h.local.p };
+      h.target = { p, q: MatchSim.upright(h.local.q) };
+      h.speed = speed;
+      h.rate = rate;
+    });
+    this.refreshHeld(r);
+  }
+
+  private refreshHeld(r: SimRobot) {
+    if (r.cfg.intake.capacity === 'single') {
+      r.held.forEach((o, i) => (o.pocket = i === 0 ? 'primary' : 'secondary'));
+      r.primary = r.held[0] ?? null;
+      r.secondary = r.held[1] ?? null;
+    } else {
+      r.primary = r.held.find((o) => o.pocket === 'primary') ?? null;
+      r.secondary = r.held.find((o) => o.pocket === 'secondary') ?? null;
+    }
+    r.body.setPayload(r.held.reduce((m, o) => m + massOf(o), 0));
+  }
+
+  /** Grip pieces where they are now (carriage frame); the rollers then seat them in the holder. */
+  private grip(r: SimRobot, objs: SimObject[], opts: { clearOf?: string; pocket?: 'primary' | 'secondary'; at?: 'top' | 'bottom' } = {}) {
+    const f = r.body.carriageFrame();
+    const added: SimObject[] = [];
+    for (const o of objs) {
+      const local = ObjectManager.toLocal(f, o.body!.translation(), o.body!.rotation());
+      const cols = this.objects.grip(o, r.id, r.body.carriage, local, local, CLAW.surfaceSpeed, 6);
+      for (const c of cols) this.robotColliderOwner.set(c.handle, r.id);
+      if (opts.clearOf && o === objs[0]) o.hold!.clearOf = opts.clearOf;
+      if (opts.pocket) o.pocket = opts.pocket;
+      added.push(o);
+    }
+    r.held = opts.at === 'bottom' ? [...added, ...r.held] : [...r.held, ...added];
+    this.retarget(r);
+    r.busyUntil = Math.max(r.busyUntil, this.t + 0.12);
+    this.log({ t: this.t, type: 'intake', robotId: r.id, text: `${r.id} intakes ${added.map((o) => o.id).join(' + ')}` });
+    this.checkPossession(r);
+  }
+
+  /** Let go of everything held (the claw opens; `push` m/s when the rollers spit it out). */
+  private letGo(r: SimRobot, push?: V3) {
+    if (!r.held.length) return;
+    const ids = r.held.map((o) => o.id).join(' + ');
+    for (const o of r.held) {
+      for (const c of o.hold?.colliders ?? []) this.robotColliderOwner.delete(c.handle);
+      this.objects.ungrip(o, this.t, r.body.carriage, push, r.easy);
+    }
+    r.held = [];
+    this.refreshHeld(r);
+    this.log({ t: this.t, type: 'release', robotId: r.id, text: `${r.id} ${push ? 'pushes out' : 'releases'} ${ids} at holder height ${r.body.holderHeight().toFixed(1)}"` });
   }
 
   private attachAtStart(r: SimRobot, obj: SimObject, flipped: boolean) {
+    // spawned in the holder, then gripped there (already in place)
     const f = r.body.carriageFrame();
-    const pocket = r.primary ? 'secondary' : 'primary';
-    const lp = this.pocketPose(r, obj, pocket, flipped);
-    const w = ObjectManager.toWorldPose(f, lp.p, lp.q);
+    const L = halfLenIn(obj.kind);
+    const single = r.cfg.intake.capacity === 'single';
+    const below = r.held[r.held.length - 1];
+    let lp: V3 = { x: 0, y: (L + 0.05) * IN, z: 0 };
+    if (below && single) lp = { x: 0, y: below.hold!.target.p.y + nestOffset() * IN, z: 0 };
+    else if (below) lp = { x: -0.4 * IN, y: (L + 0.05) * IN, z: 3.4 * IN };
+    const lq: Quat = flipped ? { x: 1, y: 0, z: 0, w: 0 } : { x: 0, y: 0, z: 0, w: 1 };
+    const w = ObjectManager.toWorldPose(f, lp, lq);
     this.objects.spawn(obj, { x: 0, y: 0, z: 0, flipped: false });
     obj.body!.setTranslation(w.p, true);
     obj.body!.setRotation(w.q, true);
-    obj.robotId = r.id;
-    this.attach(r, obj, pocket, lp);
-  }
-
-  private attach(r: SimRobot, obj: SimObject, pocket: 'primary' | 'secondary', lp: { p: V3; q: Quat }) {
-    const R = this.R;
-    obj.body!.setBodyType(R.RigidBodyType.Dynamic, true);
-    setObjectGroups(obj, CG.held);
-    const jd = R.JointData.fixed(lp.p, lp.q, { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0, w: 1 });
-    obj.joint = this.world.createImpulseJoint(jd, r.body.carriage, obj.body!, true);
-    obj.joint.setContactsEnabled(false);
-    obj.mode = 'held';
-    obj.pocket = pocket;
-    obj.robotId = r.id;
-    if (pocket === 'primary') r.primary = obj;
-    else r.secondary = obj;
-    r.body.setPayload((r.primary ? massOf(r.primary) : 0) + (r.secondary ? massOf(r.secondary) : 0));
+    this.grip(r, [obj], { pocket: below && !single ? 'secondary' : 'primary' });
+    r.busyUntil = 0;
   }
 
   robot(id: string): SimRobot | undefined {
@@ -387,21 +451,13 @@ export class MatchSim {
     for (const tb of this.field.toggles) stepToggle(tb, DT);
     this.processMatchLoads();
     if (this.steps % 6 === 3) this.bondSettledPairs();
-    this.objects.stepAnimations(
-      this.t,
-      (id) => this.robot(id)?.body.carriageFrame() ?? null,
-      (obj) => {
-        const r = this.robot(obj.robotId!);
-        if (!r) return;
-        const pocket = obj.pocket ?? (r.primary ? 'secondary' : 'primary');
-        const flipped = upOf(obj.body!.rotation()).y < 0;
-        const lp = this.pocketPose(r, obj, pocket, flipped);
-        this.attach(r, obj, pocket, lp);
-      },
-    );
+    this.objects.stepBonds();
+    this.objects.stepAssist(this.t);
+    this.stepClaws();
     this.world.step();
     this.t += DT;
     this.steps++;
+    this.syncClaws();
     for (const ev of this.objects.detectSeating(this.t)) this.onSeat(ev.obj, ev.goalId, ev.robotId);
     this.checkViolations();
     this.detectCollisions();
@@ -431,59 +487,31 @@ export class MatchSim {
     const cfg = r.cfg;
     const t = this.t;
     const busy = t < r.busyUntil;
-    // release
-    if (req.release && r.primary && !busy) {
-      const obj = r.primary;
-      // a claw lets go of a nested pair together
-      const rider = cfg.intake.capacity === 'single' ? r.secondary : null;
-      this.objects.release(obj, t, r.easy);
-      if (rider) this.objects.release(rider, t, r.easy);
-      r.primary = null;
-      if (rider) r.secondary = null;
-      r.body.setPayload(r.secondary ? massOf(r.secondary) : 0);
-      this.log({ t, type: 'release', robotId: r.id, text: `${r.id} releases ${obj.id}${rider ? ` with ${rider.id}` : ''} at holder height ${r.body.holderHeight().toFixed(1)}"` });
+    r.rollers = req.outtake ? -1 : req.intake ? 1 : 0;
+    // open the claw: everything held drops
+    if (req.release && r.held.length) this.letGo(r);
+    // rollers out: what is held is pushed out the front; loose pieces at the jaws are pushed away
+    if (req.outtake) {
+      const f = r.body.carriageFrame();
+      const out = rotateV(f.q, { x: CLAW.outSpeed * IN, y: 0, z: 0 });
+      if (r.held.length) this.letGo(r, out);
+      else for (const o of this.atJaws(r)) this.pushPiece(r, o.obj, out);
     }
     // index (swap pockets)
-    if (req.index && !busy && cfg.intake.capacity === 'pinAndCup' && (r.primary || r.secondary)) {
-      const dur = cfg.intake.indexTimeSec;
-      const f = r.body.carriageFrame();
-      for (const obj of [r.primary, r.secondary]) {
-        if (!obj) continue;
-        const to = obj.pocket === 'primary' ? 'secondary' : 'primary';
-        if (obj.joint) {
-          this.world.removeImpulseJoint(obj.joint, true);
-          obj.joint = null;
-        }
-        const from = ObjectManager.toLocal(f, obj.body!.translation(), obj.body!.rotation());
-        const flipped = upOf(obj.body!.rotation()).y < 0;
-        const toPose = this.pocketPose(r, obj, to, flipped);
-        obj.pocket = to;
-        obj.mode = 'held';
-        this.objects.animate(obj, 'carriage', from, toPose, t, dur, 'held');
-      }
-      const a = r.primary;
-      r.primary = r.secondary;
-      r.secondary = a;
-      r.busyUntil = t + dur;
+    if (req.index && !busy && cfg.intake.capacity === 'pinAndCup' && r.held.length) {
+      for (const o of r.held) o.pocket = o.pocket === 'primary' ? 'secondary' : 'primary';
+      this.retarget(r, 3.4 / Math.max(0.05, cfg.intake.indexTimeSec));
+      r.busyUntil = t + cfg.intake.indexTimeSec;
     }
-    // reorient (flip primary end-for-end)
-    if (req.reorient && !busy && cfg.intake.canReorient && r.primary) {
-      const obj = r.primary;
-      const f = r.body.carriageFrame();
-      if (obj.joint) {
-        this.world.removeImpulseJoint(obj.joint, true);
-        obj.joint = null;
-      }
-      const from = ObjectManager.toLocal(f, obj.body!.translation(), obj.body!.rotation());
-      const flipped = upOf(obj.body!.rotation()).y < 0;
-      const toPose = this.pocketPose(r, obj, 'primary', !flipped);
-      obj.mode = 'held';
-      this.objects.animate(obj, 'carriage', from, toPose, t, cfg.intake.reorientTimeSec, 'held');
-      r.primary = obj;
+    // reorient (a wrist flips the gripped piece end-for-end, up where it has room)
+    if (req.reorient && !busy && cfg.intake.canReorient && r.primary && (cfg.intake.capacity !== 'single' || r.held.length === 1) && r.body.holderHeight() >= halfLenIn(r.primary.kind) - 0.5) {
+      const h = r.primary.hold!;
+      h.target = { p: h.target.p, q: quatMul(h.target.q, { x: 1, y: 0, z: 0, w: 0 }) };
+      h.rate = Math.PI / Math.max(0.05, cfg.intake.reorientTimeSec);
       r.busyUntil = t + cfg.intake.reorientTimeSec;
     }
-    // intake
-    if (req.intake && !busy) this.tryIntake(r);
+    // rollers in: pull in and grip
+    if (req.intake && !req.outtake && !busy) this.runIntake(r);
     // toggle actuation
     if (req.toggle) {
       const tb = this.field.toggles.find((x) => x.geom.id === req.toggle!.toggleId);
@@ -509,81 +537,162 @@ export class MatchSim {
     }
   }
 
-  private tryIntake(r: SimRobot) {
+  /** Can the holder take one more piece of this kind? A bot never goes over the possession limit. */
+  private canTake(r: SimRobot, k: 'pin' | 'cup', also: SimObject[] = []): boolean {
+    const want = r.req.intakeKind ?? null;
+    if (want !== null && k !== want) return false;
+    const all = [...r.held, ...also];
+    if (r.cfg.intake.capacity !== 'single') return !all.some((o) => o.kind === k) && r.held.length < 2;
+    if (r.clawClosed === null) {
+      const P = this.opts.params.possession;
+      const n = all.filter((o) => o.kind === k).length + 1;
+      return n <= (k === 'pin' ? P.maxPins : P.maxCups);
+    }
+    return true;
+  }
+
+  /**
+   * Loose pieces at the claw's jaws, nearest first (carriage frame, in): in front of
+   * the holder axis between the roller shafts, low enough for the rollers to reach.
+   * A driver's claw reaches only what is at its jaws; easy mode and bots reach further.
+   */
+  private atJaws(r: SimRobot): { obj: SimObject; x: number; z: number; d: number }[] {
+    const cfg = r.cfg;
+    const f = r.body.carriageFrame();
+    const hh = r.body.holderHeight();
+    const zone = r.req.precise ? { depth: 3.0, half: 1.2 } : r.easy ? { depth: 4.5, half: 2.6 } : { depth: cfg.intake.captureDepthIn, half: cfg.intake.captureHalfWidthIn };
+    const out: { obj: SimObject; x: number; z: number; d: number }[] = [];
+    for (const obj of this.objects.objects.values()) {
+      if (obj.mode !== 'free' || !obj.body) continue;
+      const lp = ObjectManager.toLocal(f, obj.body.translation(), obj.body.rotation()).p;
+      const x = lp.x / IN;
+      const z = lp.z / IN;
+      if (x < -1.2 || x > zone.depth || Math.abs(z) > zone.half) continue;
+      const b = bottomIn(obj) - hh;
+      if (b < -2.5 || b > 1.5) continue;
+      out.push({ obj, x, z, d: Math.hypot(x, z) });
+    }
+    return out.sort((p, q) => p.d - q.d);
+  }
+
+  /** The rollers drive a loose piece (and anything bonded to it) at the claw's velocity plus `v` (m/s, world). */
+  private pushPiece(r: SimRobot, obj: SimObject, v: V3) {
+    const car = r.body.carriage;
+    const w = car.angvel();
+    for (const o of this.objects.bondedGroup(obj)) {
+      const b = o.body!;
+      const vc = car.velocityAtPoint(b.translation());
+      const cur = b.linvel();
+      b.setLinvel({ x: vc.x + v.x, y: cur.y, z: vc.z + v.z }, true);
+      // the rollers hold it upright as it moves (a Cup lying down just slides)
+      const up = upOf(b.rotation());
+      const k = o.kind === 'pin' || Math.abs(up.y) > 0.7 ? 10 * Math.sign(up.y || 1) : 0;
+      b.setAngvel({ x: -up.z * k, y: w.y, z: up.x * k }, true);
+    }
+  }
+
+  private runIntake(r: SimRobot) {
     const cfg = r.cfg;
     const single = cfg.intake.capacity === 'single';
-    const fr = r.body.carriageFrame();
-    const hh = r.body.holderHeight();
-    const pose = r.body.pose();
-    const fwd = { x: Math.cos(pose.heading), y: Math.sin(pose.heading) };
-    const holder = { x: pose.pos.x + fwd.x * cfg.intake.holderOffsetIn, y: pose.pos.y + fwd.y * cfg.intake.holderOffsetIn };
-    const pinHeld = [r.primary, r.secondary].some((o) => o?.kind === 'pin');
-    const cupHeld = [r.primary, r.secondary].some((o) => o?.kind === 'cup');
-    const anyHeld = !!(r.primary || r.secondary);
-    const want = r.req.intakeKind ?? null;
-    const canTake = (k: 'pin' | 'cup') => (want === null || k === want) && (single ? !anyHeld : k === 'pin' ? !pinHeld && this.opts.params.possession.maxPins > 0 : !cupHeld && this.opts.params.possession.maxCups > 0);
-    // floor pickups need the lift down
-    if (hh <= cfg.lift.holderMinHeightIn + 1.0) {
-      let best: SimObject | null = null;
-      let bestD = Infinity;
-      for (const obj of this.objects.objects.values()) {
-        if (obj.mode !== 'free' || !obj.body || !canTake(obj.kind)) continue;
-        // the claw closes only around a standing Pin: one lying on its side (or tipped
-        // past the claw's limit) slips out and is never lifted
-        if (obj.kind === 'pin' && tiltDeg(obj) > cfg.intake.maxPinTiltDeg) continue;
-        const p = obj.body.translation();
-        if (p.y / IN > 5) continue;
-        const gx = p.x / IN;
-        const gy = -p.z / IN;
-        const dx = gx - pose.pos.x;
-        const dy = gy - pose.pos.y;
-        const fwdD = dx * fwd.x + dy * fwd.y;
-        const lat = -dx * fwd.y + dy * fwd.x;
-        if (r.req.precise) {
-          // a driver's claw takes only what is between its jaws as they close
-          if (Math.abs(lat) > 1.1 || Math.abs(fwdD - cfg.intake.holderOffsetIn) > 1.6) continue;
-        } else {
-          if (fwdD < cfg.intake.holderOffsetIn - 2.5 || fwdD > cfg.intake.holderOffsetIn + cfg.intake.captureDepthIn) continue;
-          if (Math.abs(lat) > cfg.intake.captureHalfWidthIn) continue;
-        }
-        const d = Math.hypot(gx - holder.x, gy - holder.y);
-        if (d < bestD) {
-          bestD = d;
-          best = obj;
-        }
-      }
-      if (best) {
-        // a nested pair comes along together: the claw grips the bottom piece, the one
-        // nested on it rides
-        let rider: SimObject | null = null;
+    const f = r.body.carriageFrame();
+    // holding a stack: a piece nested under the gripped one is taken in at the bottom
+    // (the rollers lift the stack and grip the new piece under it)
+    if (single && r.held.length) {
+      const base = r.held[0];
+      const under = this.objects.nestedOn(base, -1);
+      if (under && this.canTake(r, under.kind) && (under.kind !== 'pin' || tiltDeg(under) <= cfg.intake.maxPinTiltDeg)) this.grip(r, [under], { at: 'bottom' });
+      return;
+    }
+    const full = single ? r.held.length > 0 : r.held.length >= 2;
+    if (full) return;
+    // the nearest loose piece at the jaws: pulled toward the holder axis, gripped once there
+    for (const c of this.atJaws(r)) {
+      const obj = c.obj;
+      if (!this.canTake(r, obj.kind)) continue;
+      // the claw closes only around a standing Pin: one lying on its side (or tipped
+      // past the claw's limit) slips out and is never lifted
+      if (obj.kind === 'pin' && tiltDeg(obj) > cfg.intake.maxPinTiltDeg) continue;
+      // the top piece of a pair isn't between the rollers — its base is
+      if (this.objects.nestedOn(obj, -1)) continue;
+      const pocket = single || !r.held.length ? 'primary' : 'secondary';
+      // a second pocket fills beside the first: the piece is taken when it reaches the first one.
+      // A Cup lying down is too long to come all the way in: it is gripped where it stops and stood up.
+      const lying = obj.kind === 'cup' && tiltDeg(obj) > 30;
+      const reach = pocket === 'primary' ? (lying ? 2.3 : 0.45) : (r.held[0] ? (r.held[0].kind === 'pin' ? PIN.diameter : CUP.diameter) / 2 : 0) + (obj.kind === 'pin' ? PIN.diameter : CUP.diameter) / 2 + 0.3;
+      if (c.d < reach) {
+        // pieces nested on it ride along (a claw only; a bot never takes more than it may possess)
+        const chain = [obj];
         if (single) {
-          const under = this.nestedOn(best, -1);
-          if (under && (!want || want === under.kind)) [best, rider] = [under, best];
-          else if (!under) rider = this.nestedOn(best, 1);
+          for (let top = this.objects.nestedOn(obj, 1); top && !chain.includes(top); top = this.objects.nestedOn(top, 1)) {
+            if (r.clawClosed === null && !this.canTake(r, top.kind, chain)) break;
+            chain.push(top);
+          }
         }
-        this.beginIntake(r, best, fr);
-        if (rider) this.beginIntake(r, rider, fr, true);
+        this.grip(r, chain, { pocket });
         return;
       }
+      const k = CLAW.surfaceSpeed;
+      const clamp = (v: number) => Math.max(-k, Math.min(k, v));
+      // centering first (the shafts squeeze it between them), then in toward the axis
+      const v = rotateV(f.q, { x: clamp(-c.x * 8) * IN, y: 0, z: clamp(-c.z * 12) * IN });
+      this.pushPiece(r, obj, v);
+      return;
     }
-    // descore: top element of a stack aligned with the holder at its height
-    if (r.req.noDescore) return;
+    // descore: the top element of a stack between the jaws at the holder's height
+    if (r.req.noDescore || r.held.length) return;
+    const hh = r.body.holderHeight();
     for (const st of this.objects.stacks.values()) {
       const top = st.elements[st.elements.length - 1];
-      if (!top || st.pending || !canTake(top.kind)) continue;
-      const off = Math.hypot(holder.x - st.goal.pos.x, holder.y - st.goal.pos.y);
-      if (off > 0.8) continue;
-      const bottom = top.body!.translation().y / IN - ((top.kind === 'pin' ? PIN.length : CUP.length) / 2);
-      if (Math.abs(hh - bottom) > 1.0) continue;
+      if (!top || !this.canTake(r, top.kind)) continue;
+      const lp = ObjectManager.toLocal(f, top.body!.translation(), top.body!.rotation()).p;
+      if (Math.hypot(lp.x, lp.z) / IN > 0.8) continue;
+      if (Math.abs(bottomIn(top) - hh) > 1.2) continue;
       const g = st.goal;
       const own = g.type === 'alliance' && g.allianceColor === r.alliance;
       if (!own && this.clock.matchType === 'headToHead') this.addViolation(r, g.type === 'alliance' ? 'SG9' : 'SG10', 'major', `${r.id} removed ${top.id} from ${g.id}`);
       const obj = this.objects.unstackTop(g.id);
       if (obj) {
         this.log({ t: this.t, type: 'intake', robotId: r.id, text: `${r.id} removes ${obj.id} from ${g.id}` });
-        this.beginIntake(r, obj, fr);
+        this.grip(r, [obj], { clearOf: g.id, pocket: 'primary' });
       }
       return;
+    }
+  }
+
+  /** Possession limit (matches only): more Pins or Cups held than allowed. */
+  private checkPossession(r: SimRobot) {
+    if (this.opts.practice || this.clock.matchType !== 'headToHead') return;
+    const P = this.opts.params.possession;
+    const pins = r.held.filter((o) => o.kind === 'pin').length;
+    const cups = r.held.filter((o) => o.kind === 'cup').length;
+    if (pins > P.maxPins || cups > P.maxCups) this.addViolation(r, 'SG (possession)', 'minor', `${r.id} held ${pins} Pin${pins === 1 ? '' : 's'} and ${cups} Cup${cups === 1 ? '' : 's'} (limit ${P.maxPins} + ${P.maxCups})`, `${r.id}|POSS|${r.held.map((o) => o.id).join(',')}`);
+  }
+
+  /** The rollers move held pieces into place (before the physics step). */
+  private stepClaws() {
+    for (const r of this.robots) for (const o of r.held) this.objects.stepHeld(o, DT);
+  }
+
+  /** Held pieces' bodies follow their claws (after the physics step). */
+  private syncClaws() {
+    for (const r of this.robots) {
+      if (!r.held.length) continue;
+      const f = r.body.carriageFrame();
+      let changed = false;
+      for (const o of r.held) {
+        this.objects.syncHeld(o, f);
+        const h = o.hold!;
+        if (!h.clearOf) continue;
+        // clear of the stack it came off: well above what is left of it, or away from it
+        const st = this.objects.stacks.get(h.clearOf)!;
+        const p = o.body!.translation();
+        const off = Math.hypot(p.x / IN - st.goal.pos.x, -p.z / IN - st.goal.pos.y);
+        if (bottomIn(o) > stackTop(st.goal.height, st.elements.length) + 1.3 || off > 3.4) {
+          h.clearOf = undefined;
+          changed = true;
+        }
+      }
+      if (changed) this.retarget(r);
     }
   }
 
@@ -599,43 +708,14 @@ export class MatchSim {
     // seated, not caught at the top of a bounce: the middles sit a half plus the seat lift apart
     const seated = CUP.half + pinSeatLift();
     for (const top of this.objects.objects.values()) {
-      if (top.mode !== 'free' || top.bond || !top.body || !still(top)) continue;
-      const base = this.nestedOn(top, -1);
-      if (!base?.body || base.bond || !still(base)) continue;
+      if (top.mode !== 'free' || !top.body || !still(top)) continue;
+      const below = (o: SimObject, other: SimObject) => other.body!.translation().y < o.body!.translation().y;
+      if (top.bonds.some((bd) => below(top, bd.other))) continue; // already held to its base
+      const base = this.objects.nestedOn(top, -1);
+      if (!base?.body || !still(base) || base.bonds.some((bd) => !below(base, bd.other))) continue;
       if (Math.abs(Math.abs(top.body.translation().y - base.body.translation().y) / IN - seated) > 0.2) continue;
       this.objects.bond(base, top);
     }
-  }
-
-  /** A free piece of the other kind nested on top of `base` (dir 1: Pin in a Cup, Cup on a Pin) or under it (dir -1). */
-  private nestedOn(base: SimObject, dir: 1 | -1): SimObject | null {
-    const b = base.body!.translation();
-    for (const o of this.objects.objects.values()) {
-      if (o === base || o.mode !== 'free' || !o.body || o.kind === base.kind) continue;
-      const p = o.body.translation();
-      if (Math.hypot(p.x - b.x, p.z - b.z) / IN > 0.9) continue;
-      const dy = (dir * (p.y - b.y)) / IN;
-      if (dy < 2.2 || dy > 4.3 || tiltDeg(o) > 25) continue;
-      return o;
-    }
-    return null;
-  }
-
-  private beginIntake(r: SimRobot, obj: SimObject, fr: { p: V3; q: Quat }, nested = false) {
-    const pocket: 'primary' | 'secondary' = nested || r.primary ? 'secondary' : 'primary';
-    if (pocket === 'secondary' && r.cfg.intake.capacity === 'single' && !nested) return;
-    obj.robotId = r.id;
-    obj.pocket = pocket;
-    const from = ObjectManager.toLocal(fr, obj.body!.translation(), obj.body!.rotation());
-    // stand it upright, keeping whichever end is currently higher on top
-    const flipped = upOf(obj.body!.rotation()).y < 0;
-    const to = this.pocketPose(r, obj, pocket, flipped);
-    const dur = r.cfg.intake.intakeTimeSec + (pocket === 'secondary' ? r.cfg.intake.indexTimeSec : 0);
-    this.objects.animate(obj, 'carriage', from, to, this.t, dur, 'held');
-    if (pocket === 'primary') r.primary = obj;
-    else r.secondary = obj;
-    r.busyUntil = this.t + dur;
-    this.log({ t: this.t, type: 'intake', robotId: r.id, text: `${r.id} intakes ${obj.id}` });
   }
 
   private processMatchLoads() {
@@ -887,60 +967,40 @@ export class MatchSim {
     return {
       t: this.t,
       robots: this.robots.map((r) => {
-        const held = [r.primary, r.secondary];
-        const holding = (held.some((o) => o?.kind === 'pin') ? 1 : 0) | (held.some((o) => o?.kind === 'cup') ? 2 : 0);
-        return { id: r.id, alliance: r.alliance, cfg: r.cfg, chassis: pq(r.body.chassis), carriage: pq(r.body.carriage), holderH: r.body.holderHeight(), trail: r.trail, claw: r.clawClosed ?? holding !== 0, holding, align: this.alignHint(r) };
+        const holding = (r.held.some((o) => o.kind === 'pin') ? 1 : 0) | (r.held.some((o) => o.kind === 'cup') ? 2 : 0);
+        return { id: r.id, alliance: r.alliance, cfg: r.cfg, chassis: pq(r.body.chassis), carriage: pq(r.body.carriage), holderH: r.body.holderHeight(), trail: r.trail, claw: r.clawClosed ?? (holding !== 0 || r.rollers > 0), holding, rollers: r.rollers, align: this.alignHint(r) };
       }),
       objects: [...this.objects.objects.values()].map((o) =>
-        o.body ? { id: o.id, kind: o.kind, colors: o.colors, ...pq(o.body), stacked: o.mode === 'stacked' || o.mode === 'seating' } : { id: o.id, kind: o.kind, colors: o.colors, p: null, q: null },
+        o.body ? { id: o.id, kind: o.kind, colors: o.colors, ...pq(o.body), stacked: o.mode === 'stacked' } : { id: o.id, kind: o.kind, colors: o.colors, p: null, q: null },
       ),
       toggles: this.field.toggles.map((tb) => ({ id: tb.geom.id, ...pq(tb.body) })),
     };
   }
 
   /**
-   * Aligner for the object a robot would release (primary pocket): the nearest Goal
-   * that takes that kind next — or loose piece standing on the tiles it would nest
-   * on (a Pin into a Cup, a Cup over a Pin) — and whether opening the claw now would
-   * drop it in.
+   * Aligner for what a robot would drop (the gripped piece, with anything nested on
+   * it): the nearest Goal that takes that kind next — or loose piece standing on the
+   * tiles it would nest on (a Pin into a Cup, a Cup over a Pin) — and whether opening
+   * the claw now drops it in: its tip over the opening (within what the opening's
+   * funnel takes, from the shapes) and its bottom clear above the rim.
    */
   alignHint(r: SimRobot): AlignHint | null {
-    const obj = r.primary;
+    const obj = r.held[0];
     if (!obj?.body || obj.mode !== 'held') return null;
     const p = obj.body.translation();
     const x = p.x / IN;
     const y = -p.z / IN;
-    const bottom = p.y / IN - (obj.kind === 'pin' ? PIN.length : CUP.length) / 2;
-    const tol = obj.assist || r.easy ? this.objects.funnel.assistRadius : obj.kind === 'pin' ? this.objects.funnel.pinRadius : this.objects.funnel.cupRadius;
+    const bottom = bottomIn(obj);
     let best: AlignHint | null = null;
     let bestOff = 8;
-    for (const st of this.objects.stacks.values()) {
-      if (st.pending || this.objects.nextKind(st) !== obj.kind) continue;
-      const off = Math.hypot(x - st.goal.pos.x, y - st.goal.pos.y);
+    for (const tg of this.objects.dropTargets(obj.kind)) {
+      const off = Math.hypot(x - tg.at.x, y - tg.at.y);
       if (off >= bestOff) continue;
       bestOff = off;
+      const tol = r.easy ? this.objects.funnel.assistRadius : tg.tol;
       const lined = off <= tol;
-      const high = bottom >= this.objects.nextBottom(st) - this.objects.funnel.below;
-      best = { goal: st.goal.id, state: lined && high ? 2 : lined ? 1 : 0, top: this.objects.topHeight(st) };
-    }
-    if (r.secondary) return best; // a nested pair goes onto Goals only
-    // loose pieces: an upright piece of the other kind with nothing nested on it yet
-    const want = obj.kind === 'pin' ? 'cup' : 'pin';
-    // a Pin's tip has to clear the Cup's rim to drop in; a Cup's rim has to clear the Pin's band
-    const tolPiece = obj.kind === 'pin' ? CUP.diameter / 2 - CUP.wall - PIN.tipDiameter / 2 - 0.05 : CUP.diameter / 2 - CUP.wall - PIN.tipDiameter / 2;
-    for (const o of this.objects.objects.values()) {
-      if (o.kind !== want || o.mode !== 'free' || !o.body || o.bond || tiltDeg(o) > 12) continue;
-      if (this.nestedOn(o, 1)) continue;
-      const t = o.body.translation();
-      const ox = t.x / IN;
-      const oy = -t.z / IN;
-      const off = Math.hypot(x - ox, y - oy);
-      if (off >= bestOff) continue;
-      bestOff = off;
-      const top = t.y / IN + (o.kind === 'pin' ? PIN.length : CUP.length) / 2;
-      const lined = off <= tolPiece;
-      const high = bottom >= top - (o.kind === 'cup' ? PIN.half - 0.4 : CUP.half - 0.4);
-      best = { goal: o.id, state: lined && high ? 2 : lined ? 1 : 0, top, at: { x: ox, y: oy } };
+      const high = bottom >= tg.top - 0.15;
+      best = { goal: tg.goal ? tg.goal.goal.id : tg.id, state: lined && high ? 2 : lined ? 1 : 0, top: tg.top, tol, from: { x, y }, ...(tg.piece ? { at: tg.at } : {}) };
     }
     return best;
   }
@@ -957,7 +1017,7 @@ export class MatchSim {
       const tipped = o.mode === 'free' && !!o.body && tiltDeg(o) > maxTilt;
       const start = (tipped ? { where: 'unavailable' } : this.objStart(o)) as FieldLayout['pins'][number]['start'];
       // standing in a Cup: the pair is picked up together
-      const cup = start.where === 'field' && !start.lying ? this.nestedOn(o, -1) : null;
+      const cup = start.where === 'field' && !start.lying ? this.objects.nestedOn(o, -1) : null;
       pins.push({ ...spec, start: cup && start.where === 'field' ? { ...start, inCup: cup.id } : start });
     }
     for (const spec of L.cups) {
@@ -992,11 +1052,10 @@ export class MatchSim {
       }
       return { where: 'goal', goalId: st.goalId, grayDown: !up, index: st.index };
     }
-    if (o.mode === 'held' || o.mode === 'intaking' || o.mode === 'indexing') {
+    if (o.mode === 'held') {
       if (o.kind === 'pin') return { where: 'held', robotSlot: o.robotId, upColor: up ? o.colors![1] : o.colors![0] };
       return { where: 'held', robotSlot: o.robotId, grayUp: up };
     }
-    if (o.mode === 'seating') return { where: 'unavailable' };
     const pos = { x: t.x / IN, y: -t.z / IN };
     const lying = Math.abs(upOf(b.rotation()).y) < 0.7;
     if (o.kind === 'pin') return { where: 'field', pos, upColor: up ? o.colors![1] : o.colors![0], lying };
@@ -1009,12 +1068,7 @@ export class MatchSim {
 }
 
 function emptyReq(): MechanismRequest {
-  return { intake: false, intakeKind: null, noDescore: false, precise: false, release: false, index: false, reorient: false, toggle: null, matchLoad: null };
-}
-
-/** Degrees from upright (either end up). */
-function tiltDeg(obj: SimObject): number {
-  return (Math.acos(Math.min(1, Math.abs(upOf(obj.body!.rotation()).y))) * 180) / Math.PI;
+  return { intake: false, outtake: false, intakeKind: null, noDescore: false, precise: false, release: false, index: false, reorient: false, toggle: null, matchLoad: null };
 }
 
 function massOf(o: SimObject) {

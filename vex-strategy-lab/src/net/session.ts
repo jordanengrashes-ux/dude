@@ -21,6 +21,12 @@ import { LocalTransport, SupabaseTransport, type Transport } from './transport';
 
 export type TeamRole = 'none' | 'host' | 'guest';
 
+/**
+ * Everyone who opens the site without an invite link lands in this room: one shared
+ * public game. Its first visitor hosts it (the next host takes over when they leave).
+ */
+export const PUBLIC_ROOM = 'PUBLIC';
+
 export interface TeamState {
   role: TeamRole;
   room: string | null;
@@ -32,6 +38,8 @@ export interface TeamState {
   status: string;
   error: string | null;
   connecting: boolean;
+  /** Told the room is full (players in it): watch, or start a private game. */
+  full: number | null;
 }
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -83,7 +91,7 @@ export class TeamSession {
     private makeTransport: (kind: 'online' | 'local') => Transport = (k) => (k === 'online' ? new SupabaseTransport() : new LocalTransport()),
     private now: () => number = () => performance.now(),
   ) {
-    this.state = { role: 'none', room: null, me: randomId(8), name: 'Player', transport: null, roster: {}, peers: [], status: '', error: null, connecting: false };
+    this.state = { role: 'none', room: null, me: randomId(8), name: 'Player', transport: null, roster: {}, peers: [], status: '', error: null, connecting: false, full: null };
     for (const tg of buildToggles()) {
       const p = toWorld(tg.pos.x + tg.normal.x * tg.axisOffset, tg.pos.y + tg.normal.y * tg.axisOffset, tg.pivotHeight);
       this.togglePos.set(tg.id, { x: p.x, y: p.y, z: p.z });
@@ -137,7 +145,7 @@ export class TeamSession {
         // players who joined while there was no robot for them (Practice) get one now
         if (this.pendingJoins.length && this.runner.sim && this.runner.sim !== this.lastSim) {
           const waiting = this.pendingJoins.splice(0);
-          for (const p of waiting) if (this.state.peers.some((x) => x.peerId === p.peerId)) this.seat(p.peerId, p.name);
+          for (const p of waiting) if (this.state.peers.some((x) => x.peerId === p.peerId) && !this.seat(p.peerId, p.name)) this.tellFull(p.peerId);
         }
         // a rebuilt match (Reset, setup change) re-sends the setup and the roster
         if (this.runner.sim && this.runner.sim !== this.lastSim) this.hostTick();
@@ -213,12 +221,13 @@ export class TeamSession {
         if (sim && info) this.send({ type: 'setup', from: this.state.me, to: m.from, setup: setupFrom(sim.sceneFrame(), this.state.me, info.matchType, info.params, info.layout) });
         this.keyNext = true;
         const roster = this.hostRoster();
-        if (!Object.values(roster).some((e) => e.peerId === m.from)) {
-          if (!this.seat(m.from, m.name) && this.needMatch) {
+        if (!Object.values(roster).some((e) => e.peerId === m.from) && !this.seat(m.from, m.name)) {
+          const practice = (this.runner.sim?.robots.length ?? 0) < 4 && !!this.needMatch;
+          if (practice) {
             // every robot is taken (Practice: only yours): switch to a match, seat them when it's built
             this.pendingJoins.push({ peerId: m.from, name: m.name });
-            this.needMatch();
-          }
+            this.needMatch!();
+          } else this.tellFull(m.from); // every robot has a driver
         }
         this.broadcastRoster();
         break;
@@ -272,6 +281,11 @@ export class TeamSession {
     return true;
   }
 
+  private tellFull(peerId: string) {
+    const players = Object.values(this.hostRoster()).filter((e) => e.peerId !== null).length;
+    this.send({ type: 'full', from: this.state.me, to: peerId, players });
+  }
+
   private releasePeer(peerId: string) {
     for (const rb of this.runner.sim?.robots ?? []) {
       const d = this.runner.driverOf(rb.id);
@@ -301,24 +315,41 @@ export class TeamSession {
   }
 
   /**
-   * Team mode without a click: join the room in the invite link, or host it when
-   * nobody does (the link's host reloaded or left); with no link, open a new room.
-   * Online first; if Supabase Realtime is unreachable, a room between this
-   * browser's tabs.
+   * Team mode without a click: join the room in the invite link — or, without one,
+   * the public game everyone shares — and host it when nobody does (its host left).
+   * Online first; if Supabase Realtime is unreachable, a room between this browser's
+   * tabs.
    */
-  async autoStart(name: string, room: string | null) {
+  async autoStart(name: string, room: string | null, kinds: readonly ('online' | 'local')[] = ['online', 'local']) {
     const role = () => this.state.role; // changes across the awaits
     if (role() !== 'none' || this.state.connecting) return;
-    for (const kind of ['online', 'local'] as const) {
-      if (room) {
-        await this.join(room, name, kind);
-        if (role() !== 'guest') continue; // could not connect
-        const t0 = this.now();
-        while (role() === 'guest' && !this.setup && this.now() - t0 < 4000) await new Promise((r) => setTimeout(r, 200));
-        if (role() === 'guest' && !this.setup && !this.state.peers.some((p) => p.role === 'host')) await this.host(name, kind, room);
-      } else await this.host(name, kind);
-      if (role() !== 'none') return;
+    const code = room ?? PUBLIC_ROOM;
+    // connected to the room, waiting for its host's setup (the local game goes on meanwhile)
+    const waiting = () => role() === 'none' && this.transport !== null && this.state.room === code;
+    for (const kind of kinds) {
+      await this.join(code, name, kind);
+      if (!waiting() && role() !== 'guest') continue; // could not connect
+      const t0 = this.now();
+      while (waiting() && this.now() - t0 < 4000) {
+        // presence shows nobody hosting it: no need to wait out the full time
+        if (this.now() - t0 > 1200 && this.state.peers.length > 0 && !this.state.peers.some((p) => p.role === 'host')) break;
+        await new Promise((r) => setTimeout(r, 200));
+      }
+      if (waiting() && !this.state.peers.some((p) => p.role === 'host')) await this.host(name, kind, code);
+      return;
     }
+  }
+
+  /** Leave the shared game for a new private room (its invite link brings friends in). */
+  async goPrivate(name = this.state.name) {
+    const kind = this.state.transport ?? 'online';
+    this.set({ full: null });
+    await this.host(name, kind, randomId(5));
+  }
+
+  /** Stay in the full room and watch (a robot can be taken when one frees up). */
+  watch() {
+    this.set({ full: null });
   }
 
   // ----------------------------------------------------------------- guest
@@ -333,8 +364,8 @@ export class TeamSession {
       t.onPresence((peers) => this.onGuestPresence(peers));
       await t.connect(room, { peerId: this.state.me, name, role: 'guest', at: Date.now() });
       this.transport = t;
-      this.runner.setPlaying(false);
-      this.set({ role: 'guest', room, transport: kind, connecting: false, status: 'Waiting for the host…' });
+      // a guest once the host's setup arrives; until then this browser's own game goes on
+      this.set({ room, transport: kind, connecting: false, status: 'Looking for the host…' });
       const hello = () => this.send({ type: 'hello', from: this.state.me, name });
       hello();
       this.helloTimer = setInterval(() => {
@@ -342,18 +373,39 @@ export class TeamSession {
       }, 1500);
       this.inputTimer = setInterval(() => {
         this.flushInput(true);
-        if (this.hostMissingSince !== null && this.now() - this.hostMissingSince > HOST_GRACE_MS) void this.leave('The host left the room.');
+        if (this.hostMissingSince !== null && this.now() - this.hostMissingSince > HOST_GRACE_MS) void this.takeOver();
       }, INPUT_HEARTBEAT_MS);
     } catch (e) {
       this.set({ connecting: false, error: e instanceof Error ? e.message : String(e), status: '' });
     }
   }
 
+  /**
+   * The host left: the game goes on in the same room — one of the guests (whoever
+   * gets there first; the rival-host rule settles a tie) hosts it from now on.
+   */
+  private async takeOver() {
+    const room = this.state.room;
+    const name = this.state.name;
+    const kind = this.state.transport ?? 'online';
+    if (!room) return;
+    await this.leave('The host left — taking over the room…');
+    await new Promise((r) => setTimeout(r, Math.random() * 1500));
+    await this.autoStart(name, room, [kind]);
+  }
+
   private onGuestMsg(m: Msg) {
     if (m.from === this.state.me) return;
     switch (m.type) {
+      case 'full':
+        if (m.to === this.state.me) this.set({ full: m.players });
+        break;
       case 'setup':
         if (m.to && m.to !== this.state.me) return;
+        if (this.state.role === 'none') {
+          this.runner.setPlaying(false);
+          this.set({ role: 'guest' });
+        }
         this.setup = m.setup;
         if (this.hostId !== m.setup.hostId) this.hostSeen = this.state.peers.some((p) => p.peerId === m.setup.hostId);
         this.hostId = m.setup.hostId;
@@ -469,7 +521,7 @@ export class TeamSession {
     this.hostSeen = false;
     this.hostMissingSince = null;
     this.missingSince.clear();
-    this.set({ role: 'none', room: null, transport: null, roster: {}, peers: [], status: reason ?? '', connecting: false });
+    this.set({ role: 'none', room: null, transport: null, roster: {}, peers: [], status: reason ?? '', connecting: false, full: null });
   }
 }
 
@@ -492,7 +544,7 @@ export const team = {
   },
 };
 
-const EMPTY: TeamState = { role: 'none', room: null, me: '', name: '', transport: null, roster: {}, peers: [], status: '', error: null, connecting: false };
+const EMPTY: TeamState = { role: 'none', room: null, me: '', name: '', transport: null, roster: {}, peers: [], status: '', error: null, connecting: false, full: null };
 
 export function useTeam(): TeamState {
   return useSyncExternalStore(

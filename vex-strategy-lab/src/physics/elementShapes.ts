@@ -1,6 +1,6 @@
 import type { ColliderDesc } from '@dimforge/rapier3d-deterministic-compat';
 import { IN } from '../core/units';
-import { CUP, GOAL_SOCKET, PIN } from '../field/geometry';
+import { CUP, GOAL_SOCKET, PIN, socketLift } from '../field/geometry';
 import type { Rapier } from './rapier';
 
 /**
@@ -12,7 +12,7 @@ import type { Rapier } from './rapier';
  *  - Cup: a hollow hourglass — each half's conical wall as `CUP_SEGMENTS` convex
  *    wedges, plus the web at the waist — so a Pin can drop into a loose Cup and a
  *    Cup lying on its side rolls on its rims.
- *  - Goal socket: the flared top of a Goal post (solid; the first Pin seats in it).
+ *  - Goal socket: the hollow top of a Goal post (the first Pin's lower half drops in).
  */
 
 export const RING = 16;
@@ -77,11 +77,41 @@ export function cupColliders(R: Rapier): ColliderDesc[] {
   return out;
 }
 
-/** Flared socket on top of a Goal post of height `h` and radius `postR` (inches), at the origin. */
-export function goalSocketCollider(R: Rapier, h: number, postR: number, floor: number): ColliderDesc {
-  const pts: number[] = [];
-  const y0 = Math.max(floor, h - GOAL_SOCKET.depth - 0.1);
-  ring(pts, postR, y0);
-  ring(pts, GOAL_SOCKET.topRadius, h);
-  return R.ColliderDesc.convexHull(new Float32Array(pts))!;
+export const SOCKET_SEGMENTS = 12;
+
+/**
+ * Hollow socket on top of a Goal post with its rim at `h` (in), at the origin: the
+ * bore follows the first Pin's cone with `GOAL_SOCKET.clearance`, so a Pin dropped
+ * near the axis slides down into it and comes to rest on its band. Returns the
+ * socket walls (convex wedges) and the height of the bore's floor (the post's top).
+ */
+export function goalSocketColliders(R: Rapier, h: number, postR: number): { parts: ColliderDesc[]; floor: number } {
+  const n = SOCKET_SEGMENTS;
+  const k = 1 / Math.cos(Math.PI / n); // vertex radius for a given flat-to-flat radius
+  const lift = socketLift();
+  const prof = PIN.profile;
+  const [rTip, dTip] = prof[prof.length - 1];
+  const c = GOAL_SOCKET.clearance;
+  const rTop = prof[2][0] + c; // where the band's underside meets the cone
+  const yLow = h + lift - dTip; // the Pin's tip
+  const rLow = rTip + c;
+  const floor = Math.max(GOAL_SOCKET.plate, h + lift - PIN.half - 0.08);
+  const rOut = rTop + GOAL_SOCKET.rimWidth;
+  const parts: ColliderDesc[] = [];
+  for (let s = 0; s < n; s++) {
+    const pts: number[] = [];
+    for (const a of [(s / n) * Math.PI * 2, ((s + 1) / n) * Math.PI * 2]) {
+      for (const [r, y] of [
+        [rTop, h],
+        [rOut, h],
+        [rLow, Math.max(floor, yLow)],
+        [rLow, floor],
+        [Math.max(postR, rLow + 0.2), floor],
+      ]) {
+        pts.push(r * k * Math.cos(a) * IN, y * IN, r * k * Math.sin(a) * IN);
+      }
+    }
+    parts.push(R.ColliderDesc.convexHull(new Float32Array(pts))!);
+  }
+  return { parts, floor };
 }

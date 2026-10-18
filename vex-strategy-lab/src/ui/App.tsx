@@ -9,7 +9,7 @@ import { RulesPanel } from './components/RulesPanel';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { TeamPanel, inviteLink, savedPlayerName } from './components/TeamPanel';
 import { useEffect, useState } from 'react';
-import { team, useTeam } from '../net/session';
+import { PUBLIC_ROOM, team, useTeam } from '../net/session';
 import { PlanPanel } from './components/PlanPanel';
 
 const TABS: { id: Tab; label: string }[] = [
@@ -25,8 +25,9 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 /**
- * Team mode starts with the page: join the room in the link (?room=CODE) or open
- * one. The address bar then always holds the invite link.
+ * Team mode starts with the page: join the room in the link (?room=CODE), or the
+ * public game everyone shares. The address bar then always holds the invite link
+ * (the plain site address for the public game).
  */
 function useAutoTeam() {
   const t = useTeam();
@@ -41,13 +42,14 @@ function useAutoTeam() {
   useEffect(() => {
     if (!t.room && t.connecting) return;
     const url = new URL(window.location.href);
-    if (t.room) url.searchParams.set('room', t.room);
+    const room = t.room && t.room !== PUBLIC_ROOM ? t.room : null;
+    if (room) url.searchParams.set('room', room);
     else url.searchParams.delete('room');
     // a reload stays where you were: a room link alone joins a match, so practice says so
     if (practice) {
-      if (t.room) url.searchParams.set('mode', 'practice');
+      if (room) url.searchParams.set('mode', 'practice');
       else url.searchParams.delete('mode');
-    } else if (!t.room) url.searchParams.set('mode', 'match');
+    } else if (!room) url.searchParams.set('mode', 'match');
     else url.searchParams.delete('mode');
     if (url.href !== window.location.href) window.history.replaceState(null, '', url);
   }, [t.room, t.connecting, practice]);
@@ -67,7 +69,7 @@ function RoomBadge({ room, players, online }: { room: string; players: number; o
         setTimeout(() => setCopied(false), 1500);
       }}
     >
-      Room {room} · {players} player{players === 1 ? '' : 's'} · {copied ? 'link copied' : 'copy invite link'}
+      {room === PUBLIC_ROOM ? 'Public game' : `Room ${room}`} · {players} player{players === 1 ? '' : 's'} · {copied ? 'link copied' : 'copy invite link'}
     </button>
   );
 }
@@ -127,6 +129,15 @@ export function App() {
           )}
         </div>
       </header>
+      {t.full !== null && (
+        <div className="banner" role="alertdialog" aria-label="The game is full">
+          The {t.room === PUBLIC_ROOM ? 'public game' : 'room'} is full: every robot has a driver ({t.full} players). Start a private game (your own room — its invite link brings friends in), or stay and watch this one?
+          <button className="primary" onClick={() => void team.session?.goPrivate(savedPlayerName())}>
+            Start a private game
+          </button>
+          <button onClick={() => team.session?.watch()}>Watch the {t.room === PUBLIC_ROOM ? 'public game' : 'game'}</button>
+        </div>
+      )}
       {message && (
         <div className="banner" role="status">
           {message}

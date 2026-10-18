@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { IN } from '../../../core/units';
+import { CLAW } from '../../../robot/claw';
 import type { RobotConfig } from '../../../robot/config';
 import { PALETTE, type MaterialLibrary } from './materials';
 import { brainScreen, holeAlpha, licensePlate } from './textures';
@@ -116,8 +117,8 @@ export interface RobotModel {
   carriage: THREE.Group;
   /** Rotate the lift pinion for a holder height above its minimum (in). */
   setLift(liftIn: number): void;
-  /** Swing the claw jaws closed / open (eased over a few frames) and set the status light. */
-  setClaw(closed: boolean): void;
+  /** Swing the claw jaws closed / open (eased over a few frames), spin the rollers (1 in, −1 out) and set the status light. */
+  setClaw(closed: boolean, rollers?: number): void;
 }
 
 export function robotModel(id: string, alliance: 'red' | 'blue', cfg: RobotConfig, mats: MaterialLibrary): RobotModel {
@@ -332,21 +333,48 @@ export function robotModel(id: string, alliance: 'red' | 'blue', cfg: RobotConfi
   const plate = new THREE.Mesh(new THREE.BoxGeometry(0.15 * IN, ch * IN, 5.6 * IN), holeMat);
   plate.position.set(-2.35 * IN, (ch / 2) * IN, 0);
   carriage.add(plate);
-  // claw: two jaws hinged at the back of the fork, rubber pads facing in
-  const jaws: { g: THREE.Group; side: number }[] = [];
+  // roller claw: two jaws hinged behind the holder, each a pair of arms out to a vertical
+  // shaft with three roller wheels (see robot/claw.ts); open, they swing out
+  const jaws: { g: THREE.Group; side: number; shaft: THREE.Group }[] = [];
+  const reach = Math.hypot(CLAW.shaftX - CLAW.hingeX, CLAW.shaftZ - CLAW.hingeZ);
+  const splay = Math.atan2(CLAW.shaftZ - CLAW.hingeZ, CLAW.shaftX - CLAW.hingeX);
+  const rollerMat = mats.plastic('#3fae5a');
+  const shaftTop = CLAW.rollerHeights[CLAW.rollerHeights.length - 1] + 0.45;
   for (const s of [-1, 1]) {
     const jaw = new THREE.Group();
-    jaw.position.set(-2.4 * IN, 0.9 * IN, s * 1.75 * IN);
-    const finger = new THREE.Mesh(new THREE.BoxGeometry(3.6 * IN, 0.35 * IN, 0.35 * IN), mats.aluminum);
-    finger.position.set(1.8 * IN, 0, 0);
-    jaw.add(finger);
-    const grip = new THREE.Mesh(new THREE.BoxGeometry(2.4 * IN, 0.5 * IN, 0.12 * IN), mats.rubber);
-    grip.position.set(2.1 * IN, 0, -s * 0.23 * IN);
-    jaw.add(grip);
+    jaw.position.set(CLAW.hingeX * IN, 0, s * CLAW.hingeZ * IN);
+    const arms = new THREE.Group();
+    arms.rotation.y = -s * splay;
+    for (const y of [0.35, shaftTop - 0.1]) {
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(reach * IN, 0.25 * IN, 0.5 * IN), mats.aluminum);
+      arm.position.set((reach / 2) * IN, y * IN, 0);
+      arms.add(arm);
+    }
+    jaw.add(arms);
+    // the shaft and its wheels sit at the arms' tip
+    const shaft = new THREE.Group();
+    shaft.position.set(reach * Math.cos(splay) * IN, 0, s * reach * Math.sin(splay) * IN);
+    const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.09 * IN, 0.09 * IN, (shaftTop - 0.15) * IN, 8), mats.steel);
+    rod.position.y = ((shaftTop + 0.15) / 2) * IN;
+    shaft.add(rod);
+    for (const h of CLAW.rollerHeights) {
+      // a flex wheel: green hub with ribs so the spin shows
+      const wheel = new THREE.Mesh(new THREE.CylinderGeometry(CLAW.rollerR * IN, CLAW.rollerR * IN, 0.55 * IN, 10), rollerMat);
+      wheel.position.y = h * IN;
+      shaft.add(wheel);
+      for (let k = 0; k < 4; k++) {
+        const rib = new THREE.Mesh(new THREE.BoxGeometry(0.1 * IN, 0.57 * IN, 2 * CLAW.rollerR * IN + 0.02 * IN), mats.blackPlastic);
+        rib.position.y = h * IN;
+        rib.rotation.y = (k / 4) * Math.PI;
+        shaft.add(rib);
+      }
+    }
+    jaw.add(shaft);
     carriage.add(jaw);
-    jaws.push({ g: jaw, side: s });
-    const guard = new THREE.Mesh(new THREE.PlaneGeometry(3.4 * IN, (ch - 0.4) * IN), mats.polycarbonate);
-    guard.position.set(-0.7 * IN, (ch / 2) * IN, s * 1.95 * IN);
+    jaws.push({ g: jaw, side: s, shaft });
+    // polycarbonate side guards behind the rollers
+    const guard = new THREE.Mesh(new THREE.PlaneGeometry(1.8 * IN, (ch - 0.4) * IN), mats.polycarbonate);
+    guard.position.set(-1.3 * IN, (ch / 2) * IN, s * 1.95 * IN);
     carriage.add(guard);
   }
   if (isDr4b) {
@@ -380,10 +408,6 @@ export function robotModel(id: string, alliance: 'red' | 'blue', cfg: RobotConfi
       pinion.rotation.z = -liftIn / (pitchD / 2);
     };
   }
-  const roller = new THREE.Mesh(new THREE.CylinderGeometry(0.6 * IN, 0.6 * IN, 3 * IN, 16), mats.plastic('#3fae5a'));
-  roller.rotation.x = Math.PI / 2;
-  roller.position.set(-2.0 * IN, (ch - 0.7) * IN, 0);
-  carriage.add(roller);
   const accent = new THREE.Mesh(new THREE.BoxGeometry(0.2 * IN, 0.5 * IN, 5.6 * IN), mats.plastic(alliance === 'red' ? PALETTE.red : PALETTE.blue));
   accent.position.set(-2.25 * IN, (ch - 0.25) * IN, 0);
   carriage.add(accent);
@@ -393,9 +417,17 @@ export function robotModel(id: string, alliance: 'red' | 'blue', cfg: RobotConfi
   led.position.set(-2.25 * IN, (ch + 0.15) * IN, 0);
   carriage.add(led);
   let jawOpen = 1; // 0 closed … 1 open
-  const setClaw = (closed: boolean) => {
+  let spin = 0;
+  let last = performance.now();
+  const setClaw = (closed: boolean, rollers = 0) => {
+    const now = performance.now();
+    const dt = Math.min(0.1, (now - last) / 1000);
+    last = now;
     jawOpen += ((closed ? 0 : 1) - jawOpen) * 0.35;
-    for (const j of jaws) j.g.rotation.y = -j.side * 0.5 * jawOpen; // ≈ 29° out when open
+    for (const j of jaws) j.g.rotation.y = -j.side * 0.14 * jawOpen; // 8° out frees a piece (the rollers grip it at its rim)
+    // in: each shaft's inner face moves back toward the holder; out: the other way
+    spin += rollers * dt * (CLAW.surfaceSpeed / CLAW.rollerR);
+    for (const j of jaws) j.shaft.rotation.y = j.side * spin;
     ledMat.color.set(closed ? '#39d353' : '#ffb020');
   };
   carriage.traverse((o) => {

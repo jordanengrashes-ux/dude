@@ -17,6 +17,7 @@ import {
   quadrantOf,
   sideOf,
   type GoalGeom,
+  stackTop,
   type LoaderGeom,
   type ToggleGeom,
 } from '../field/geometry';
@@ -843,14 +844,8 @@ export class PlanWorld {
 
   /** Holder-bottom height required to drop the next element onto goal gi. */
   requiredHolder(s: PlanState, gi: number): number {
-    const g = this.goals[gi];
-    const n = s.stacks[gi].length;
-    // top of current stack
-    let top: number;
-    if (n === 0) top = g.height;
-    else if (n % 2 === 1) top = g.height + PIN.half + ((n - 1) / 2) * PIN.length; // top pin
-    else top = g.height + (n / 2) * CUP.length; // top cup
-    return top + 0.5;
+    // the held piece's bottom has to clear the stack's top (pieces sit band-on-rim)
+    return stackTop(this.goals[gi].height, s.stacks[gi].length) + 0.5;
   }
 
   goalLegal(_s: PlanState, gi: number, t: number): boolean {

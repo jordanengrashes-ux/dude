@@ -115,10 +115,9 @@ export const CG = {
   wheel: groups(G.WHEEL, G.FIELD),
   free: groups(G.FREE, G.FIELD | G.ROBOT | G.FREE | G.STACKED | G.POST | G.TOGGLE),
   stacked: groups(G.STACKED, G.ROBOT | G.FREE | G.HELD),
-  // Held / intaking / seating objects are kinematic (carried by the mechanism). They must
-  // not touch free objects: a free object trapped between a carried object and the same
-  // robot's chassis closes a push loop (chassis → carriage → held object → free object →
-  // chassis) that the solver resolves with unbounded force and launches the robot.
+  // A piece in a claw: its shapes are part of the robot's lift carriage.
+  carried: groups(G.ROBOT, G.FIELD | G.ROBOT | G.FREE | G.STACKED | G.POST),
+  // (kept for older callers) kinematic pieces that touch only the fixed field
   held: groups(G.HELD, G.FIELD | G.STACKED | G.POST),
   toggle: groups(G.TOGGLE, G.ROBOT | G.FREE),
   ghost: groups(G.GHOST, 0),

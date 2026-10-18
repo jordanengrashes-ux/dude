@@ -18,8 +18,14 @@ import type { MatchSim } from './match';
 export interface AlignHint {
   goal: string;
   state: 0 | 1 | 2;
+  /** Top of the target (in): the rim the held piece's bottom has to clear. */
   top: number;
+  /** A loose piece's position (a Goal's comes from its id). */
   at?: { x: number; y: number };
+  /** How far off the target's axis the held piece may be and still drop in (in). */
+  tol?: number;
+  /** Where the held piece's axis is now (in). */
+  from?: { x: number; y: number };
 }
 
 export interface SceneFrame {
@@ -37,6 +43,8 @@ export interface SceneFrame {
     claw: boolean;
     /** Held kinds: 1 = Pin, 2 = Cup. */
     holding: number;
+    /** Claw rollers: 1 in, −1 out, 0 stopped. */
+    rollers?: number;
     /** Aligner: the Goal the held object would go on, and whether releasing now places it. */
     align: AlignHint | null;
   }[];

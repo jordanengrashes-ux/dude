@@ -121,7 +121,7 @@ function DriveHint({ period, t }: { period: string; t: number }) {
         : `press ${k('playPause')} (or start driving) to start.`
       : auto && !practice
         ? 'Autonomous: its program runs; you take over at Driver Control.'
-        : `${drive} drive · ${k('armUp')} / ${k('armDown')} arm up / down · click or ${k('claw')} the claw · drag to look around, scroll to zoom (all the way in: first person), ${k('viewReset')} resets.`;
+        : `${drive} drive · ${k('armUp')} / ${k('armDown')} arm up / down · hold ${k('intake')} (or the right mouse button) to run the rollers in, ${k('outtake')} to push out · click or ${k('claw')} opens / closes the claw · click the field to lock the mouse and look around (Esc frees it), scroll to zoom (all the way in: first person), ${k('viewReset')} resets.`;
   const me = guest ? team.session?.frameAt()?.robots.find((r) => r.id === mine) : runner.sim?.sceneFrame().robots.find((r) => r.id === mine);
   const held = me ? [me.holding & 1 ? 'Pin' : null, me.holding & 2 ? 'Cup' : null].filter(Boolean).join(' + ') : '';
   const a = me?.align ?? null;
@@ -138,7 +138,7 @@ function DriveHint({ period, t }: { period: string; t: number }) {
           {held ? ` · holding ${held}` : ''}
         </span>
         {align && <span className={`align-chip s${a!.state}`}>{align}</span>}
-        <label className="easy" title={`The claw grabs whatever you drive into, and Goals catch your drops more easily (${k('easy')})`}>
+        <label className="easy" title={`The rollers take whatever you drive into, and your drops are steered onto the Goal (or piece) under them (${k('easy')})`}>
           <input
             type="checkbox"
             checked={localInput.state.easy}
@@ -258,7 +258,7 @@ function Inspector() {
       <div className="inspector">
         <h4>{o.id}</h4>
         <div>{o.kind === 'pin' ? `Pin ${o.colors!.join('/')}` : 'Cup (clear / gray halves)'}</div>
-        <div>State: {o.mode}{o.robotId && (o.mode === 'held' || o.mode === 'intaking') ? ` by ${o.robotId}` : ''}</div>
+        <div>State: {o.mode}{o.robotId && o.mode === 'held' ? ` by ${o.robotId}` : ''}</div>
         {o.stack && <div>Goal {o.stack.goalId}, position {o.stack.index + 1}</div>}
         {t && (
           <div className="small muted">

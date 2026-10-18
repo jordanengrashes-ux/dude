@@ -6,8 +6,9 @@ import type { Controller, MatchSim, Sensing, SimRobot } from './match';
  *
  * DriverInput is the whole control surface of a robot, the same for keyboard,
  * mouse, gamepad and remote players: arcade drive, the lift (analog up/down or a
- * height preset), the claw (closing grabs what is in front, opening lets go; drop
- * also opens it), the toggle arm, pocket index, flip and a Match Load request.
+ * height preset), the roller claw (intake pulls a piece at the jaws in, outtake
+ * pushes it out the front; opening the claw lets go — drop also opens it), the
+ * toggle arm, pocket index, flip and a Match Load request.
  * One-shot actions are press counters, so a press is never lost when inputs are
  * sampled once per physics step or arrive over the network.
  */
@@ -20,9 +21,13 @@ export interface DriverInput {
   lift: number;
   /** Holder height preset (in) to move the lift to; null when none. Analog lift input cancels it. */
   preset: number | null;
-  /** Claw toggle: every change opens / closes the claw (closing grabs what is in front, opening lets go). */
+  /** Claw toggle: every change opens / closes the claw (closing grabs what is at the jaws, opening lets go). */
   claw: boolean;
-  /** Easy mode: the claw grabs whatever the robot drives into (and Goals capture more loosely). */
+  /** Rollers in while held: a piece at the jaws is pulled in and gripped (closes the claw). */
+  intake: boolean;
+  /** Rollers out while held: what the claw holds is pushed out the front. */
+  outtake: boolean;
+  /** Easy mode: the claw takes whatever the robot drives into (and drops are steered onto Goals). */
   easy: boolean;
   /** No momentum: the robot goes exactly as fast as the sticks say and stops when released. */
   noMomentum: boolean;
@@ -35,7 +40,7 @@ export interface DriverInput {
   load: number;
 }
 
-export const zeroInput = (): DriverInput => ({ forward: 0, turn: 0, lift: 0, preset: null, claw: false, easy: false, noMomentum: false, toggle: false, drop: 0, index: 0, flip: 0, load: 0 });
+export const zeroInput = (): DriverInput => ({ forward: 0, turn: 0, lift: 0, preset: null, claw: false, intake: false, outtake: false, easy: false, noMomentum: false, toggle: false, drop: 0, index: 0, flip: 0, load: 0 });
 
 /** Lift presets (holder-bottom height, in): floor, Alliance Goal, short Goal, tall Goal. */
 export const LIFT_PRESETS = [
@@ -113,10 +118,10 @@ export class DriverController implements Controller {
         r.body.liftTarget = this.holdH;
       }
     }
-    // claw: each toggle flips it — closing grabs what is in front (the intake runs
-    // briefly), opening lets go. A robot taken over while holding something has its
-    // claw closed; in easy mode the claw is closed exactly when it holds something.
-    const holding = !!(r.primary || r.secondary);
+    // claw: each toggle flips it — closing grabs what is at the jaws (the rollers run
+    // briefly), opening lets go. Intake closes it and runs the rollers in; outtake runs
+    // them out. A robot taken over while holding something has its claw closed.
+    const holding = r.held.length > 0;
     if (this.syncClaw || inp.easy) {
       this.clawClosed = holding;
       this.syncClaw = false;
@@ -124,25 +129,30 @@ export class DriverController implements Controller {
     let opened = false;
     if (inp.claw !== this.last.claw) {
       this.clawClosed = !this.clawClosed;
-      if (this.clawClosed) this.grabUntil = sim.t + 0.3; // the jaws closing
+      if (this.clawClosed) this.grabUntil = sim.t + 0.4; // the jaws closing
       else opened = true;
     }
     if (inp.drop > this.last.drop) {
+      opened = this.clawClosed || holding;
       this.clawClosed = false;
-      opened = true;
     }
+    if (inp.intake && !opened) this.clawClosed = true;
     if (opened) {
       r.req.release = true;
       this.easyHoldOff = sim.t + 1.5; // don't grab back what was just dropped
     }
+    if (inp.outtake) this.easyHoldOff = sim.t + 1.0;
     // easy mode: the claw takes whatever the robot drives into (never off a Goal)
-    const auto = inp.easy && sim.t >= this.easyHoldOff;
-    r.req.intake = sim.t < this.grabUntil || auto;
-    if (auto && !(sim.t < this.grabUntil)) r.req.noDescore = true;
-    // a real claw takes only what is between its jaws; easy mode keeps the wide grab
+    const auto = inp.easy && !holding && sim.t >= this.easyHoldOff;
+    const pulse = sim.t < this.grabUntil;
+    r.req.intake = !opened && (inp.intake || pulse || auto);
+    r.req.outtake = inp.outtake;
+    if (auto && !inp.intake && !pulse) r.req.noDescore = true;
+    // a real claw takes only what is at its jaws; easy mode reaches further
     r.req.precise = !inp.easy;
     r.easy = inp.easy;
-    r.clawClosed = this.clawClosed;
+    // the jaws close as the rollers take something in
+    r.clawClosed = this.clawClosed || ((inp.intake || pulse) && !opened);
     if (inp.index > this.last.index) r.req.index = true;
     if (inp.flip > this.last.flip) r.req.reorient = true;
     const own = sim.clock.matchType === 'headToHead' ? r.alliance : sim.opts.params.skills.ownedToggleColor;
@@ -154,7 +164,7 @@ export class DriverController implements Controller {
       const loaders = buildLoaders().filter((x) => sim.clock.matchType !== 'headToHead' || x.alliance === r.alliance);
       const l = loaders.reduce((a, b) => (Math.hypot(b.dispense.x - sense.pos.x, b.dispense.y - sense.pos.y) < Math.hypot(a.dispense.x - sense.pos.x, a.dispense.y - sense.pos.y) ? b : a));
       const next = [...sim.objects.objects.values()].find(
-        (o) => o.mode === 'offfield' && (sim.clock.matchType !== 'headToHead' || o.matchloadAlliance === r.alliance) && !(r.primary?.kind === o.kind || r.secondary?.kind === o.kind),
+        (o) => o.mode === 'offfield' && (sim.clock.matchType !== 'headToHead' || o.matchloadAlliance === r.alliance) && !r.held.some((h) => h.kind === o.kind),
       );
       if (next) r.req.matchLoad = { loaderId: l.id, objectId: next.id };
     }

@@ -3,13 +3,16 @@ import { LIFT_PRESETS, zeroInput, type DriverInput } from '../sim/driver';
 /**
  * Local driver controls: keyboard, mouse and a controller merged into one DriverInput.
  * Every action is rebindable (two keys and one controller button each), saved in
- * this browser. The mouse is fixed: left click opens / closes the claw, drag looks
- * around (3rd / 1st person), the wheel zooms (all the way in: first person).
+ * this browser. The mouse is fixed: a click on the 3D view while driving locks the
+ * cursor to it, then moving the mouse looks around (3rd / 1st person), left click
+ * opens / closes the claw, holding the right button runs the rollers in, and Esc
+ * frees the cursor; the wheel zooms (all the way in: first person).
  *
  * Controller (standard mapping, VEX-style names): R1 raises the arm, R2 lowers it
- * (in proportion to how far it is pressed), L1 opens / closes the claw. Sticks: split
- * arcade by default — left stick drives, right stick turns — or one stick (left stick
- * drives and turns; the right stick moves the camera).
+ * (in proportion to how far it is pressed), L1 opens / closes the claw, L2 runs the
+ * rollers in, B runs them out. Sticks: split arcade by default — left stick drives,
+ * right stick turns — or one stick (left stick drives and turns; the right stick
+ * moves the camera).
  */
 
 export type ActionId =
@@ -20,6 +23,8 @@ export type ActionId =
   | 'armUp'
   | 'armDown'
   | 'claw'
+  | 'intake'
+  | 'outtake'
   | 'drop'
   | 'toggleArm'
   | 'swap'
@@ -49,6 +54,8 @@ export const ACTIONS: ActionDef[] = [
   { id: 'right', label: 'Turn right', hold: true },
   { id: 'armUp', label: 'Arm up', hold: true },
   { id: 'armDown', label: 'Arm down', hold: true },
+  { id: 'intake', label: 'Rollers in: pull a piece in (hold; also the right mouse button)', hold: true },
+  { id: 'outtake', label: 'Rollers out: push the piece out (hold)', hold: true },
   { id: 'claw', label: 'Claw: close / open (also left click)', hold: false },
   { id: 'drop', label: 'Open the claw (drop)', hold: false },
   { id: 'preset1', label: 'Arm to the floor', hold: false },
@@ -85,14 +92,16 @@ export const DEFAULT_BINDINGS: Bindings = {
     armUp: [' ', 'r'],
     armDown: ['shift', 'f'],
     claw: ['c', null],
-    drop: ['e', null],
+    intake: ['e', null],
+    outtake: ['q', null],
+    drop: ['z', null],
     preset1: ['1', null],
     preset2: ['2', null],
     preset3: ['3', null],
     preset4: ['4', null],
     toggleArm: ['t', null],
     flip: ['x', null],
-    swap: ['q', null],
+    swap: [null, null],
     load: ['l', null],
     easy: ['g', null],
     momentum: ['m', null],
@@ -108,15 +117,17 @@ export const DEFAULT_BINDINGS: Bindings = {
     armUp: 5, // R1
     armDown: 7, // R2
     claw: 4, // L1
-    drop: 1, // B
+    intake: 6, // L2
+    outtake: 1, // B
+    drop: null,
     preset1: 13,
     preset2: 14,
     preset3: 15,
     preset4: 12,
     toggleArm: 2, // X
-    flip: 3, // Y
+    flip: null,
     swap: null,
-    load: 6, // L2
+    load: 3, // Y
     easy: 8, // Back / Select
     momentum: 0, // A
     firstPerson: 10, // L3
@@ -136,8 +147,12 @@ export const padName = (b: number | null) => (b === null ? '—' : (PAD_NAMES[b]
 
 const clone = (b: Bindings): Bindings => ({ keys: Object.fromEntries(Object.entries(b.keys).map(([k, v]) => [k, [...v]])) as Bindings['keys'], pad: { ...b.pad }, padLayout: b.padLayout });
 
-/** Saved bindings carry this; older saves keep their keys but take the current controller defaults. */
-const BINDINGS_VERSION = 2;
+/**
+ * Saved bindings carry this; older saves keep their keys but take the current
+ * controller defaults. Version 3 added the rollers: their default keys are taken off
+ * whatever an older save had on them.
+ */
+const BINDINGS_VERSION = 3;
 
 function loadBindings(): Bindings {
   const b = clone(DEFAULT_BINDINGS);
@@ -150,6 +165,16 @@ function loadBindings(): Bindings {
         if (padCurrent && saved.pad && a.id in saved.pad) b.pad[a.id] = saved.pad[a.id] ?? null;
       }
       if (saved.padLayout === 'single' || saved.padLayout === 'split') b.padLayout = saved.padLayout;
+      if ((saved.v ?? 0) < 3) {
+        for (const a of ['intake', 'outtake'] as const) {
+          const def = DEFAULT_BINDINGS.keys[a];
+          for (const o of ACTIONS) if (o.id !== a) b.keys[o.id] = b.keys[o.id].map((k) => (k !== null && def.includes(k) ? null : k)) as [string | null, string | null];
+          b.keys[a] = [...def];
+        }
+        // an action left without keys gets its default ones back where they are free
+        const used = new Set(ACTIONS.flatMap((a) => b.keys[a.id]).filter((k): k is string => k !== null));
+        for (const a of ACTIONS) if (!b.keys[a.id].some((k) => k !== null)) b.keys[a.id] = DEFAULT_BINDINGS.keys[a.id].map((k) => (k !== null && !used.has(k) ? k : null)) as [string | null, string | null];
+      }
     }
   } catch {
     /* storage unavailable or corrupt: defaults */
@@ -177,7 +202,9 @@ class LocalInput {
   /** Waiting for a key / button press to bind (the controls editor). */
   capture: Capture | null = null;
   private keys = new Set<string>();
-  private pad = { forward: 0, turn: 0, lift: 0, toggle: false };
+  private pad = { forward: 0, turn: 0, lift: 0, toggle: false, intake: false, outtake: false };
+  /** Right mouse button held over the 3D view (rollers in). */
+  private mouseIntake = false;
   private padPrev: boolean[] = [];
   private listeners = new Set<Listener>();
   private bindListeners = new Set<() => void>();
@@ -290,8 +317,10 @@ class LocalInput {
       turn: clamp(kbT + this.pad.turn),
       lift: clamp(kbL + this.pad.lift),
       toggle: this.held('toggleArm') || this.pad.toggle,
+      intake: this.held('intake') || this.pad.intake || this.mouseIntake,
+      outtake: this.held('outtake') || this.pad.outtake,
     };
-    const diff = next.forward !== s.forward || next.turn !== s.turn || next.lift !== s.lift || next.toggle !== s.toggle;
+    const diff = next.forward !== s.forward || next.turn !== s.turn || next.lift !== s.lift || next.toggle !== s.toggle || next.intake !== s.intake || next.outtake !== s.outtake;
     Object.assign(s, next);
     if (next.lift !== 0) s.preset = null;
     return diff;
@@ -305,6 +334,13 @@ class LocalInput {
   private preset(i: number) {
     this.state.preset = LIFT_PRESETS[i].h;
     this.changed();
+  }
+
+  /** Right mouse button over the 3D view: rollers in while it is held. */
+  setMouseIntake(on: boolean) {
+    if (this.mouseIntake === on) return;
+    this.mouseIntake = on;
+    if (this.merge()) this.changed();
   }
 
   /** Close the claw (grab what is in front) or open it (let go). */
@@ -411,6 +447,7 @@ class LocalInput {
     };
     const blur = () => {
       this.keys.clear();
+      this.mouseIntake = false;
       if (this.merge()) this.changed();
     };
     window.addEventListener('keydown', down);
@@ -429,8 +466,8 @@ class LocalInput {
     const gp = [...pads].find((p) => p && p.connected) ?? null;
     this.gamepad = gp ? gp.id : null;
     if (!gp) {
-      if (this.pad.forward || this.pad.turn || this.pad.lift || this.pad.toggle) {
-        this.pad = { forward: 0, turn: 0, lift: 0, toggle: false };
+      if (this.pad.forward || this.pad.turn || this.pad.lift || this.pad.toggle || this.pad.intake || this.pad.outtake) {
+        this.pad = { forward: 0, turn: 0, lift: 0, toggle: false, intake: false, outtake: false };
         if (this.merge()) this.changed();
       }
       return;
@@ -454,6 +491,8 @@ class LocalInput {
       turn: Math.max(-1, Math.min(1, stickT + (btn(P.left) ? 1 : 0) - (btn(P.right) ? 1 : 0))),
       lift: dz(val(P.armUp) - val(P.armDown)),
       toggle: btn(P.toggleArm),
+      intake: btn(P.intake),
+      outtake: btn(P.outtake),
     };
     if (single) {
       const cx = dz(gp.axes[2] ?? 0);

@@ -1,9 +1,9 @@
 import type { Collider, ImpulseJoint, RigidBody, World } from '@dimforge/rapier3d-deterministic-compat';
 import { IN, wrapAngle } from '../core/units';
-import { buildGoals, buildLoaders, buildToggles, HALF, PERIMETER_HEIGHT, PERIMETER_THICKNESS, type GoalGeom, type ToggleGeom } from '../field/geometry';
+import { buildGoals, buildLoaders, buildToggles, GOAL_SOCKET, HALF, PERIMETER_HEIGHT, PERIMETER_THICKNESS, type GoalGeom, type ToggleGeom } from '../field/geometry';
 import type { TogglePosition } from '../rules/fieldState';
 import { CG, quatConj, quatMul, toWorld, type Quat } from './frames';
-import { goalSocketCollider } from './elementShapes';
+import { goalSocketColliders } from './elementShapes';
 import type { Rapier } from './rapier';
 
 /**
@@ -64,16 +64,19 @@ export function buildField(R: Rapier, world: World): FieldBodies {
   const goalColliders = new Map<string, Collider[]>();
   for (const g of goals) {
     const p = toWorld(g.pos.x, g.pos.y, 0);
+    const plate = GOAL_SOCKET.plate;
     const base = world.createCollider(
-      R.ColliderDesc.cylinder(0.25 * IN, g.baseRadius * IN).setTranslation(p.x, 0.25 * IN, p.z).setFriction(0.5).setCollisionGroups(CG.field),
+      R.ColliderDesc.cylinder((plate / 2) * IN, g.baseRadius * IN).setTranslation(p.x, (plate / 2) * IN, p.z).setFriction(0.5).setCollisionGroups(CG.field),
       fixed,
     );
+    // the solid post ends at the socket's floor; the socket's walls rise from there to the rim
+    const sock = goalSocketColliders(R, g.height, g.postRadius);
     const post = world.createCollider(
-      R.ColliderDesc.cylinder((g.height / 2) * IN, g.postRadius * IN).setTranslation(p.x, (g.height / 2) * IN, p.z).setFriction(0.4).setCollisionGroups(CG.post),
+      R.ColliderDesc.cylinder((sock.floor / 2) * IN, g.postRadius * IN).setTranslation(p.x, (sock.floor / 2) * IN, p.z).setFriction(0.4).setCollisionGroups(CG.post),
       fixed,
     );
-    const socket = world.createCollider(goalSocketCollider(R, g.height, g.postRadius, 0.5).setTranslation(p.x, 0, p.z).setFriction(0.4).setCollisionGroups(CG.post), fixed);
-    goalColliders.set(g.id, [base, post, socket]);
+    const sockWalls = sock.parts.map((d) => world.createCollider(d.setTranslation(p.x, 0, p.z).setFriction(0.4).setCollisionGroups(CG.post), fixed));
+    goalColliders.set(g.id, [base, post, ...sockWalls]);
   }
   const loaders: Collider[] = [];
   for (const l of buildLoaders()) {

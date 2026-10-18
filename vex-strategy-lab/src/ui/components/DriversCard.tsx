@@ -130,7 +130,8 @@ function ControlsEditor({ pad }: { pad: string | null }) {
         </button>
       </div>
       <p className="muted">
-        Mouse: left click opens / closes the claw, drag looks around, the wheel zooms (all the way in: first person). Triggers raise / lower the arm
+        Mouse: click the field to lock the cursor to it — then moving the mouse looks around, left click opens / closes the claw, the right button
+        runs the rollers in, and Esc frees the cursor; the wheel zooms (all the way in: first person). Triggers raise / lower the arm
         proportionally. {pad ? `Controller: ${pad.slice(0, 40)}.` : 'No controller connected (press any button on it).'} Saved in this browser.
       </p>
     </details>

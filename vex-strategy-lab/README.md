@@ -52,13 +52,17 @@ and RLS policies on `realtime.messages`.
 
 ## Team mode
 
-A room opens by itself when the page loads, in Practice too, so there is nothing to
-create; the header has **copy invite link** (`…/?room=CODE`). Whoever opens the link
-joins: they replace a bot (the host's partner first, then the opponents), get the
-3rd-person camera on their robot, and the match starts. A host who was practicing
-is switched to a match for both of them. If nobody is hosting the
-linked room (its host left or reloaded), the visitor hosts it. Online rooms use
-Supabase Realtime; if it can't be reached, the room links tabs of the same browser.
+Everyone who opens the site joins one shared **public game**, in Practice too, so
+there is nothing to create. Its first visitor hosts it; whoever comes next replaces
+a bot (the host's partner first, then the opponents), gets the 3rd-person camera on
+their robot, and the match starts (a host who was practicing is switched to a match
+for both of them). When every robot has a driver, a newcomer is asked: **Start a
+private game** (a room of your own; the header's **copy invite link**,
+`…/?room=CODE`, brings friends in) or **Watch the public game**. If the host leaves,
+one of the guests takes over hosting the same room and play goes on (a fresh match).
+A private room's link works the same way: whoever opens it joins, and if nobody is
+hosting it, the visitor hosts it. Online rooms use Supabase Realtime; if it can't be
+reached, the room links tabs of the same browser.
 
 - Anyone can switch to a free robot from the **Drivers** card, or **Hand back to
   bot**. When a player leaves (or disappears for more than 6 s), the bot takes the
@@ -73,18 +77,22 @@ compact snapshots about 8 times a second: positions in millimeters, quantized
 quaternions, only the objects that moved, and a keyframe every 2 s. Guests render
 150 ms behind and interpolate. They send their controls when those change, plus a
 heartbeat. A host alone in its room sends nothing, and a four-player room stays
-inside Supabase's free-plan Realtime budget (100 messages/s). Keep the host's tab
-open; if it is hidden, the match keeps running on timer ticks.
+inside Supabase's free-plan Realtime rate (100 messages/s); every watching guest
+adds to the monthly message count. Keep the host's tab open; if it is hidden, the
+match keeps running on timer ticks.
 
 ## Controls
 
 Press W A S D on the field to take over your robot (your slot, or the first one a
-bot drives); the camera locks behind it in 3rd person. Drag to look around the robot
-(the camera keeps that angle and turns with the robot), scroll to zoom; zoom all the
-way in (or press B) and you are in first person: the robot's eye behind the claw,
-a wide view with the claw at the bottom and the field ahead (your own lift towers
-are hidden so they don't fill the view; drag to look around). Scroll out or press B
-to go back. V puts the camera behind the robot again.
+bot drives); the camera locks behind it in 3rd person. **Click the field to lock the
+mouse to it**: moving the mouse then looks around the robot (the camera keeps that
+angle and turns with the robot), left click opens / closes the claw, holding the
+right button runs the rollers in, and Esc frees the cursor (dragging also looks
+around while it is free). Scroll to zoom; zoom all the way in (or press B) and you
+are in first person: the robot's eye behind the claw, a wide view with the claw at
+the bottom and the field ahead (your own lift towers are hidden so they don't fill
+the view). Scroll out or press B to go back. V puts the camera behind the robot
+again.
 
 Every action can be rebound: open **Controls** in the Drivers card, click a key or
 controller cell and press the new key or button (Esc cancels, Delete clears it).
@@ -97,18 +105,23 @@ browser; **Reset to defaults** brings these back:
 | Drive / turn (arcade) | W/S, A/D or arrows | left stick Y / right stick X (split) |
 | Arm up / down (DR4B) | Space / Shift (also R / F) | R1 / R2 (R2 analog) |
 | Arm presets: floor, Alliance Goal, short Goal, tall Goal | 1 2 3 4 | D-pad ↓ ← → ↑ |
-| Claw: each press closes it (grabs what is between the jaws) or opens it (lets go) | left click or C | L1 |
-| Open the claw (drop) | E | B |
-| Look around / zoom (all the way in: first person) | drag / mouse wheel | right stick (one-stick layout) |
+| Rollers in (hold): pull a piece at the jaws in and grip it | E or hold the right mouse button | L2 |
+| Rollers out (hold): push the held piece out the front | Q | B |
+| Claw: each press closes it or opens it (lets go) | left click or C | L1 |
+| Open the claw (drop) | Z | — |
+| Look around / zoom (all the way in: first person) | mouse (cursor locked) or drag / mouse wheel | right stick (one-stick layout) |
 | First / third person | B | L3 |
 | Camera back behind the robot | V | R3 |
 | Easy claw on / off | G | Back |
 | No momentum on / off | M | A |
 | Toggle arm (hold) | T | X |
-| Swap pockets (two-pocket holder only) | Q | — |
-| Flip the held object | X | Y |
-| Request a Match Load | L | L2 |
+| Swap pockets (two-pocket holder only) | — | — |
+| Flip the held piece (needs a flip mechanism, Robot tab) | X | — |
+| Request a Match Load | L | Y |
 | Play / pause (host or offline) | P | Start |
+
+Saved bindings from before the rollers keep their keys, except that E and Q (and
+the controller defaults) go to the rollers.
 
 Controllers use the standard mapping (Xbox / PlayStation / most USB pads; press a
 button once so the browser sees it); buttons are named as on a VEX controller (L1,
@@ -127,28 +140,50 @@ same motors and top speed but takes out the coasting: let go and the robot stops
 dead, ease off and it slows at once, push the other way and it stops before
 reversing.
 
-**The claw** holds one piece and closes on what is between its jaws: a piece within
-about 1" of the claw's center line, at the claw. Driving into a piece with the claw
-open pushes it; it does not suck it in. A Pin has to be standing: it grabs a Pin
-tipped up to 20° from upright (not below 70° from the tiles); one lying down slips
-out. A piece already nested on the one it grabs (a Pin standing in a Cup, a Cup on a
-Pin) comes along, riding on top, and both drop together. Holding one piece, the
-claw can't take a second one beside it.
+**The claw** is a roller claw: two jaws hinged behind the holder, each with a
+vertical shaft of three roller wheels at its tip. Hold **intake** (E, the right
+mouse button, L2) and a piece at the jaws (within about 1" of the claw's center
+line, up to 3" in front) is pulled in by the rollers and gripped (intake also closes
+an open claw; closing it with a click runs the rollers for a moment). **Outtake** (Q,
+B) runs them backward and pushes the piece out the front; **opening** the claw
+(click, C, Z) lets go and it drops. A Pin has to be standing: the rollers take a Pin
+tipped up to 20° from upright; one lying down slips out. A Cup lying down is pulled
+in as far as it goes and stood up. Pieces nested on the gripped one (a Pin in a
+Cup, a Cup on that Pin, …) ride along, so the claw can carry a whole nested stack:
+2 Cups + 2 Pins at once. Holding a stack, lower it onto a standing piece it nests
+on and run the rollers: they lift the stack and take the new piece in at the
+bottom. Holding more than one Pin and one Cup breaks the possession limit in a
+match (flagged as `SG (possession)`; Practice has no rule checks).
+
+Everything here is rigid-body physics, not animation. A held piece is part of the
+claw: its collision shapes are attached to the lift carriage, so it can't wobble
+when the robot brakes, and it pushes (and is stopped by) loose pieces, Goals,
+walls and robots. A dropped piece falls, bounces and comes to rest by itself; it
+only counts as stacked once it is at rest nested on the stack's top (centered,
+upright, at the height where the next element sits). The Goal socket is hollow and
+follows the Pin's cone, so a Pin dropped near its axis slides in and sits on its
+band; a Pin dropped into a Cup, or a Cup over a Pin, nests the same way, also from
+high up (fast pieces predict their contacts, so a thin rim can't sink into what it
+lands on). A Pin standing on its 1.4" tip with a Cup dropped on it from a foot up
+can be knocked over — as with the real pieces.
 
 The HUD shows the claw (closed / open, and what it holds; the light on the carriage
 is green when closed, amber when open) and the **aligner**: a ring on the Goal your
 held piece would go on — or on a loose Cup standing on the tiles your Pin would drop
-into (a loose Pin, for a held Cup) — white when you are near, orange when you are
-over it but holding it too low, green when opening the claw now drops it in. Goals
-catch a Pin within 1.0" of their axis and a Cup within 1.1" (the tapered Pin half
-centers itself in the opening). A Pin that settles in a loose Cup stays with it as
-one piece until it's picked up or the pair tips over.
+into (a loose Pin, for a held Cup) — with a disc showing how far off center a drop
+still goes in and a dot (on a plumb line) where your piece is now. White: the dot
+is outside the disc; orange: inside but held too low to clear the rim; green:
+opening the claw now drops it in. The disc comes from the shapes: 0.45" for a Pin
+into a Goal socket (its 1.4" tip in the 2.41" bore), 0.7" for a Pin into a Cup or a
+Cup over a Pin. A pair that comes to rest nested stays together as one piece until
+it's picked up or tips over.
 
-**Easy claw** (checkbox in the HUD, or G): the claw grabs whatever the robot drives
-into (still one piece, still standing Pins), never takes a scored piece off a Goal,
-waits 1.5 s after a drop before grabbing again, and Goals catch your drops within
-2.5". It is a per-player setting, like No momentum; a team host applies each
-player's choice.
+**Easy claw** (checkbox in the HUD, or G): the rollers take whatever the robot
+drives into (still standing Pins), never take a scored piece off a Goal, wait 1.5 s
+after a drop before taking anything again, and a dropped piece falling within 2.5"
+of a Goal (or loose piece) it nests on is steered over it as it falls — it still
+falls and lands by physics. It is a per-player setting, like No momentum; a team
+host applies each player's choice.
 
 ## Practice
 
@@ -156,8 +191,8 @@ The app opens in **Practice**: only your robot on the full Head-to-Head field, n
 bots, no time limit, you drive from the first second (no Autonomous wait) and no
 rule checks, in 3rd person, with Easy claw and No momentum on (turn them off in the
 HUD). The clock starts when you start driving and counts up. **Match** in the header
-(or `?mode=match`) brings the bots; an invite link (`?room=`) opens a match. Your
-room stays open while you practice (see Team mode).
+(or `?mode=match`) brings the bots; an invite link (`?room=`) opens a match. You
+are in the public game while you practice (see Team mode).
 
 **Settings are saved** in this browser as you change them: your robot, rule
 switches, match type and slot, each robot's strategy, optimizer settings, camera,
@@ -289,8 +324,10 @@ Unknowns are labeled as assumptions and editable:
 - 2 × 200 rpm lift motors at 1:7
 - 3.25 in wheels on 450 rpm
 - 15 lb
-- a claw that holds one piece and grabs Pins tipped up to 20° (the two-pocket
-  holder, 1 Pin + 1 Cup, and the tilt limit are settings in the Robot tab)
+- a roller claw (two vertical shafts of three roller wheels) that grips one piece
+  — pieces nested on it ride along — takes Pins tipped up to 20°, and can't flip a
+  piece end-for-end (the two-pocket holder, 1 Pin + 1 Cup, the tilt limit and a
+  flip mechanism are settings in the Robot tab)
 
 The DR4B end effector rises straight up, h = h(θmin) + 2L(sin θ − sin θmin). The
 motor sees an effective radius of 2L·cos θ, so the lift is fastest with the bars
@@ -359,7 +396,7 @@ The official STEP files can replace any of them: `docs/CAD.md` covers
 | `src/rules/` | Override rules, scoring with explanations, timing, inspection, sources |
 | `src/field/` | Field geometry and object layout |
 | `src/robot/` | Robot config, motors, kinematics, lift transmission |
-| `src/physics/` | Rapier world: robot, field, Toggles, objects and seating |
+| `src/physics/` | Rapier world: robot, field (hollow Goal sockets), Toggles, pieces held / dropped / stacked |
 | `src/sim/` | Match simulation, plan executor (MPC), driver control, scenarios, frames |
 | `src/planner/` | World model, path planning, search methods, bounds, robustness, explanations |
 | `src/net/` | Team mode: protocol, transports (Supabase Realtime, BroadcastChannel), session |

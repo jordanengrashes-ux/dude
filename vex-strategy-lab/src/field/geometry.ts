@@ -71,18 +71,56 @@ export const CUP = {
  * rim's inner radius (Goal stacks are drawn band-on-rim).
  */
 export function pinSeatLift(): number {
-  const rIn = CUP.diameter / 2 - CUP.wall;
+  return pinProfileAt(CUP.diameter / 2 - CUP.wall);
+}
+
+/**
+ * Goal top: a conical socket the first Pin's lower half drops into, band on the rim.
+ * Its bore follows the Pin's cone with a little clearance (`clearance`, in) — a Ø2.37"
+ * opening for the Ø2.35" cone — and the rim is `rimWidth` wide.
+ */
+export const GOAL_SOCKET = { topRadius: 2.37 / 2, depth: PIN.half, clearance: 0.03, rimWidth: 0.22, plate: 0.19 } as const;
+
+/** Where a Pin's profile narrows to radius `r` (distance from its middle, in), from the band out. */
+function pinProfileAt(r: number): number {
   const p = PIN.profile;
   for (let i = 1; i < p.length; i++) {
     const [r0, d0] = p[i - 1];
     const [r1, d1] = p[i];
-    if (r0 >= rIn && r1 <= rIn) return r0 === r1 ? d0 : d0 + ((r0 - rIn) / (r0 - r1)) * (d1 - d0);
+    if (r0 >= r && r1 <= r) return r0 === r1 ? d0 : d0 + ((r0 - r) / (r0 - r1)) * (d1 - d0);
   }
   return 0;
 }
 
-/** Goal top: a conical socket (Ø2.37" opening) the first Pin's lower half sits in, band on the rim. */
-export const GOAL_SOCKET = { topRadius: 2.37 / 2, depth: PIN.half } as const;
+/** How far the first Pin's middle sits above a Goal's rim: its band rests on the socket rim. */
+export function socketLift(): number {
+  return pinProfileAt(PIN.profile[2][0] + GOAL_SOCKET.clearance);
+}
+
+/** Distance between the middles of two nested pieces (a Pin in a Cup, or a Cup over a Pin). */
+export function nestOffset(): number {
+  return CUP.half + pinSeatLift();
+}
+
+/** Kind of the i-th element of a Goal stack (0 = the Pin in the socket). */
+export const stackKind = (i: number): 'pin' | 'cup' => (i % 2 === 0 ? 'pin' : 'cup');
+
+const halfOf = (k: 'pin' | 'cup') => (k === 'pin' ? PIN.half : CUP.half);
+
+/** Height of the middle of the i-th element of a Goal stack whose rim is at `goalHeight`. */
+export function stackCenter(goalHeight: number, i: number): number {
+  return goalHeight + socketLift() + i * nestOffset();
+}
+
+/** Top of a Goal stack of n elements (the rim when empty). */
+export function stackTop(goalHeight: number, n: number): number {
+  return n === 0 ? goalHeight : stackCenter(goalHeight, n - 1) + halfOf(stackKind(n - 1));
+}
+
+/** Bottom of the next element of a Goal stack of n elements, once it has dropped in. */
+export function stackNextBottom(goalHeight: number, n: number): number {
+  return stackCenter(goalHeight, n) - halfOf(stackKind(n));
+}
 
 export interface GoalGeom {
   id: string;

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { IN } from '../../../core/units';
-import { CUP, GOAL_SOCKET, HALF, LOADER, PERIMETER_HEIGHT, PERIMETER_THICKNESS, PIN, TILE, type GoalGeom, type LoaderGeom, type ToggleGeom } from '../../../field/geometry';
+import { CUP, GOAL_SOCKET, HALF, LOADER, PERIMETER_HEIGHT, PERIMETER_THICKNESS, PIN, socketLift, TILE, type GoalGeom, type LoaderGeom, type ToggleGeom } from '../../../field/geometry';
 import { toggleSection } from '../../../physics/field';
 import { toWorld } from '../../../physics/frames';
 import { PALETTE, type MaterialLibrary } from './materials';
@@ -74,8 +74,8 @@ export function cupHalfGeometry(outer: 1 | -1, _ledge: boolean): THREE.BufferGeo
 
 /**
  * Goal: octagonal column on a powder-coated Field Element Plate. The column's
- * inradius equals the physics post radius; it flares into a 3.25"-deep conical
- * socket (the physics socket collider) that receives the first Pin's lower half.
+ * inradius equals the physics post radius; it flares into a hollow conical socket
+ * (the physics socket colliders) that the first Pin's lower half drops into.
  */
 export function goalModel(g: GoalGeom, mats: MaterialLibrary): THREE.Group {
   const grp = new THREE.Group();
@@ -115,7 +115,7 @@ export function goalModel(g: GoalGeom, mats: MaterialLibrary): THREE.Group {
     grp.add(b);
   }
   // octagonal column with a base flange, up to where the socket flares out
-  const flare = Math.max(plateT + 0.5, H - GOAL_SOCKET.depth - 0.1);
+  const flare = Math.max(plateT + 0.3, H - GOAL_SOCKET.depth - 0.1);
   const prof: [number, number][] = [
     [rc + 0.32, plateT],
     [rc + 0.32, plateT + 0.22],
@@ -127,18 +127,22 @@ export function goalModel(g: GoalGeom, mats: MaterialLibrary): THREE.Group {
   const col = new THREE.Mesh(lathe(prof, 8), colMat);
   col.rotation.y = Math.PI / 8;
   grp.add(col);
-  // round conical socket on top: the first Pin's lower half sits in it, ridge on the rim
-  const Rt = GOAL_SOCKET.topRadius;
-  const socketBottom = Math.max(plateT + 0.05, H - GOAL_SOCKET.depth);
-  const rb = 0.8;
+  // round conical socket on top, the same bore as the physics (physics/elementShapes.ts):
+  // it follows the first Pin's cone, which drops in until its band sits on the rim
+  const prof0 = PIN.profile;
+  const rIn = prof0[2][0] + GOAL_SOCKET.clearance;
+  const rOut = rIn + GOAL_SOCKET.rimWidth;
+  const socketBottom = Math.max(GOAL_SOCKET.plate, H + socketLift() - PIN.half - 0.08);
+  const rb = prof0[prof0.length - 1][0] + GOAL_SOCKET.clearance;
   const sockMat = mats.plastic(colColor);
   const socket = new THREE.Mesh(
     lathe(
       [
         [g.postRadius, flare],
-        [Rt, H - 0.07],
-        [Rt - 0.05, H],
-        [Rt - 0.13, H],
+        [rOut, H - 0.07],
+        [rOut - 0.05, H],
+        [rIn + 0.03, H],
+        [rIn, H - 0.04],
         [rb, socketBottom],
         [0, socketBottom],
       ],

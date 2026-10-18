@@ -73,7 +73,9 @@ export type Msg =
   | { type: 'setup'; from: string; to?: string; setup: SetupMsg }
   | { type: 'roster'; from: string; roster: Roster }
   | { type: 'snap'; from: string; snap: WireSnap }
-  | { type: 'bye'; from: string };
+  | { type: 'bye'; from: string }
+  /** The host has no robot for this player (every one has a driver): they may watch or start their own game. */
+  | { type: 'full'; from: string; to: string; players: number };
 
 const MM = 1000;
 const QS = 10000;
@@ -114,8 +116,12 @@ export function encodeSnap(frame: SceneFrame, hud: HudData, k: number, keyframe:
     r: frame.robots.map((r) => {
       // the aligner's target: a Goal by index, or −2 and its position for a loose piece
       const goal = r.align ? (r.align.at ? -2 : GOAL_IDS.indexOf(r.align.goal)) : -1;
-      const at = r.align?.at ? [Math.round(r.align.at.x * 100), Math.round(r.align.at.y * 100)] : [];
-      return [...p3(r.chassis.p), ...q4(r.chassis.q), ...p3(r.carriage.p), ...q4(r.carriage.q), Math.round(r.holderH * 100), (r.claw ? 1 : 0) | (r.holding << 1), goal, r.align?.state ?? 0, Math.round((r.align?.top ?? 0) * 100), ...at];
+      const a = r.align;
+      const aim = a ? [Math.round((a.tol ?? 0) * 100), Math.round((a.from?.x ?? 0) * 100), Math.round((a.from?.y ?? 0) * 100)] : [0, 0, 0];
+      const at = a?.at ? [Math.round(a.at.x * 100), Math.round(a.at.y * 100)] : [];
+      // flags: claw closed, held kinds (2 bits), rollers (0 stopped, 1 in, 2 out)
+      const rollers = (r.rollers ?? 0) > 0 ? 1 : (r.rollers ?? 0) < 0 ? 2 : 0;
+      return [...p3(r.chassis.p), ...q4(r.chassis.q), ...p3(r.carriage.p), ...q4(r.carriage.q), Math.round(r.holderH * 100), (r.claw ? 1 : 0) | (r.holding << 1) | (rollers << 3), goal, a?.state ?? 0, Math.round((a?.top ?? 0) * 100), ...aim, ...at];
     }),
     o,
     g: frame.toggles.map((t) => q4(t.q)),
@@ -161,8 +167,10 @@ export function decodeSnap(snap: WireSnap, setup: SetupMsg, prev: SceneFrame | n
       const flags = a[15] ?? 0;
       const goal = a[16] ?? -1;
       const state = (a[17] ?? 0) as 0 | 1 | 2;
-      const align = goal >= 0 && GOAL_IDS[goal] ? { goal: GOAL_IDS[goal], state, top: (a[18] ?? 0) / 100 } : goal === -2 ? { goal: 'piece', state, top: (a[18] ?? 0) / 100, at: { x: (a[19] ?? 0) / 100, y: (a[20] ?? 0) / 100 } } : null;
-      return { id: r.id, alliance: r.alliance, cfg: r.cfg, chassis, carriage: { p: P(a, 7), q: Q(a, 10) }, holderH: a[14] / 100, trail, claw: (flags & 1) === 1, holding: flags >> 1, align };
+      const aim = { top: (a[18] ?? 0) / 100, tol: (a[19] ?? 0) / 100, from: { x: (a[20] ?? 0) / 100, y: (a[21] ?? 0) / 100 } };
+      const align = goal >= 0 && GOAL_IDS[goal] ? { goal: GOAL_IDS[goal], state, ...aim } : goal === -2 ? { goal: 'piece', state, ...aim, at: { x: (a[22] ?? 0) / 100, y: (a[23] ?? 0) / 100 } } : null;
+      const rollers = (flags >> 3) & 3;
+      return { id: r.id, alliance: r.alliance, cfg: r.cfg, chassis, carriage: { p: P(a, 7), q: Q(a, 10) }, holderH: a[14] / 100, trail, claw: (flags & 1) === 1, holding: (flags >> 1) & 3, rollers: rollers === 1 ? 1 : rollers === 2 ? -1 : 0, align };
     }),
     objects,
     toggles: setup.toggles.map((id, i) => ({ id, p: togglePos.get(id) ?? { x: 0, y: 0, z: 0 }, q: Q(snap.g[i], 0) })),

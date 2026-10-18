@@ -460,7 +460,7 @@ export class PlanExecutor implements Controller {
           const st = sim.objects.stacks.get(g.id)!;
           const kind = sim.objects.nextKind(st);
           const obj = this.heldOfKind(r, kind);
-          if (!obj || st.pending) {
+          if (!obj) {
             // The plan has another robot place on this Goal first (e.g. the partner,
             // running a little late): wait for it rather than give up the Goal.
             const gi = this.world.allGoals.findIndex((x) => x.id === g.id);
@@ -663,10 +663,9 @@ export class PlanExecutor implements Controller {
           // run only the pocket for the planned kind, so a neighbor isn't swallowed
           r.req.intakeKind = this.world.objs[act.obj].kind;
           const obj = sim.objects.objects.get(a.objId!);
-          if (obj && (obj.mode === 'intaking' || obj.mode === 'held') && obj.robotId === r.id) {
+          if (obj && obj.mode === 'held' && obj.robotId === r.id) {
             r.body.cmd = { left: 0, right: 0 };
-            if (obj.mode === 'held' || t >= r.busyUntil) return true;
-            return undefined;
+            return true;
           }
           // The intake grabs whatever is in front of it: accept a same-kind substitute.
           const kind = obj?.kind ?? 'pin';
@@ -744,16 +743,15 @@ export class PlanExecutor implements Controller {
           this.setPhase(a, 'backoff', t);
           return undefined;
         }
-        if (obj && (obj.mode === 'seating' || obj.mode === 'stacked')) {
-          if (obj.mode === 'stacked' || t - a.phaseT0 > 0.25) {
-            a.backFrom = sense.pos;
-            a.backHeading = sense.heading;
-            a.retries = 99;
-            this.setPhase(a, 'backoff', t);
-          }
+        // the piece drops and comes to rest on the stack
+        if (obj && obj.mode === 'stacked') {
+          a.backFrom = sense.pos;
+          a.backHeading = sense.heading;
+          a.retries = 99;
+          this.setPhase(a, 'backoff', t);
           return undefined;
         }
-        if (t - a.phaseT0 > 0.9) return `${a.objId} did not seat on ${a.goalId}`;
+        if (t - a.phaseT0 > 1.6) return `${a.objId} did not seat on ${a.goalId}`;
         return undefined;
       }
       case 'toggle': {

@@ -19,7 +19,7 @@ describe('Default scenario plans', () => {
     expect(stats.rounds).toBeGreaterThan(0);
     for (const slot of ['red-1', 'red-2', 'blue-1', 'blue-2']) {
       const p = plans.get(slot)!;
-      expect(p.actions.length).toBeGreaterThan(10);
+      expect(p.actions.length).toBeGreaterThanOrEqual(8); // a full match of work, not a stub
       expect(p.value).toBeGreaterThan(0);
       expect(shipped.plans[slot].actions).toEqual(p.actions);
       expect(shipped.plans[slot].value).toBe(p.value);

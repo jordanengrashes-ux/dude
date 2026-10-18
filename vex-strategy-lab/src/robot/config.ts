@@ -188,7 +188,7 @@ export const DEFAULT_ROBOT: RobotConfig = {
     capacity: 'single',
     maxPinTiltDeg: 20,
     indexTimeSec: 0.35,
-    canReorient: true,
+    canReorient: false,
     reorientTimeSec: 0.4,
     placeToleranceIn: 0.6,
   },
@@ -218,8 +218,9 @@ export const ASSUMED_FIELDS: { path: string; label: string; why: string }[] = [
   { path: 'lift.minAngleDeg', label: 'DR4B bar angles −25° to 50°', why: 'Typical hard-stop range; not specified.' },
   { path: 'lift.motor.gearRatio', label: 'DR4B: 2 × 200 rpm motors, 1:7', why: 'Common 12T:84T DR4B gearing; not specified.' },
   { path: 'lift.barMassLb', label: 'Bar mass 0.8 lb', why: 'Eight aluminum bars plus knee brackets, estimated.' },
-  { path: 'intake.capacity', label: 'Claw holds one piece', why: 'A claw grips one piece; a Pin + Cup nested on it rides along. The two-pocket holder (1 Pin + 1 Cup) is selectable.' },
-  { path: 'intake.maxPinTiltDeg', label: 'Grabs Pins up to 20° from upright', why: 'The claw closes around a standing Pin; lying Pins slip out.' },
+  { path: 'intake.capacity', label: 'Roller claw holds one stack', why: 'Two vertical roller shafts at the jaw tips grip one piece; pieces nested on it ride along. The two-pocket holder (1 Pin + 1 Cup) is selectable.' },
+  { path: 'intake.maxPinTiltDeg', label: 'Takes Pins up to 20° from upright', why: 'The rollers pull in a standing Pin; lying Pins slip out.' },
+  { path: 'intake.canReorient', label: 'Cannot flip a piece', why: 'Vertical rollers hold a piece upright; turning it end-for-end needs a wrist (selectable).' },
   { path: 'chassis.slotWidthIn', label: 'U-chassis 6" front slot', why: 'Lets a Goal post enter the footprint so the robot stays 16" × 16".' },
 ];
 
