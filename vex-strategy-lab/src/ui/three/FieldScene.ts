@@ -545,11 +545,11 @@ export class FieldScene {
     }
     // the camera orbits, and looks at, a point at the back of the robot (not the claw)
     const back = (m.lengthIn / 2) * IN;
-    const pivot = new THREE.Vector3(pos.x - fwd.x * back, pos.y + 0.12, pos.z - fwd.z * back);
+    const pivot = new THREE.Vector3(pos.x - fwd.x * back, pos.y + 0.22, pos.z - fwd.z * back);
     const d = this.chaseDist;
     const yaw = heading + Math.PI + this.chaseYaw; // 0 = behind the robot
     const horiz = d * Math.cos(this.chasePitch);
-    const want = new THREE.Vector3(pivot.x + Math.cos(yaw) * horiz, pivot.y + 0.06 + d * Math.sin(this.chasePitch), pivot.z - Math.sin(yaw) * horiz);
+    const want = new THREE.Vector3(pivot.x + Math.cos(yaw) * horiz, pivot.y + 0.16 + d * Math.sin(this.chasePitch), pivot.z - Math.sin(yaw) * horiz);
     // stay inside the perimeter: backed against a wall, the camera rises instead
     const lim = HALF * IN - 0.12;
     const over = Math.max(0, Math.abs(want.x) - lim, Math.abs(want.z) - lim);
