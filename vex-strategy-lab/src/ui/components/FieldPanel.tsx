@@ -370,7 +370,8 @@ export function FieldPanel() {
   const simVersion = useApp((s) => s.simVersion);
   useDriverInput();
   useEffect(() => {
-    runner.rebuild(store.get());
+    // an autonomous test starts running as soon as it is built
+    void runner.rebuild(store.get()).then(() => store.get().autonRun && runner.sim && runner.setPlaying(true));
   }, [simVersion]);
   return (
     <div className="field-layout">

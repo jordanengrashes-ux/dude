@@ -5,6 +5,7 @@ import { zeroInput, type DriverInput } from '../sim/driver';
 import type { Action } from '../planner/model';
 import { store, type AppState } from './store';
 import { bindTeam } from '../net/session';
+import { buildLayout } from '../field/layout';
 
 /**
  * Drives the live simulation for the UI. Physics advances in fixed DT steps from
@@ -111,6 +112,19 @@ export class SimRunner {
   }
 
   scenarioFrom(s: AppState): ScenarioConfig {
+    if (s.autonRun) {
+      // an autonomous program on its own: that robot only, from its starting tile
+      const p = s.autonRun;
+      const matchType = p.mode === 'skills' ? 'skillsAuton' : 'headToHead';
+      const layout = matchType === s.matchType ? s.layout : buildLayout(matchType);
+      return {
+        params: s.params,
+        layout,
+        matchType,
+        seed: s.settings.seed,
+        slots: [{ slot: p.slot, alliance: p.slot.startsWith('blue') ? 'blue' : 'red', enabled: true, strategy: 'script', robot: s.robot, program: p }],
+      };
+    }
     if (s.practice) {
       // only your robot, driven by you from the first second
       const me = s.slots.find((x) => x.slot === s.userSlot) ?? s.slots[0];

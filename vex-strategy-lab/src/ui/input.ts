@@ -316,14 +316,14 @@ class LocalInput {
   /** Easy claw: grabs whatever the robot drives into (remembered in this browser). */
   setEasy(on: boolean) {
     this.state.easy = on;
-    this.remember('vsl-easy', on);
+    this.remember('vsl-easy-v2', on);
     this.changed();
   }
 
   /** No momentum: the robot goes exactly as fast as you steer and stops when you let go. */
   setNoMomentum(on: boolean) {
     this.state.noMomentum = on;
-    this.remember('vsl-nomomentum', on);
+    this.remember('vsl-nomomentum-v2', on);
     this.changed();
   }
 
@@ -471,10 +471,13 @@ class LocalInput {
 }
 
 export const localInput = new LocalInput();
+localInput.state.easy = true;
+localInput.state.noMomentum = true;
 try {
   localInput.bindings = loadBindings();
-  localInput.state.easy = localStorage.getItem('vsl-easy') === '1';
-  localInput.state.noMomentum = localStorage.getItem('vsl-nomomentum') === '1';
+  // on unless this browser turned them off
+  localInput.state.easy = localStorage.getItem('vsl-easy-v2') !== '0';
+  localInput.state.noMomentum = localStorage.getItem('vsl-nomomentum-v2') !== '0';
 } catch {
   /* storage unavailable */
 }

@@ -148,10 +148,59 @@ player's choice.
 
 ## Practice
 
-**Practice** (header switch, or `?mode=practice`) puts only your robot on the full
-Head-to-Head field: no bots, no team room, no time limit, you drive from the first
-second (no Autonomous wait) and no rule checks. The clock starts when you start
-driving and counts up.
+The app opens in **Practice**: only your robot on the full Head-to-Head field, no
+bots, no team room, no time limit, you drive from the first second (no Autonomous
+wait) and no rule checks, in 3rd person, with Easy claw and No momentum on (turn
+them off in the HUD; this browser remembers). The clock starts when you start
+driving and counts up. **Match** in the header (or `?mode=match`) brings the bots
+and a team room; an invite link (`?room=`) opens a match.
+
+## Plan mode
+
+The **Plan** tab has two boards.
+
+**Autonomous**: build a routine on an overhead field and run it with the same
+physics as the match.
+- Click on the field to add steps. In *Smart* mode a click on a Goal adds a "place
+  on it" sequence (arm up to the Goal, route around Goal posts and Loaders, line the
+  claw up, open, back away, arm down), a click on a Pin or Cup adds "pick it up"
+  (arm down, route, open, drive the claw onto it, close), anywhere else a drive.
+  *Drive*, *Back up* and *Turn* modes add just that; shift-click backs up. In a
+  match autonomous, routes stay on your side of the Autonomous Line.
+- Edit any step (coordinates, heading, speed, "keep going" = LemLib async), add
+  lift / claw / wait / turn / Toggle-arm steps, reorder, delete, drag the numbered
+  points on the field. New steps go after the selected one.
+- **Run with physics** simulates it on your robot (15 s match autonomous or 60 s
+  Skills): the path it actually drove (dashed green), the score, when it finished,
+  which motions timed out, what it grabbed and scored, and any rule violations.
+  **Watch in 3D** runs it on the Field tab.
+- Programs are saved in this browser (Save / Open).
+
+**PROS code**: **Export code** writes the routine as PROS C++ for
+[Robot Studio](https://robotstudio.ct839.com/) (copy, or download main.cpp):
+- *LemLib*, field-centric: `chassis.setPose` on the starting tile, then
+  `moveToPoint` / `turnToHeading` / `turnToPoint` / `moveToPose` in field inches
+  (0° = up, clockwise), `waitUntilDone`;
+- *EZ-Template*: relative `pid_drive_set` / `pid_turn_set` / `pid_wait`;
+- the lift as `lift.move_absolute(motor degrees)` through the robot's DR4B gearing,
+  the claw and Toggle arm as pistons; optionally a whole main.cpp with devices,
+  chassis setup and a driver control using the same buttons as the simulator.
+
+**Import code** reads a pasted PROS autonomous (LemLib, EZ-Template or plain motor
+calls) and runs it: helper functions called from `autonomous()` are followed,
+constants and units (`24_in`, `90_deg`) evaluated, fixed-count `for` loops
+unrolled, LemLib motions queued and asynchronous as on the robot, EZ-Template
+motions replacing each other until `pid_wait`. Devices are matched to the robot's
+lift, claw, Toggle arm and drive by their names (editable). Anything the simulator
+can't predict (if / while on sensors, unknown devices) is listed with its line
+number and skipped. Code without `setPose` starts at (0, 0, 0) on the chosen tile.
+
+The simulated motions are this simulator's controllers with LemLib-like behavior
+(point at the target, drive in, slow down, exit on arrival or timeout), not your
+PID gains, so a routine that works here may still need tuning on the robot.
+
+**Whiteboard**: pen, arrows, notes and robot tokens over the field, several boards
+saved in this browser, and **Save picture** for a PNG to send to your team.
 
 ## The bots
 

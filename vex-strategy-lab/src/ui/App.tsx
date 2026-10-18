@@ -10,9 +10,11 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { TeamPanel, inviteLink, savedPlayerName } from './components/TeamPanel';
 import { useEffect, useState } from 'react';
 import { team, useTeam } from '../net/session';
+import { PlanPanel } from './components/PlanPanel';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'field', label: 'Field' },
+  { id: 'plan', label: 'Plan' },
   { id: 'team', label: 'Team' },
   { id: 'optimizer', label: 'Optimizer' },
   { id: 'timeline', label: 'Strategy timeline' },
@@ -29,21 +31,24 @@ const TABS: { id: Tab; label: string }[] = [
 function useAutoTeam() {
   const t = useTeam();
   const practice = useApp((s) => s.practice);
+  const watching = useApp((s) => s.autonRun !== null);
   useEffect(() => {
-    // practice is only you: no room
-    if (practice) {
+    // practice and autonomous tests are only you: no room
+    if (practice || watching) {
       void team.session?.leave();
       return;
     }
     const room = new URLSearchParams(window.location.search).get('room');
     void team.session?.autoStart(savedPlayerName(), room ? room.trim().toUpperCase() : null);
-  }, [practice]);
+  }, [practice, watching]);
   useEffect(() => {
     if (!t.room && t.connecting) return;
     const url = new URL(window.location.href);
     if (t.room) url.searchParams.set('room', t.room);
     else url.searchParams.delete('room');
-    if (practice) url.searchParams.set('mode', 'practice');
+    // practice is the default; a match says so, so a reload stays in the match
+    if (practice) url.searchParams.delete('mode');
+    else if (!t.room) url.searchParams.set('mode', 'match');
     else url.searchParams.delete('mode');
     if (url.href !== window.location.href) window.history.replaceState(null, '', url);
   }, [t.room, t.connecting, practice]);
@@ -71,6 +76,7 @@ function RoomBadge({ room, players, online }: { room: string; players: number; o
 export function App() {
   const t = useAutoTeam();
   const practice = useApp((s) => s.practice);
+  const watching = useApp((s) => s.autonRun);
   const tab = useApp((s) => s.tab);
   const matchType = useApp((s) => s.matchType);
   const params = useApp((s) => s.params);
@@ -95,12 +101,17 @@ export function App() {
         </nav>
         <div className="quick">
           <div className="segmented" role="group" aria-label="Mode">
-            <button className={!practice ? 'on' : ''} onClick={() => setPractice(false)} title="Bots and players on both alliances; a team room opens">
+            <button className={!practice && !watching ? 'on' : ''} onClick={() => setPractice(false)} title="Bots and players on both alliances; a team room opens">
               Match
             </button>
-            <button className={practice ? 'on' : ''} onClick={() => setPractice(true)} title="Only your robot on the field; you drive from the start">
+            <button className={practice && !watching ? 'on' : ''} onClick={() => setPractice(true)} title="Only your robot on the field; you drive from the start">
               Practice
             </button>
+            {watching && (
+              <button className="on" onClick={() => store.set({ tab: 'plan' })} title="An autonomous from Plan mode is running on the field; Match or Practice ends it">
+                Auton: {watching.name}
+              </button>
+            )}
           </div>
           {t.room && <RoomBadge room={t.room} players={Math.max(1, t.peers.length)} online={t.transport === 'online'} />}
           {optStatus === 'idle' ? (
@@ -132,6 +143,7 @@ export function App() {
           </ErrorBoundary>
         </div>
         <ErrorBoundary key={tab} name={TABS.find((t) => t.id === tab)!.label}>
+          {tab === 'plan' && <PlanPanel />}
           {tab === 'team' && <TeamPanel />}
           {tab === 'optimizer' && <OptimizerPanel />}
           {tab === 'timeline' && <TimelinePanel />}

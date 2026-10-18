@@ -14,6 +14,8 @@ import { MatchSim, type Controller, type RobotSetup, type Sensing, type SimRobot
 import { approach, backOff, DEFAULT_TUNING } from './drive';
 import { SlotController, type DriverInput } from './driver';
 import { derivePerf } from '../robot/kinematics';
+import { AutonController } from '../auton/runner';
+import type { AutonProgram } from '../auton/program';
 
 /**
  * Scenario assembly: which robots are on the field, how each one is controlled,
@@ -26,9 +28,10 @@ import { derivePerf } from '../robot/kinematics';
  *  - 'defender'   — scripted: sits in front of the opponents' most valuable Goal
  *  - 'idle'       — stays still (only when explicitly selected)
  *  - 'manual'     — keyboard control
+ *  - 'script'     — runs an autonomous program (Plan mode, or imported PROS code)
  */
 
-export type Strategy = 'optimized' | 'toggles' | 'midfield' | 'defender' | 'idle' | 'manual';
+export type Strategy = 'optimized' | 'toggles' | 'midfield' | 'defender' | 'idle' | 'manual' | 'script';
 
 export interface SlotSetup {
   slot: string;
@@ -38,6 +41,8 @@ export interface SlotSetup {
   robot: RobotConfig;
   /** Precomputed plan (e.g. the optimizer's best) for 'optimized' slots. */
   plan?: Action[];
+  /** The autonomous program a 'script' slot runs. */
+  program?: AutonProgram;
 }
 
 export interface ScenarioConfig {
@@ -294,6 +299,8 @@ export interface BuiltScenario {
   executors: Map<string, PlanExecutor>;
   /** Every robot's slot: its bot, which a human driver can take over at any time. */
   slots: Map<string, SlotController>;
+  /** Robots running an autonomous program ('script' slots). */
+  autons: Map<string, AutonController>;
 }
 
 /** Driver input for a slot this step (null = nobody is driving it). */
@@ -311,6 +318,7 @@ export async function buildMatch(sc: ScenarioConfig, inputs?: InputSource, pertu
   const plans = prePlanned ?? planScenario(sc);
   const executors = new Map<string, PlanExecutor>();
   const slotCtl = new Map<string, SlotController>();
+  const autons = new Map<string, AutonController>();
   const robots: RobotSetup[] = [];
   for (const slot of sc.slots) {
     if (!slot.enabled) continue;
@@ -349,6 +357,12 @@ export async function buildMatch(sc: ScenarioConfig, inputs?: InputSource, pertu
         ctl = new DefenderController(target, robot, sc.matchType === 'headToHead' ? sc.params.timing.autonomousSec : 0);
         break;
       }
+      case 'script': {
+        const a = new AutonController(slot.program ?? { name: 'empty', slot: slot.slot, mode: 'match', steps: [] }, robot);
+        autons.set(slot.slot, a);
+        ctl = a;
+        break;
+      }
       default:
         ctl = new IdleController();
     }
@@ -367,7 +381,7 @@ export async function buildMatch(sc: ScenarioConfig, inputs?: InputSource, pertu
     });
   }
   const sim = await MatchSim.create({ params: sc.params, layout: sc.layout, robots, seed: sc.seed, objectJitterSd: perturb?.objectJitterSd, practice: sc.practice });
-  return { sim, plans, executors, slots: slotCtl };
+  return { sim, plans, executors, slots: slotCtl, autons };
 }
 
 export interface PhysicsTrialStats {

@@ -5,6 +5,7 @@ import { cloneParams, type MatchType, type OverrideParams } from '../rules/rules
 import { DEFAULT_SETTINGS, type OptimizationReport, type OptimizerProgress, type OptimizerSettings } from '../planner/optimizer';
 import { DEFAULT_UNCERTAINTY, type UncertaintyConfig } from '../planner/robustness';
 import type { PhysicsTrialStats, SlotSetup, Strategy } from '../sim/scenario';
+import type { AutonProgram } from '../auton/program';
 
 /**
  * Application state (serializable parts only). The live simulation lives in the
@@ -12,7 +13,7 @@ import type { PhysicsTrialStats, SlotSetup, Strategy } from '../sim/scenario';
  * refreshes.
  */
 
-export type Tab = 'field' | 'team' | 'optimizer' | 'robot' | 'analysis' | 'timeline' | 'setup' | 'rules';
+export type Tab = 'field' | 'plan' | 'team' | 'optimizer' | 'robot' | 'analysis' | 'timeline' | 'setup' | 'rules';
 /** 'chase': 3rd person, locked behind the robot you drive. */
 export type CameraMode = 'overhead' | 'iso' | 'side' | 'free' | 'chase';
 
@@ -54,6 +55,8 @@ export interface AppState {
   simVersion: number;
   /** Practice: only your robot on the field, you drive from the start, no team room. */
   practice: boolean;
+  /** Watching an autonomous program (Plan mode) run on the field: only that robot, no team room. */
+  autonRun: AutonProgram | null;
 }
 
 function defaultSlots(matchType: MatchType, robot: RobotConfig): SlotSetup[] {
@@ -87,14 +90,26 @@ function initial(): AppState {
     mcStatus: 'idle',
     mcScores: [],
     physicsStats: null,
-    camera: 'iso',
+    camera: startsInPractice() ? 'chase' : 'iso',
     show: { route: true, trails: true, labels: true, grid: false, zones: true, shadows: true },
     selection: null,
     setupTool: 'select',
     message: null,
     simVersion: 0,
-    practice: typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('mode') === 'practice',
+    practice: startsInPractice(),
+    autonRun: null,
   };
+}
+
+/**
+ * The app opens in Practice (just you, 3rd person) unless the link says otherwise:
+ * an invite link (`?room=`) or `?mode=match` opens a match.
+ */
+function startsInPractice(): boolean {
+  if (typeof window === 'undefined') return false;
+  const q = new URLSearchParams(window.location.search);
+  if (q.get('mode') === 'match' || q.has('room')) return false;
+  return true;
 }
 
 type Listener = () => void;
@@ -137,7 +152,12 @@ export function setMatchType(matchType: MatchType) {
 
 /** Switch between a match (bots and players) and solo practice. */
 export function setPractice(practice: boolean) {
-  store.set((s) => ({ practice, camera: practice ? 'chase' : s.camera, simVersion: s.simVersion + 1 }));
+  store.set((s) => ({ practice, autonRun: null, camera: practice ? 'chase' : s.camera === 'chase' && !practice ? 'iso' : s.camera, simVersion: s.simVersion + 1 }));
+}
+
+/** Run an autonomous program on the field (Field tab), from its starting tile. */
+export function watchAuton(program: AutonProgram) {
+  store.set((s) => ({ autonRun: program, tab: 'field', camera: 'iso', simVersion: s.simVersion + 1 }));
 }
 
 export function setRobot(robot: RobotConfig) {

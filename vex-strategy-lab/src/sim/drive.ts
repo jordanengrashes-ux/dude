@@ -32,7 +32,7 @@ export interface DriveTuning {
 
 export const DEFAULT_TUNING: DriveTuning = { minTurn: 0.36, turnDecel: 14, trackWidth: 13.5, lookahead: 11, cruiseFraction: 0.85, decel: BRAKE_FRACTION, turnKp: 1.6, turnKd: 1.2, speedKp: 2.5 };
 
-function wheelCommand(perf: DrivePerf, vTarget: number, wTarget: number, trackWidth: number, sense: Sensing, tune: DriveTuning) {
+export function wheelCommand(perf: DrivePerf, vTarget: number, wTarget: number, trackWidth: number, sense: Sensing, tune: DriveTuning) {
   // feedforward (no-load speed ∝ command) + proportional speed correction per side
   const vl = vTarget - (wTarget * trackWidth) / 2;
   const vr = vTarget + (wTarget * trackWidth) / 2;
