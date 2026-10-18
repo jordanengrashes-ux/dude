@@ -115,6 +115,8 @@ function motor(mats: MaterialLibrary, rpm: number): THREE.Group {
 export interface RobotModel {
   chassis: THREE.Group;
   carriage: THREE.Group;
+  /** Chassis length (in), front to back. */
+  lengthIn: number;
   /** Rotate the lift pinion for a holder height above its minimum (in). */
   setLift(liftIn: number): void;
   /** Swing the claw jaws closed / open (eased over a few frames), spin the rollers (1 in, −1 out) and set the status light. */
@@ -442,6 +444,7 @@ export function robotModel(id: string, alliance: 'red' | 'blue', cfg: RobotConfi
   return {
     chassis,
     carriage,
+    lengthIn: L,
     setLift: updateLift,
     setClaw,
   };

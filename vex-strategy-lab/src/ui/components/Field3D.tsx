@@ -106,7 +106,7 @@ export function Field3D({ steps }: { steps: StepInfo[] | null }) {
     // the end of a drag (looking around / orbiting) is not a click
     if (sceneRef.current?.wasDrag()) return;
     // driving: the first click locks the cursor to the view (mouse look); then left
-    // click opens / closes the claw. Otherwise a click inspects.
+    // click turns the claw on / off. Otherwise a click inspects.
     if (drivingSlot()) {
       if (!sceneRef.current?.pointerLocked && sceneRef.current?.lockPointer()) return;
       localInput.toggleClaw();
@@ -126,11 +126,11 @@ export function Field3D({ steps }: { steps: StepInfo[] | null }) {
         onClick={onClick}
         onPointerDown={onPointerDown}
         onContextMenu={(e) => drivingSlot() && e.preventDefault()}
-        aria-label="3D field view — drag to rotate, scroll to zoom, right-drag to pan, click to inspect; while driving, click locks the mouse for looking around, then click opens and closes the claw and the right button runs the rollers in"
+        aria-label="3D field view — drag to rotate, scroll to zoom, right-drag to pan, click to inspect; while driving, click locks the mouse for looking around, then click turns the claw on and off and the right button runs the rollers in"
       />
       {driving && (
         <div className={`lock-hint${locked ? ' on' : ''}`}>
-          {locked ? 'Mouse looks around · left click: claw · hold right button: rollers in · Esc frees the cursor' : 'Click the field to lock the mouse for looking around'}
+          {locked ? 'Mouse looks around · left click: claw on / off · hold right button: rollers in · Esc frees the cursor' : 'Click the field to lock the mouse for looking around'}
         </div>
       )}
     </div>

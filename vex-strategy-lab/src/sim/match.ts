@@ -487,7 +487,8 @@ export class MatchSim {
     const cfg = r.cfg;
     const t = this.t;
     const busy = t < r.busyUntil;
-    r.rollers = req.outtake ? -1 : req.intake ? 1 : 0;
+    // the rollers turn while they pull something in (gripping a piece, they stall)
+    r.rollers = req.outtake ? -1 : req.intake && (!r.held.length || r.held.some((o) => !ObjectManager.settledInClaw(o))) ? 1 : 0;
     // open the claw: everything held drops
     if (req.release && r.held.length) this.letGo(r);
     // rollers out: what is held is pushed out the front; loose pieces at the jaws are pushed away
@@ -584,9 +585,9 @@ export class MatchSim {
       const vc = car.velocityAtPoint(b.translation());
       const cur = b.linvel();
       b.setLinvel({ x: vc.x + v.x, y: cur.y, z: vc.z + v.z }, true);
-      // the rollers hold it upright as it moves (a Cup lying down just slides)
+      // the rollers hold it upright as it moves (a piece lying down just slides)
       const up = upOf(b.rotation());
-      const k = o.kind === 'pin' || Math.abs(up.y) > 0.7 ? 10 * Math.sign(up.y || 1) : 0;
+      const k = Math.abs(up.y) > 0.7 ? 10 * Math.sign(up.y || 1) : 0;
       b.setAngvel({ x: -up.z * k, y: w.y, z: up.x * k }, true);
     }
   }
@@ -610,15 +611,16 @@ export class MatchSim {
       const obj = c.obj;
       if (!this.canTake(r, obj.kind)) continue;
       // the claw closes only around a standing Pin: one lying on its side (or tipped
-      // past the claw's limit) slips out and is never lifted
-      if (obj.kind === 'pin' && tiltDeg(obj) > cfg.intake.maxPinTiltDeg) continue;
+      // past the claw's limit) slips out and is never lifted — except in easy mode,
+      // where the claw picks pieces up off the ground and stands them up
+      if (obj.kind === 'pin' && tiltDeg(obj) > cfg.intake.maxPinTiltDeg && !r.easy) continue;
       // the top piece of a pair isn't between the rollers — its base is
       if (this.objects.nestedOn(obj, -1)) continue;
       const pocket = single || !r.held.length ? 'primary' : 'secondary';
       // a second pocket fills beside the first: the piece is taken when it reaches the first one.
-      // A Cup lying down is too long to come all the way in: it is gripped where it stops and stood up.
-      const lying = obj.kind === 'cup' && tiltDeg(obj) > 30;
-      const reach = pocket === 'primary' ? (lying ? 2.3 : 0.45) : (r.held[0] ? (r.held[0].kind === 'pin' ? PIN.diameter : CUP.diameter) / 2 : 0) + (obj.kind === 'pin' ? PIN.diameter : CUP.diameter) / 2 + 0.3;
+      // A piece lying down is too long to come all the way in: it is gripped where it stops and stood up.
+      const lying = tiltDeg(obj) > 30;
+      const reach = pocket === 'primary' ? (lying ? (r.easy ? 4.6 : 2.3) : 0.45) : (r.held[0] ? (r.held[0].kind === 'pin' ? PIN.diameter : CUP.diameter) / 2 : 0) + (obj.kind === 'pin' ? PIN.diameter : CUP.diameter) / 2 + 0.3;
       if (c.d < reach) {
         // pieces nested on it ride along (a claw only; a bot never takes more than it may possess)
         const chain = [obj];

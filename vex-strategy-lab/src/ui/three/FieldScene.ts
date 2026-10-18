@@ -543,19 +543,23 @@ export class FieldScene {
       this.camera.lookAt(this.chaseLook);
       return;
     }
+    // the camera orbits, and looks at, a point at the back of the robot (not the claw)
+    const back = (m.lengthIn / 2) * IN;
+    const pivot = new THREE.Vector3(pos.x - fwd.x * back, pos.y + 0.12, pos.z - fwd.z * back);
     const d = this.chaseDist;
     const yaw = heading + Math.PI + this.chaseYaw; // 0 = behind the robot
     const horiz = d * Math.cos(this.chasePitch);
-    const want = new THREE.Vector3(pos.x + Math.cos(yaw) * horiz, pos.y + 0.18 + d * Math.sin(this.chasePitch), pos.z - Math.sin(yaw) * horiz);
+    const want = new THREE.Vector3(pivot.x + Math.cos(yaw) * horiz, pivot.y + 0.06 + d * Math.sin(this.chasePitch), pivot.z - Math.sin(yaw) * horiz);
     // stay inside the perimeter: backed against a wall, the camera rises instead
     const lim = HALF * IN - 0.12;
     const over = Math.max(0, Math.abs(want.x) - lim, Math.abs(want.z) - lim);
     want.x = Math.max(-lim, Math.min(lim, want.x));
     want.z = Math.max(-lim, Math.min(lim, want.z));
     want.y += over * 1.2;
-    // look a little ahead of the robot when behind it, at the robot when beside or in front
-    const ahead = 0.35 * Math.max(0, Math.cos(this.chaseYaw));
-    const look = new THREE.Vector3(pos.x + fwd.x * ahead, pos.y + 0.12, pos.z + fwd.z * ahead);
+    // backed against a wall, the camera can't get behind that point: look ahead of the
+    // camera instead, so the view still faces the way the robot does
+    const behind = (want.x - pivot.x) * fwd.x + (want.z - pivot.z) * fwd.z;
+    const look = behind > -0.15 && Math.cos(this.chaseYaw) > 0 ? pivot.clone().addScaledVector(fwd, behind + 0.15) : pivot;
     const k = this.chaseInit ? 0.14 : 1;
     this.chaseInit = true;
     this.camera.position.lerp(want, k);

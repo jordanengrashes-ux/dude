@@ -162,13 +162,15 @@ describe('Claw state and aligner', () => {
     expect(fr.align?.state).toBe(2); // over it and high enough: open the claw
     const { decodeSnap, encodeSnap, setupFrom } = await import('../src/net/protocol');
     const { hudData } = await import('../src/sim/frame');
-    inp.intake = true; // rollers running (already holding: they just grip)
-    sim.step();
     const frame = sim.sceneFrame();
-    expect(frame.robots[0].rollers).toBe(1);
+    expect(frame.robots[0].rollers).toBe(0); // gripping the Pin: the rollers stall
     const setup = setupFrom(frame, 'host', 'skillsDriver', OVERRIDE_DEFAULTS, preloadOnly);
     const d = decodeSnap(encodeSnap(frame, hudData(sim), 0, true, new Map(), false), setup, null, new Map());
-    expect(d.robots[0]).toMatchObject({ claw: true, holding: 1, rollers: 1, align: { goal: g.id, state: 2 } });
+    expect(d.robots[0]).toMatchObject({ claw: true, holding: 1, rollers: 0, align: { goal: g.id, state: 2 } });
+    for (const rollers of [1, -1]) {
+      const spun = { ...frame, robots: frame.robots.map((x) => ({ ...x, rollers })) };
+      expect(decodeSnap(encodeSnap(spun, hudData(sim), 0, true, new Map(), false), setup, null, new Map()).robots[0].rollers).toBe(rollers);
+    }
     // the aligner's zone and the held piece's dot travel too
     const a = frame.robots[0].align!;
     expect(a.tol).toBeCloseTo(sim.objects.funnel.socket, 2); // an empty Goal: the socket's funnel

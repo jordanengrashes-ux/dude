@@ -85,8 +85,8 @@ match keeps running on timer ticks.
 
 Press W A S D on the field to take over your robot (your slot, or the first one a
 bot drives); the camera locks behind it in 3rd person. **Click the field to lock the
-mouse to it**: moving the mouse then looks around the robot (the camera keeps that
-angle and turns with the robot), left click opens / closes the claw, holding the
+mouse to it**: moving the mouse then looks around the robot (the camera circles a
+point at the back of the robot, keeps that angle and turns with the robot), left click turns the claw on / off, holding the
 right button runs the rollers in, and Esc frees the cursor (dragging also looks
 around while it is free). Scroll to zoom; zoom all the way in (or press B) and you
 are in first person: the robot's eye behind the claw, a wide view with the claw at
@@ -107,7 +107,7 @@ browser; **Reset to defaults** brings these back:
 | Arm presets: floor, Alliance Goal, short Goal, tall Goal | 1 2 3 4 | D-pad ↓ ← → ↑ |
 | Rollers in (hold): pull a piece at the jaws in and grip it | E or hold the right mouse button | L2 |
 | Rollers out (hold): push the held piece out the front | Q | B |
-| Claw: each press closes it or opens it (lets go) | left click or C | L1 |
+| Claw on / off: on, it closes and its rollers pull in what reaches the jaws; off, it opens (lets go) | left click or C | L1 |
 | Open the claw (drop) | Z | — |
 | Look around / zoom (all the way in: first person) | mouse (cursor locked) or drag / mouse wheel | right stick (one-stick layout) |
 | First / third person | B | L3 |
@@ -141,12 +141,13 @@ dead, ease off and it slows at once, push the other way and it stops before
 reversing.
 
 **The claw** is a roller claw: two jaws hinged behind the holder, each with a
-vertical shaft of three roller wheels at its tip. Hold **intake** (E, the right
-mouse button, L2) and a piece at the jaws (within about 1" of the claw's center
-line, up to 3" in front) is pulled in by the rollers and gripped (intake also closes
-an open claw; closing it with a click runs the rollers for a moment). **Outtake** (Q,
-B) runs them backward and pushes the piece out the front; **opening** the claw
-(click, C, Z) lets go and it drops. A Pin has to be standing: the rollers take a Pin
+vertical shaft of three roller wheels at its tip. It is a toggle: turn it **on**
+(click, C, L1) and it closes and its rollers keep pulling in — drive up to a piece
+and whatever reaches the jaws (within about 1" of the claw's center line, up to 3"
+in front) is pulled in and gripped; turn it **off** and it opens and lets go (Z
+also turns it off). Holding **intake** (E, the right mouse button, L2) runs the
+rollers in without the toggle; **outtake** (Q, B) runs them backward and pushes the
+piece out the front. A Pin has to be standing: the rollers take a Pin
 tipped up to 20° from upright; one lying down slips out. A Cup lying down is pulled
 in as far as it goes and stood up. Pieces nested on the gripped one (a Pin in a
 Cup, a Cup on that Pin, …) ride along, so the claw can carry a whole nested stack:
@@ -179,7 +180,8 @@ Cup over a Pin. A pair that comes to rest nested stays together as one piece unt
 it's picked up or tips over.
 
 **Easy claw** (checkbox in the HUD, or G): the rollers take whatever the robot
-drives into (still standing Pins), never take a scored piece off a Goal, wait 1.5 s
+drives into — pieces lying on the ground too, which the claw stands up — even with
+the claw off, never take a scored piece off a Goal (turn the claw on to), wait 1.5 s
 after a drop before taking anything again, and a dropped piece falling within 2.5"
 of a Goal (or loose piece) it nests on is steered over it as it falls — it still
 falls and lands by physics. It is a per-player setting, like No momentum; a team

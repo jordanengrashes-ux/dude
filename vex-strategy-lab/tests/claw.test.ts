@@ -98,6 +98,54 @@ describe('Roller claw', () => {
   });
 });
 
+describe('Claw toggle and easy claw', () => {
+  it('the claw is a toggle: on, it pulls in a Pin that reaches its jaws (no key held); off, it drops it', async () => {
+    const inp = zeroInput();
+    const sim = await driven(inp, { pos: { x: -40, y: 0 }, heading: 0 });
+    const r = sim.robots[0];
+    pinAt(sim, 'P', -40 + H + 8, 0);
+    sim.runUntil(0.5);
+    inp.claw = !inp.claw; // on
+    sim.runUntil(1.0);
+    expect(r.clawClosed).toBe(true);
+    expect(r.held).toEqual([]);
+    inp.forward = 0.25; // drive up to it
+    const t0 = sim.t;
+    while (!r.held.length && sim.t < t0 + 3) sim.step();
+    inp.forward = 0;
+    expect(r.held.map((o) => o.id)).toEqual(['P']);
+    sim.runUntil(sim.t + 0.5);
+    inp.claw = !inp.claw; // off: it drops
+    sim.runUntil(sim.t + 0.5);
+    expect(r.held).toEqual([]);
+    expect(r.clawClosed).toBe(false);
+    sim.dispose();
+  });
+
+  it('easy claw picks a Pin lying on the ground up and stands it up (along or across); the normal claw leaves it', async () => {
+    for (const [easy, lie] of [
+      [true, 0],
+      [true, Math.PI / 2],
+      [false, 0],
+    ] as const) {
+      const inp = { ...zeroInput(), easy };
+      const sim = await driven(inp, { pos: { x: -40, y: 0 }, heading: 0 });
+      const r = sim.robots[0];
+      const pin = sim.objects.add({ id: 'P', kind: 'pin', colors: ['red', 'yellow'] }, { x: -40 + H + 7, y: 0, z: 0, flipped: false, lie });
+      sim.runUntil(0.5);
+      expect(tiltDeg(pin)).toBeGreaterThan(80);
+      if (!easy) inp.claw = !inp.claw; // the normal claw, on
+      inp.forward = 0.25;
+      sim.runUntil(3);
+      inp.forward = 0;
+      sim.runUntil(3.8);
+      expect(r.held.map((o) => o.id), `easy ${easy} lie ${lie}`).toEqual(easy ? ['P'] : []);
+      if (easy) expect(tiltDeg(pin)).toBeLessThan(2); // stood up in the claw
+      sim.dispose();
+    }
+  });
+});
+
 describe('Held pieces are part of the claw', () => {
   it('a held Pin does not wobble when the robot brakes hard (with momentum)', async () => {
     const inp = zeroInput();

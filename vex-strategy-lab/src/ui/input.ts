@@ -5,11 +5,11 @@ import { LIFT_PRESETS, zeroInput, type DriverInput } from '../sim/driver';
  * Every action is rebindable (two keys and one controller button each), saved in
  * this browser. The mouse is fixed: a click on the 3D view while driving locks the
  * cursor to it, then moving the mouse looks around (3rd / 1st person), left click
- * opens / closes the claw, holding the right button runs the rollers in, and Esc
+ * turns the claw on / off, holding the right button runs the rollers in, and Esc
  * frees the cursor; the wheel zooms (all the way in: first person).
  *
  * Controller (standard mapping, VEX-style names): R1 raises the arm, R2 lowers it
- * (in proportion to how far it is pressed), L1 opens / closes the claw, L2 runs the
+ * (in proportion to how far it is pressed), L1 turns the claw on / off, L2 runs the
  * rollers in, B runs them out. Sticks: split arcade by default — left stick drives,
  * right stick turns — or one stick (left stick drives and turns; the right stick
  * moves the camera).
@@ -56,7 +56,7 @@ export const ACTIONS: ActionDef[] = [
   { id: 'armDown', label: 'Arm down', hold: true },
   { id: 'intake', label: 'Rollers in: pull a piece in (hold; also the right mouse button)', hold: true },
   { id: 'outtake', label: 'Rollers out: push the piece out (hold)', hold: true },
-  { id: 'claw', label: 'Claw: close / open (also left click)', hold: false },
+  { id: 'claw', label: 'Claw on / off: on, it closes and its rollers pull in what reaches it (also left click)', hold: false },
   { id: 'drop', label: 'Open the claw (drop)', hold: false },
   { id: 'preset1', label: 'Arm to the floor', hold: false },
   { id: 'preset2', label: 'Arm to an Alliance Goal', hold: false },
@@ -343,7 +343,7 @@ class LocalInput {
     if (this.merge()) this.changed();
   }
 
-  /** Close the claw (grab what is in front) or open it (let go). */
+  /** Turn the claw on (closed, rollers pulling in) or off (open: let go). */
   toggleClaw() {
     this.state.claw = !this.state.claw;
     this.changed();

@@ -246,11 +246,12 @@ describe('Robot inspection', () => {
   });
   it('DR4B bars long enough that the knee swings past the rear bumper fail the starting length', () => {
     const c = cloneRobot();
-    c.lift.barLengthIn = 14; // knee 12.7" behind the towers at −25°, towers 8.75" from the rear
+    c.lift.barLengthIn = 16; // knee 14.5" behind the towers at −25°
+    const towerToRear = 8 + (8 - c.chassis.slotDepthIn - 0.75); // 10.75" with the 4.5" slot
     const r = inspectRobot(c, OVERRIDE_DEFAULTS);
     const item = r.items.find((i) => i.label.startsWith('Starting length'))!;
     expect(item.ok).toBe(false);
-    expect(parseFloat(item.value)).toBeCloseTo(16 + 14 * Math.cos((25 * Math.PI) / 180) - 8.75, 1);
+    expect(parseFloat(item.value)).toBeCloseTo(16 + 16 * Math.cos((25 * Math.PI) / 180) - towerToRear, 1);
   });
   it('a lift tower taller than 18" fails the start height', () => {
     const c = cloneRobot();

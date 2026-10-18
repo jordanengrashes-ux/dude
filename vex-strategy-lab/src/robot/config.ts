@@ -149,7 +149,7 @@ export const DEFAULT_ROBOT: RobotConfig = {
     frameHeightIn: 4,
     groundClearanceIn: 0.75,
     slotWidthIn: 6,
-    slotDepthIn: 6.5,
+    slotDepthIn: 4.5,
   },
   drivetrain: {
     type: '4WD-tank',
@@ -180,7 +180,7 @@ export const DEFAULT_ROBOT: RobotConfig = {
     barMassLb: 0.8,
   },
   intake: {
-    holderOffsetIn: 4.5,
+    holderOffsetIn: 6.1,
     captureDepthIn: 5,
     captureHalfWidthIn: 2.2,
     intakeTimeSec: 0.35,
@@ -221,7 +221,7 @@ export const ASSUMED_FIELDS: { path: string; label: string; why: string }[] = [
   { path: 'intake.capacity', label: 'Roller claw holds one stack', why: 'Two vertical roller shafts at the jaw tips grip one piece; pieces nested on it ride along. The two-pocket holder (1 Pin + 1 Cup) is selectable.' },
   { path: 'intake.maxPinTiltDeg', label: 'Takes Pins up to 20° from upright', why: 'The rollers pull in a standing Pin; lying Pins slip out.' },
   { path: 'intake.canReorient', label: 'Cannot flip a piece', why: 'Vertical rollers hold a piece upright; turning it end-for-end needs a wrist (selectable).' },
-  { path: 'chassis.slotWidthIn', label: 'U-chassis 6" front slot', why: 'Lets a Goal post enter the footprint so the robot stays 16" × 16".' },
+  { path: 'chassis.slotWidthIn', label: 'U-chassis front slot 6" wide × 4.5" deep', why: 'Lets a Goal post enter the footprint so the robot stays 16" × 16"; the claw sits at its front, 1.9" behind the bumper.' },
 ];
 
 export function cloneRobot(c: RobotConfig = DEFAULT_ROBOT): RobotConfig {

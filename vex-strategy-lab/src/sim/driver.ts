@@ -6,9 +6,10 @@ import type { Controller, MatchSim, Sensing, SimRobot } from './match';
  *
  * DriverInput is the whole control surface of a robot, the same for keyboard,
  * mouse, gamepad and remote players: arcade drive, the lift (analog up/down or a
- * height preset), the roller claw (intake pulls a piece at the jaws in, outtake
- * pushes it out the front; opening the claw lets go — drop also opens it), the
- * toggle arm, pocket index, flip and a Match Load request.
+ * height preset), the roller claw (a toggle: on, it closes and its rollers pull in
+ * whatever reaches the jaws; off, it opens and lets go — drop also turns it off;
+ * holding intake / outtake runs the rollers in / out), the toggle arm, pocket
+ * index, flip and a Match Load request.
  * One-shot actions are press counters, so a press is never lost when inputs are
  * sampled once per physics step or arrive over the network.
  */
@@ -21,7 +22,7 @@ export interface DriverInput {
   lift: number;
   /** Holder height preset (in) to move the lift to; null when none. Analog lift input cancels it. */
   preset: number | null;
-  /** Claw toggle: every change opens / closes the claw (closing grabs what is at the jaws, opening lets go). */
+  /** Claw toggle: every change turns the claw on (closed, rollers pulling in what reaches the jaws) or off (open: lets go). */
   claw: boolean;
   /** Rollers in while held: a piece at the jaws is pulled in and gripped (closes the claw). */
   intake: boolean;
@@ -77,12 +78,14 @@ export class DriverController implements Controller {
   private last: DriverInput = zeroInput();
   private holdH: number | null = null;
   private presetH: number | null = null;
-  /** The claw: closed or open (flipped by every change of the input's claw toggle). */
-  private clawClosed = false;
+  /**
+   * The claw is a toggle: on — closed, its rollers pulling in whatever reaches the
+   * jaws and gripping it; off — open, rollers stopped (what it held drops). Every
+   * change of the input's claw toggle flips it.
+   */
+  private clawOn = false;
   /** Take the claw state from what the robot holds at the next update (after a hand-over). */
   private syncClaw = true;
-  /** The claw is closing on something until this time (s). */
-  private grabUntil = -1;
   /** Easy mode: no automatic grab until this time (just let go of something). */
   private easyHoldOff = -1;
 
@@ -94,7 +97,6 @@ export class DriverController implements Controller {
     this.last = { ...cur };
     this.holdH = null;
     this.presetH = null;
-    this.grabUntil = -1;
     this.easyHoldOff = -1;
     this.syncClaw = true;
   }
@@ -118,41 +120,39 @@ export class DriverController implements Controller {
         r.body.liftTarget = this.holdH;
       }
     }
-    // claw: each toggle flips it — closing grabs what is at the jaws (the rollers run
-    // briefly), opening lets go. Intake closes it and runs the rollers in; outtake runs
-    // them out. A robot taken over while holding something has its claw closed.
+    // claw: each toggle turns it on (closed, rollers pulling in) or off (open: what it
+    // holds drops). Holding intake runs the rollers in, outtake runs them out. A claw
+    // that holds something is on (closed on it), e.g. after a hand-over.
     const holding = r.held.length > 0;
-    if (this.syncClaw || inp.easy) {
-      this.clawClosed = holding;
+    if (this.syncClaw) {
+      this.clawOn = holding;
       this.syncClaw = false;
     }
     let opened = false;
     if (inp.claw !== this.last.claw) {
-      this.clawClosed = !this.clawClosed;
-      if (this.clawClosed) this.grabUntil = sim.t + 0.4; // the jaws closing
-      else opened = true;
+      this.clawOn = !this.clawOn;
+      opened = !this.clawOn;
     }
     if (inp.drop > this.last.drop) {
-      opened = this.clawClosed || holding;
-      this.clawClosed = false;
+      opened = this.clawOn || holding;
+      this.clawOn = false;
     }
-    if (inp.intake && !opened) this.clawClosed = true;
+    if (holding && !opened) this.clawOn = true;
     if (opened) {
       r.req.release = true;
       this.easyHoldOff = sim.t + 1.5; // don't grab back what was just dropped
     }
     if (inp.outtake) this.easyHoldOff = sim.t + 1.0;
-    // easy mode: the claw takes whatever the robot drives into (never off a Goal)
-    const auto = inp.easy && !holding && sim.t >= this.easyHoldOff;
-    const pulse = sim.t < this.grabUntil;
-    r.req.intake = !opened && (inp.intake || pulse || auto);
+    // easy mode: with the claw off, it still takes whatever the robot drives into (never off a Goal)
+    const auto = inp.easy && !this.clawOn && !holding && sim.t >= this.easyHoldOff;
+    r.req.intake = !opened && !inp.outtake && (this.clawOn || inp.intake || auto);
     r.req.outtake = inp.outtake;
-    if (auto && !inp.intake && !pulse) r.req.noDescore = true;
+    if (auto && !inp.intake) r.req.noDescore = true;
     // a real claw takes only what is at its jaws; easy mode reaches further
     r.req.precise = !inp.easy;
     r.easy = inp.easy;
     // the jaws close as the rollers take something in
-    r.clawClosed = this.clawClosed || ((inp.intake || pulse) && !opened);
+    r.clawClosed = this.clawOn || (inp.intake && !opened);
     if (inp.index > this.last.index) r.req.index = true;
     if (inp.flip > this.last.flip) r.req.reorient = true;
     const own = sim.clock.matchType === 'headToHead' ? r.alliance : sim.opts.params.skills.ownedToggleColor;

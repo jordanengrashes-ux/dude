@@ -121,7 +121,7 @@ function DriveHint({ period, t }: { period: string; t: number }) {
         : `press ${k('playPause')} (or start driving) to start.`
       : auto && !practice
         ? 'Autonomous: its program runs; you take over at Driver Control.'
-        : `${drive} drive · ${k('armUp')} / ${k('armDown')} arm up / down · hold ${k('intake')} (or the right mouse button) to run the rollers in, ${k('outtake')} to push out · click or ${k('claw')} opens / closes the claw · click the field to lock the mouse and look around (Esc frees it), scroll to zoom (all the way in: first person), ${k('viewReset')} resets.`;
+        : `${drive} drive · ${k('armUp')} / ${k('armDown')} arm up / down · hold ${k('intake')} (or the right mouse button) to run the rollers in, ${k('outtake')} to push out · click or ${k('claw')} turns the claw on (it closes and pulls in what reaches it) / off (it opens and drops) · click the field to lock the mouse and look around (Esc frees it), scroll to zoom (all the way in: first person), ${k('viewReset')} resets.`;
   const me = guest ? team.session?.frameAt()?.robots.find((r) => r.id === mine) : runner.sim?.sceneFrame().robots.find((r) => r.id === mine);
   const held = me ? [me.holding & 1 ? 'Pin' : null, me.holding & 2 ? 'Cup' : null].filter(Boolean).join(' + ') : '';
   const a = me?.align ?? null;
@@ -133,8 +133,8 @@ function DriveHint({ period, t }: { period: string; t: number }) {
         You drive <strong>{mine}</strong> — {msg}
       </div>
       <div className="row claw-row">
-        <span className={`claw-chip ${me?.claw ? 'closed' : 'open'}`} title={`Left click or ${k('claw')} opens / closes the claw`}>
-          Claw {me?.claw ? 'closed' : 'open'}
+        <span className={`claw-chip ${me?.claw ? 'closed' : 'open'}`} title={`Left click or ${k('claw')} turns the claw on (closed, rollers pulling in) or off (open)`}>
+          Claw {me?.claw ? 'on' : 'off'}
           {held ? ` · holding ${held}` : ''}
         </span>
         {align && <span className={`align-chip s${a!.state}`}>{align}</span>}
