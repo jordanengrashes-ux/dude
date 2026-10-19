@@ -37,7 +37,8 @@ const FP_PITCH = -0.5;
 const FP_FOV = 70;
 /**
  * 3rd person: the camera aims at (and circles) a point toward the back of the robot —
- * this far in from the rear bumper and this high up (in) — in the middle of the view.
+ * this far in from the rear bumper and this high up (in) with the arm down, rising
+ * with the arm — in the middle of the view.
  */
 const CHASE_FOCUS_IN = 3;
 const CHASE_FOCUS_HEIGHT = 14;
@@ -566,7 +567,9 @@ export class FieldScene {
     dh = Math.atan2(Math.sin(dh), Math.cos(dh));
     this.camHeading += dh * (1 - Math.exp(-dt * 7));
     const back = Math.max(0, m.lengthIn / 2 - CHASE_FOCUS_IN) * IN;
-    const pivot = new THREE.Vector3(pos.x - fwd.x * back, pos.y + CHASE_FOCUS_HEIGHT * IN, pos.z - fwd.z * back);
+    // it rides up and down with the arm
+    const lift = Math.max(0, m.carriage.position.y - pos.y - m.holderMinIn * IN);
+    const pivot = new THREE.Vector3(pos.x - fwd.x * back, pos.y + CHASE_FOCUS_HEIGHT * IN + lift, pos.z - fwd.z * back);
     const d = this.chaseDist;
     const yaw = this.camHeading + Math.PI + this.chaseYaw; // 0 = behind the robot
     const horiz = d * Math.cos(this.chasePitch);
