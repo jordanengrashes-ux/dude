@@ -41,6 +41,9 @@ const FP_FOV = 70;
  */
 const CHASE_FOCUS_IN = 3;
 const CHASE_FOCUS_HEIGHT = 14;
+/** 3rd person camera: distance from that point (m) and how steeply it looks down at it (rad): up over the robot. */
+const CHASE_DIST = 0.78;
+const CHASE_PITCH = 0.785;
 
 const halfColor = (c: HalfColor) => (c === 'red' ? COLORS.red : c === 'blue' ? COLORS.blue : COLORS.yellow);
 
@@ -65,10 +68,10 @@ export class FieldScene {
   private robots = new Map<string, RobotModel>();
   /** 3rd-person camera: the robot it follows and its distance (m). */
   private chaseId: string | null = null;
-  private chaseDist = 1.0;
+  private chaseDist = CHASE_DIST;
   /** 3rd person: angle around the robot (rad, 0 = behind it) and above it. */
   private chaseYaw = 0;
-  private chasePitch = 0.42;
+  private chasePitch = CHASE_PITCH;
   /** Zoomed all the way in: the robot's-eye view, looking around with fpYaw / fpPitch. */
   firstPerson = false;
   private fpYaw = 0;
@@ -491,7 +494,7 @@ export class FieldScene {
   /** Camera back behind the robot (3rd person) / looking straight ahead (first person). */
   resetView() {
     this.chaseYaw = 0;
-    this.chasePitch = 0.42;
+    this.chasePitch = CHASE_PITCH;
     this.fpYaw = 0;
     this.fpPitch = FP_PITCH;
   }
