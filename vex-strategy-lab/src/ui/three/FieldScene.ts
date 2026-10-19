@@ -35,8 +35,8 @@ export const COLORS = {
 /** First person: tilted down so the claw is in view at the bottom of the screen (rad), and its vertical field of view (deg). */
 const FP_PITCH = -0.5;
 const FP_FOV = 70;
-/** 3rd person: the robot is framed this fraction of the view height below the middle (clear of the HUD). */
-const CHASE_SHIFT = 0.17;
+/** 3rd person: the camera aims at (and circles) the back of the robot this high up (in), in the middle of the view. */
+const CHASE_FOCUS_HEIGHT = 14;
 
 const halfColor = (c: HalfColor) => (c === 'red' ? COLORS.red : c === 'blue' ? COLORS.blue : COLORS.yellow);
 
@@ -350,7 +350,6 @@ export class FieldScene {
     this.mode = mode;
     this.controls.enabled = mode !== 'chase';
     this.chaseInit = false;
-    if (mode !== 'chase') this.setViewShift(0);
     this.showOwnFrame();
     if (mode === 'chase') return;
     if (this.camera.fov !== 42) {
@@ -537,7 +536,6 @@ export class FieldScene {
     if (this.firstPerson) this.hideOwnFrame(m);
     else this.showOwnFrame();
     if (this.firstPerson) {
-      this.setViewShift(0);
       // the robot's eye: above the chassis, behind the claw, looking ahead and down
       const eye = new THREE.Vector3(-3 * IN, 15 * IN, 0).applyQuaternion(m.chassis.quaternion).add(pos);
       const yaw = heading + this.fpYaw;
@@ -550,8 +548,8 @@ export class FieldScene {
       this.camera.lookAt(this.chaseLook);
       return;
     }
-    // 3rd person: the camera circles, and looks at, a point at the back of the robot
-    // (not the claw). It turns with the robot smoothly (time-based, so it keeps up at
+    // 3rd person: the camera circles, and looks at, a point at the back of the robot,
+    // up high (not the claw) — it is the middle of the view. It turns with the robot smoothly (time-based, so it keeps up at
     // any frame rate) but never trails behind its position, so the robot stays framed.
     const now = performance.now();
     const dt = this.chaseInit ? Math.min(0.1, (now - this.chaseT) / 1000) : 1;
@@ -561,11 +559,11 @@ export class FieldScene {
     dh = Math.atan2(Math.sin(dh), Math.cos(dh));
     this.camHeading += dh * (1 - Math.exp(-dt * 7));
     const back = (m.lengthIn / 2) * IN;
-    const pivot = new THREE.Vector3(pos.x - fwd.x * back, pos.y + 0.22, pos.z - fwd.z * back);
+    const pivot = new THREE.Vector3(pos.x - fwd.x * back, pos.y + CHASE_FOCUS_HEIGHT * IN, pos.z - fwd.z * back);
     const d = this.chaseDist;
     const yaw = this.camHeading + Math.PI + this.chaseYaw; // 0 = behind the robot
     const horiz = d * Math.cos(this.chasePitch);
-    const want = new THREE.Vector3(pivot.x + Math.cos(yaw) * horiz, pivot.y + 0.16 + d * Math.sin(this.chasePitch), pivot.z - Math.sin(yaw) * horiz);
+    const want = new THREE.Vector3(pivot.x + Math.cos(yaw) * horiz, pivot.y + d * Math.sin(this.chasePitch), pivot.z - Math.sin(yaw) * horiz);
     // backed against a wall (the start), the camera stays behind the robot, over the
     // wall; only far out (past the stands) does it rise instead
     const lim = HALF * IN + 0.9;
@@ -581,30 +579,12 @@ export class FieldScene {
     this.camera.position.lerp(want, k);
     this.chaseLook.lerp(pivot, k);
     this.camera.lookAt(this.chaseLook);
-    // frame the robot in the lower part of the view, clear of the HUD over the top
-    this.setViewShift(CHASE_SHIFT);
-  }
-
-  /** Shift the view down by a fraction of its height (the camera's aim point appears lower). */
-  private viewShift = 0;
-  private setViewShift(f: number) {
-    if (f === this.viewShift) return;
-    this.viewShift = f;
-    this.applyViewShift();
-  }
-  private applyViewShift() {
-    const el = this.renderer.domElement;
-    const w = el.width || 1;
-    const h = el.height || 1;
-    if (this.viewShift) this.camera.setViewOffset(w, h, 0, -this.viewShift * h, w, h);
-    else this.camera.clearViewOffset();
-    this.camera.updateProjectionMatrix();
   }
 
   resize(w: number, h: number) {
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / Math.max(1, h);
-    this.applyViewShift();
+    this.camera.updateProjectionMatrix();
   }
 
   setVisibility(v: { labels: boolean; grid: boolean; route: boolean; trails: boolean; zones: boolean; shadows?: boolean }) {
