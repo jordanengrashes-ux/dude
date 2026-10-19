@@ -35,7 +35,11 @@ export const COLORS = {
 /** First person: tilted down so the claw is in view at the bottom of the screen (rad), and its vertical field of view (deg). */
 const FP_PITCH = -0.5;
 const FP_FOV = 70;
-/** 3rd person: the camera aims at (and circles) the back of the robot this high up (in), in the middle of the view. */
+/**
+ * 3rd person: the camera aims at (and circles) a point toward the back of the robot —
+ * this far in from the rear bumper and this high up (in) — in the middle of the view.
+ */
+const CHASE_FOCUS_IN = 3;
 const CHASE_FOCUS_HEIGHT = 14;
 
 const halfColor = (c: HalfColor) => (c === 'red' ? COLORS.red : c === 'blue' ? COLORS.blue : COLORS.yellow);
@@ -558,7 +562,7 @@ export class FieldScene {
     let dh = heading - this.camHeading;
     dh = Math.atan2(Math.sin(dh), Math.cos(dh));
     this.camHeading += dh * (1 - Math.exp(-dt * 7));
-    const back = (m.lengthIn / 2) * IN;
+    const back = Math.max(0, m.lengthIn / 2 - CHASE_FOCUS_IN) * IN;
     const pivot = new THREE.Vector3(pos.x - fwd.x * back, pos.y + CHASE_FOCUS_HEIGHT * IN, pos.z - fwd.z * back);
     const d = this.chaseDist;
     const yaw = this.camHeading + Math.PI + this.chaseYaw; // 0 = behind the robot
