@@ -142,6 +142,14 @@ describe('SC5b/SC6 — Midfield', () => {
     const s = state([mid], {}, [{ id: 'r1', alliance: 'red', inMidfield: true, contactingPerimeter: false }]);
     expect(computeScore(s, P, { matchType: 'headToHead', period: 'autonomous' }).totals).toEqual({ red: 0, blue: 0 });
   });
+
+  it('a live score before the end leaves out what the end decides: driving through the Midfield scores nothing yet', () => {
+    const s = state([mid], {}, [{ id: 'r1', alliance: 'red', inMidfield: true, contactingPerimeter: false }]);
+    const live = computeScore(s, P, { ...H2H, endOfMatch: false });
+    expect(live.totals).toEqual({ red: 0, blue: 0 });
+    expect(live.ownership.midfield).toBeNull();
+    expect(computeScore(s, P, H2H).totals).toEqual({ red: 20 + 8, blue: 0 }); // at the end it counts
+  });
 });
 
 describe('Autonomous Bonus', () => {

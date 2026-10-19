@@ -70,8 +70,13 @@ function Hud() {
       <div className="own">
         <span className="small muted">Ownership</span>
         {(['R1', 'R2', 'B1', 'B2', 'midfield'] as const).map((q) => (
-          <span key={q} className={`chip ${h.ownership[q] ?? 'none'}`}>
+          <span
+            key={q}
+            className={`chip ${h.ownership[q] ?? 'none'}`}
+            title={q === 'midfield' && h.midfieldAtEnd ? 'Midfield Goal ownership and the 8 points for ending in the Midfield are decided at the end of the Match: this is who would get them if it ended now (they count from the Endgame on)' : undefined}
+          >
             {q === 'midfield' ? 'Mid' : q}: {h.ownership[q] ?? '—'}
+            {q === 'midfield' && h.midfieldAtEnd && h.ownership[q] ? ' (at end)' : ''}
           </span>
         ))}
       </div>

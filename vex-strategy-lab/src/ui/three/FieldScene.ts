@@ -37,11 +37,13 @@ const FP_PITCH = -0.5;
 const FP_FOV = 70;
 /**
  * 3rd person: the camera aims at (and circles) a point over the robot — this far behind
- * its middle (0: the middle, front to back) and this high up (in) with the arm down,
- * rising with the arm — in the middle of the view.
+ * its middle (0: the middle, front to back) and this high up (in) with the arm down —
+ * in the middle of the view.
  */
 const CHASE_FOCUS_BACK_IN = 0;
 const CHASE_FOCUS_HEIGHT = 14;
+/** …and it slides to the claw as the arm rises: this high above the holder bottom (in), the middle of the rollers. */
+const CHASE_CLAW_MID = 2.6;
 /** 3rd person camera: distance from that point (m) and how steeply it looks down at it (rad): up over the robot. */
 const CHASE_DIST = 0.78;
 const CHASE_PITCH = 0.785;
@@ -567,9 +569,13 @@ export class FieldScene {
     dh = Math.atan2(Math.sin(dh), Math.cos(dh));
     this.camHeading += dh * (1 - Math.exp(-dt * 7));
     const back = CHASE_FOCUS_BACK_IN * IN;
-    // it rides up and down with the arm
+    // locked to the arm: it rides up with it and slides over to the claw, which is in
+    // the middle of the view with the arm all the way up
     const lift = Math.max(0, m.carriage.position.y - pos.y - m.holderMinIn * IN);
-    const pivot = new THREE.Vector3(pos.x - fwd.x * back, pos.y + CHASE_FOCUS_HEIGHT * IN + lift, pos.z - fwd.z * back);
+    const f = Math.min(1, lift / Math.max(1e-6, m.liftTravelIn * IN));
+    const base = new THREE.Vector3(pos.x - fwd.x * back, pos.y + CHASE_FOCUS_HEIGHT * IN + lift, pos.z - fwd.z * back);
+    const claw = new THREE.Vector3(0, CHASE_CLAW_MID * IN, 0).applyQuaternion(m.carriage.quaternion).add(m.carriage.position);
+    const pivot = base.lerp(claw, f);
     const d = this.chaseDist;
     const yaw = this.camHeading + Math.PI + this.chaseYaw; // 0 = behind the robot
     const horiz = d * Math.cos(this.chasePitch);

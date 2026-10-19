@@ -62,6 +62,8 @@ export interface HudData {
   totals: { red: number; blue: number };
   bonus: { red: number; blue: number } | null;
   ownership: Record<'R1' | 'R2' | 'B1' | 'B2' | 'midfield', Alliance | null>;
+  /** The Midfield owner shown is who would own it if the Match ended now (it is decided at the end). */
+  midfieldAtEnd?: boolean;
   result: string | null;
   violations: number;
   collisions: number;
@@ -71,6 +73,7 @@ export function hudData(sim: MatchSim): HudData {
   const per = periodAt(sim.clock, sim.t);
   const totals = sim.displayTotals();
   const rep = sim.liveScore();
+  const atEnd = sim.endOfMatchCounts();
   const rem = remaining(sim.clock, sim.t);
   const autoLeft = sim.clock.autonomousEnd !== null ? Math.max(0, sim.clock.autonomousEnd - sim.t) : 0;
   const r = sim.result;
@@ -82,7 +85,8 @@ export function hudData(sim: MatchSim): HudData {
     headToHead: sim.clock.matchType === 'headToHead',
     totals: { red: totals.red, blue: totals.blue },
     bonus: totals.bonus,
-    ownership: { R1: rep.ownership.R1 ?? null, R2: rep.ownership.R2 ?? null, B1: rep.ownership.B1 ?? null, B2: rep.ownership.B2 ?? null, midfield: rep.ownership.midfield ?? null },
+    ownership: { R1: rep.ownership.R1 ?? null, R2: rep.ownership.R2 ?? null, B1: rep.ownership.B1 ?? null, B2: rep.ownership.B2 ?? null, midfield: (atEnd ? rep : sim.liveScore(true)).ownership.midfield ?? null },
+    midfieldAtEnd: !atEnd,
     result: r ? `AWP: red ${r.awp.red.earned ? '✓' : '✗'} · blue ${r.awp.blue.earned ? '✓' : '✗'} · ${r.bonus.explanation}` : null,
     violations: sim.violations.length,
     collisions: sim.events.filter((e) => e.type === 'collision').length,

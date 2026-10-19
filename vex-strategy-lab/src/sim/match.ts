@@ -860,18 +860,27 @@ export class MatchSim {
     return touch;
   }
 
+  /**
+   * What is decided by where robots end the Match (Midfield Goal ownership, robots in
+   * the Midfield) counts from the Endgame on — not while robots merely drive through
+   * the Midfield earlier (and never in Practice, which has no end).
+   */
+  endOfMatchCounts(): boolean {
+    return this.t >= Math.min(this.clock.endgameStart, this.clock.total) - 1e-9;
+  }
+
   /** Live score from the rules engine (what the UI displays). */
-  liveScore(): ScoreReport {
+  liveScore(endOfMatch = this.endOfMatchCounts()): ScoreReport {
     const per = this.period();
     const ctxPeriod: Period = this.clock.matchType === 'headToHead' ? (per === 'autonomous' ? 'autonomous' : 'driver') : 'skills';
-    return computeScore(this.extractFieldState(), this.opts.params, { matchType: this.clock.matchType, period: ctxPeriod });
+    return computeScore(this.extractFieldState(), this.opts.params, { matchType: this.clock.matchType, period: ctxPeriod, endOfMatch });
   }
 
   /** Totals including the Autonomous Bonus once decided. */
   displayTotals(): { red: number; blue: number; bonus: { red: number; blue: number } | null } {
     const rep = this.liveScore();
     if (this.clock.matchType !== 'headToHead' || !this.autoState) return { red: rep.totals.red, blue: rep.totals.blue, bonus: null };
-    const m = evaluateMatch(this.autoState, this.extractFieldState(), this.violations, this.opts.params);
+    const m = evaluateMatch(this.autoState, this.extractFieldState(), this.violations, this.opts.params, { endOfMatch: this.endOfMatchCounts() });
     return { red: m.totals.red, blue: m.totals.blue, bonus: { red: m.bonus.red, blue: m.bonus.blue } };
   }
 
@@ -892,7 +901,7 @@ export class MatchSim {
 
   private displayTotalsFrom(rep: ScoreReport) {
     if (this.clock.matchType !== 'headToHead' || !this.autoState) return rep.totals;
-    const m = evaluateMatch(this.autoState, this.extractFieldState(), this.violations, this.opts.params);
+    const m = evaluateMatch(this.autoState, this.extractFieldState(), this.violations, this.opts.params, { endOfMatch: this.endOfMatchCounts() });
     return m.totals;
   }
 

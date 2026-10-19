@@ -42,6 +42,12 @@ export interface ScoreContext {
   matchType: MatchType;
   /** Which period's end is being evaluated. */
   period: Period;
+  /**
+   * Count what is decided by where Robots are at the end of the Match (Midfield Goal
+   * ownership, Robots in the Midfield). Default true; a live score before the
+   * Endgame leaves them out (they would come and go as robots drive through).
+   */
+  endOfMatch?: boolean;
 }
 
 const ALLIANCES: Alliance[] = ['red', 'blue'];
@@ -69,6 +75,7 @@ function toggleOwner(state: FieldState, q: QuadrantId): Alliance | null {
 }
 
 export function midfieldOwner(state: FieldState, ctx: ScoreContext, params: OverrideParams): Alliance | null {
+  if (ctx.endOfMatch === false) return null;
   if (ctx.period === 'autonomous' && !params.scoring.midfieldOwnershipInAutonomous) return null;
   const count = (a: Alliance) => state.robots.filter((r) => r.alliance === a && r.inMidfield && !r.disqualified).length;
   const red = count('red');
@@ -92,7 +99,7 @@ export function ownershipMap(state: FieldState, ctx: ScoreContext, params: Overr
     B1: quadOwner('B1'),
     B2: quadOwner('B2'),
     midfield: isSkills
-      ? state.robots.some((r) => r.inMidfield) && ctx.period !== 'autonomous'
+      ? state.robots.some((r) => r.inMidfield) && ctx.period !== 'autonomous' && ctx.endOfMatch !== false
         ? params.skills.robotAlliance
         : null
       : midfieldOwner(state, ctx, params),
@@ -170,7 +177,7 @@ export function computeScore(state: FieldState, params: OverrideParams, ctx: Sco
         if (!owner) {
           nonScoring.push({
             ...base,
-            reason: goal.quadrant === 'midfield' ? 'Midfield Goal not Owned (equal robot counts or Autonomous)' : `Toggle in ${goal.quadrant} is neutral or contacted`,
+            reason: goal.quadrant === 'midfield' ? (ctx.endOfMatch === false ? 'Midfield Goal ownership is decided at the end of the Match' : 'Midfield Goal not Owned (equal robot counts or Autonomous)') : `Toggle in ${goal.quadrant} is neutral or contacted`,
             ruleId: goal.quadrant === 'midfield' ? 'SC5b' : 'SC5a',
           });
           continue;
@@ -198,7 +205,7 @@ export function computeScore(state: FieldState, params: OverrideParams, ctx: Sco
   }
 
   // SC6: Robots in the Midfield — end of Match only, never in Autonomous calculations.
-  if (ctx.period !== 'autonomous') {
+  if (ctx.period !== 'autonomous' && ctx.endOfMatch !== false) {
     for (const r of state.robots) {
       if (!r.inMidfield || r.disqualified) continue;
       const alliance = isSkills ? params.skills.robotAlliance : r.alliance;
@@ -297,9 +304,10 @@ export function evaluateMatch(
   finalState: FieldState,
   violations: Violation[],
   params: OverrideParams,
+  opts: { endOfMatch?: boolean } = {},
 ): MatchResult {
   const autonomous = computeScore(autoState, params, { matchType: 'headToHead', period: 'autonomous' });
-  const final = computeScore(finalState, params, { matchType: 'headToHead', period: 'driver' });
+  const final = computeScore(finalState, params, { matchType: 'headToHead', period: 'driver', endOfMatch: opts.endOfMatch });
   const bonus = autonomousBonus(autonomous, violations, params);
   const awp = {
     red: evaluateAwp(autoState, autonomous, violations, 'red', params),

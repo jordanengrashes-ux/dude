@@ -5,7 +5,7 @@ import { CLAW } from '../../../robot/claw';
 import type { RobotConfig } from '../../../robot/config';
 import { PALETTE, type MaterialLibrary } from './materials';
 import { brainScreen, holeAlpha, licensePlate } from './textures';
-import { DR4B_PIVOT_SPACING, DR4B_TOP_PIVOT_ABOVE_HOLDER, dr4bLayout } from '../../../robot/lift';
+import { DR4B_PIVOT_SPACING, DR4B_TOP_PIVOT_ABOVE_HOLDER, dr4bLayout, liftTravel } from '../../../robot/lift';
 
 /**
  * Detailed robot model built from the RobotConfig, in the physics body frames:
@@ -117,8 +117,9 @@ export interface RobotModel {
   carriage: THREE.Group;
   /** Chassis length (in), front to back. */
   lengthIn: number;
-  /** Holder bottom with the arm all the way down (in above the tiles). */
+  /** Holder bottom with the arm all the way down (in above the tiles), and how far the arm rises (in). */
   holderMinIn: number;
+  liftTravelIn: number;
   /** Rotate the lift pinion for a holder height above its minimum (in). */
   setLift(liftIn: number): void;
   /** Swing the claw jaws closed / open (eased over a few frames), spin the rollers (1 in, −1 out) and set the status light. */
@@ -448,6 +449,7 @@ export function robotModel(id: string, alliance: 'red' | 'blue', cfg: RobotConfi
     carriage,
     lengthIn: L,
     holderMinIn: cfg.lift.holderMinHeightIn,
+    liftTravelIn: liftTravel(cfg),
     setLift: updateLift,
     setClaw,
   };
