@@ -36,11 +36,11 @@ export const COLORS = {
 const FP_PITCH = -0.5;
 const FP_FOV = 70;
 /**
- * 3rd person: the camera aims at (and circles) a point toward the back of the robot —
- * this far in from the rear bumper and this high up (in) with the arm down, rising
- * with the arm — in the middle of the view.
+ * 3rd person: the camera aims at (and circles) a point over the robot — this far behind
+ * its middle (0: the middle, front to back) and this high up (in) with the arm down,
+ * rising with the arm — in the middle of the view.
  */
-const CHASE_FOCUS_IN = 3;
+const CHASE_FOCUS_BACK_IN = 0;
 const CHASE_FOCUS_HEIGHT = 14;
 /** 3rd person camera: distance from that point (m) and how steeply it looks down at it (rad): up over the robot. */
 const CHASE_DIST = 0.78;
@@ -556,8 +556,8 @@ export class FieldScene {
       this.camera.lookAt(this.chaseLook);
       return;
     }
-    // 3rd person: the camera circles, and looks at, a point at the back of the robot,
-    // up high (not the claw) — it is the middle of the view. It turns with the robot smoothly (time-based, so it keeps up at
+    // 3rd person: the camera circles, and looks at, a point over the middle of the
+    // robot, up high (not the claw) — it is the middle of the view. It turns with the robot smoothly (time-based, so it keeps up at
     // any frame rate) but never trails behind its position, so the robot stays framed.
     const now = performance.now();
     const dt = this.chaseInit ? Math.min(0.1, (now - this.chaseT) / 1000) : 1;
@@ -566,7 +566,7 @@ export class FieldScene {
     let dh = heading - this.camHeading;
     dh = Math.atan2(Math.sin(dh), Math.cos(dh));
     this.camHeading += dh * (1 - Math.exp(-dt * 7));
-    const back = Math.max(0, m.lengthIn / 2 - CHASE_FOCUS_IN) * IN;
+    const back = CHASE_FOCUS_BACK_IN * IN;
     // it rides up and down with the arm
     const lift = Math.max(0, m.carriage.position.y - pos.y - m.holderMinIn * IN);
     const pivot = new THREE.Vector3(pos.x - fwd.x * back, pos.y + CHASE_FOCUS_HEIGHT * IN + lift, pos.z - fwd.z * back);
