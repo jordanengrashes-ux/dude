@@ -11,8 +11,8 @@ import { LIFT_PRESETS, zeroInput, type DriverInput } from '../sim/driver';
  * Controller (standard mapping, VEX-style names): R1 raises the arm, R2 lowers it
  * (in proportion to how far it is pressed), L1 turns the claw on / off, L2 runs the
  * rollers in, B runs them out. Sticks: split arcade by default — left stick drives,
- * right stick turns — or one stick (left stick drives and turns; the right stick
- * moves the camera).
+ * right stick turns (and, up / down, tilts the camera) — or one stick (left stick
+ * drives and turns; the right stick moves the camera).
  */
 
 export type ActionId =
@@ -38,7 +38,9 @@ export type ActionId =
   | 'easy'
   | 'momentum'
   | 'viewReset'
-  | 'firstPerson';
+  | 'firstPerson'
+  | 'camUp'
+  | 'camDown';
 
 export interface ActionDef {
   id: ActionId;
@@ -69,6 +71,8 @@ export const ACTIONS: ActionDef[] = [
   { id: 'easy', label: 'Easy claw on / off', hold: false },
   { id: 'momentum', label: 'No momentum on / off', hold: false },
   { id: 'firstPerson', label: 'First / third person', hold: false },
+  { id: 'camUp', label: 'Camera up (hold; also move the mouse, or the right stick)', hold: true },
+  { id: 'camDown', label: 'Camera down (hold)', hold: true },
   { id: 'viewReset', label: 'Camera behind the robot', hold: false },
   { id: 'playPause', label: 'Play / pause', hold: false },
 ];
@@ -108,6 +112,8 @@ export const DEFAULT_BINDINGS: Bindings = {
     firstPerson: ['b', null],
     viewReset: ['v', null],
     playPause: ['p', null],
+    camUp: ['i', 'pageup'],
+    camDown: ['k', 'pagedown'],
   },
   pad: {
     forward: null,
@@ -133,11 +139,13 @@ export const DEFAULT_BINDINGS: Bindings = {
     firstPerson: 10, // L3
     viewReset: 11, // R3
     playPause: 9, // Start
+    camUp: null,
+    camDown: null,
   },
   padLayout: 'split',
 };
 
-const KEY_NAMES: Record<string, string> = { ' ': 'Space', arrowup: '↑', arrowdown: '↓', arrowleft: '←', arrowright: '→', shift: 'Shift', control: 'Ctrl', alt: 'Alt', meta: 'Meta', enter: 'Enter', tab: 'Tab', backspace: 'Backspace' };
+const KEY_NAMES: Record<string, string> = { pageup: 'Page Up', pagedown: 'Page Down', ' ': 'Space', arrowup: '↑', arrowdown: '↓', arrowleft: '←', arrowright: '→', shift: 'Shift', control: 'Ctrl', alt: 'Alt', meta: 'Meta', enter: 'Enter', tab: 'Tab', backspace: 'Backspace' };
 /** How a key is shown ("Space", "↑", "W"). */
 export const keyName = (k: string | null) => (k === null ? '—' : (KEY_NAMES[k] ?? (k.length === 1 ? k.toUpperCase() : k[0].toUpperCase() + k.slice(1))));
 
@@ -206,6 +214,7 @@ class LocalInput {
   /** Right mouse button held over the 3D view (rollers in). */
   private mouseIntake = false;
   private padPrev: boolean[] = [];
+  private lastPoll = 0;
   private listeners = new Set<Listener>();
   private bindListeners = new Set<() => void>();
   /** Called for play / pause. */
@@ -462,6 +471,14 @@ class LocalInput {
 
   /** Poll the first connected controller (call once per animation frame). */
   pollGamepad() {
+    // the camera turns at the same speed at any frame rate (per-frame amounts are for 60 fps)
+    const now = typeof performance !== 'undefined' ? performance.now() : 0;
+    const frames = Math.min(6, Math.max(0, (now - this.lastPoll) / (1000 / 60)));
+    this.lastPoll = now;
+    const cam = (x: number, y: number) => this.onCameraStick?.(x * frames, y * frames);
+    // camera up / down keys, held
+    const camKeys = (this.held('camUp') ? 1 : 0) - (this.held('camDown') ? 1 : 0);
+    if (camKeys) cam(0, camKeys * 0.6);
     const pads = typeof navigator !== 'undefined' && navigator.getGamepads ? navigator.getGamepads() : [];
     const gp = [...pads].find((p) => p && p.connected) ?? null;
     this.gamepad = gp ? gp.id : null;
@@ -497,7 +514,11 @@ class LocalInput {
     if (single) {
       const cx = dz(gp.axes[2] ?? 0);
       const cy = dz(gp.axes[3] ?? 0);
-      if (cx || cy) this.onCameraStick?.(cx, cy);
+      if (cx || cy) cam(cx, cy);
+    } else {
+      // split sticks: the right stick turns the robot left / right and tilts the camera up / down
+      const cy = dz(gp.axes[3] ?? 0);
+      if (cy) cam(0, cy);
     }
     if (this.pad.forward || this.pad.turn) this.onDriveKey?.();
     for (const a of ACTIONS) {

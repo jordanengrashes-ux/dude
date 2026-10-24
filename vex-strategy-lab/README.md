@@ -112,6 +112,7 @@ browser; **Reset to defaults** brings these back:
 | Look around / zoom (all the way in: first person) | mouse (cursor locked) or drag / mouse wheel | right stick (one-stick layout) |
 | First / third person | B | L3 |
 | Camera back behind the robot | V | R3 |
+| Camera up / down (hold) | I / K (also Page Up / Page Down) | right stick up / down |
 | Easy claw on / off | G | Back |
 | No momentum on / off | M | A |
 | Toggle arm (hold) | T | X |
@@ -126,7 +127,7 @@ the controller defaults) go to the rollers.
 Controllers use the standard mapping (Xbox / PlayStation / most USB pads; press a
 button once so the browser sees it); buttons are named as on a VEX controller (L1,
 R1, L2, R2 are the bumpers and triggers). **Split** sticks: left stick drives,
-right stick turns. **One stick**: the left stick drives and turns and the right
+right stick turns (pushed up / down it tilts the camera). **One stick**: the left stick drives and turns and the right
 stick moves the camera. A trigger bound to the arm moves it in proportion to how
 far it is pressed.
 
