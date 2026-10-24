@@ -230,7 +230,12 @@ physics as the match.
 - Programs are saved in this browser (Save / Open).
 
 **PROS code**: **Export code** writes the routine as PROS C++ for
-[Robot Studio](https://robotstudio.ct839.com/) (copy, or download main.cpp):
+[Robot Studio](https://robotstudio.ct839.com/). **Send to Robot Studio** copies it
+and opens your project in a new tab: paste it into `src/main.cpp` there. Paste your
+project's link (`robotstudio.ct839.com/p/…`) once and Send opens that project
+directly; it is remembered in this browser. (Robot Studio only takes requests from
+its own site, so the code goes through the clipboard rather than your account.)
+Copy and download main.cpp work too. The code is:
 - *LemLib*, field-centric: `chassis.setPose` on the starting tile, then
   `moveToPoint` / `turnToHeading` / `turnToPoint` / `moveToPose` in field inches
   (0° = up, clockwise), `waitUntilDone`;
@@ -239,8 +244,9 @@ physics as the match.
   the claw and Toggle arm as pistons; optionally a whole main.cpp with devices,
   chassis setup and a driver control using the same buttons as the simulator.
 
-**Import code** reads a pasted PROS autonomous (LemLib, EZ-Template or plain motor
-calls) and runs it: helper functions called from `autonomous()` are followed,
+**Import code** reads a PROS autonomous (LemLib, EZ-Template or plain motor
+calls): copy your file in Robot Studio, then **Paste from clipboard** (or paste into
+the box). It runs it: helper functions called from `autonomous()` are followed,
 constants and units (`24_in`, `90_deg`) evaluated, fixed-count `for` loops
 unrolled, LemLib motions queued and asynchronous as on the robot, EZ-Template
 motions replacing each other until `pid_wait`. Devices are matched to the robot's

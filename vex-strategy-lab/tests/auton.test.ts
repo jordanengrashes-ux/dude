@@ -5,6 +5,7 @@ import { cloneRobot, DEFAULT_ROBOT } from '../src/robot/config';
 import { cloneParams, OVERRIDE_DEFAULTS } from '../src/rules/ruleset';
 import { buildMatch, type ScenarioConfig } from '../src/sim/scenario';
 import { headingToTheta, liftHeightFromDegrees, liftMotorDegrees, previewPath, thetaToHeading, type AutonProgram, type AutonStep } from '../src/auton/program';
+import { robotStudioProject } from '../src/auton/robotStudio';
 
 /** Autonomous programs: frames, the runner on physics, PROS code import / export. */
 
@@ -354,5 +355,15 @@ describe('Plan mode sequences', () => {
     expect(seats.map((e) => e.text.split(' nests on ')[1])).toEqual(['G-R1a', 'G-R1n']);
     expect(res.score.red).toBeGreaterThan(0);
     expect(res.violations).toEqual([]);
+  });
+});
+
+describe('Robot Studio project links', () => {
+  it('keeps the project from a pasted link and refuses other sites', () => {
+    expect(robotStudioProject('https://robotstudio.ct839.com/p/abc123')).toBe('https://robotstudio.ct839.com/p/abc123');
+    expect(robotStudioProject('  robotstudio.ct839.com/p/abc123/src/main.cpp?x=1#top ')).toBe('https://robotstudio.ct839.com/p/abc123');
+    expect(robotStudioProject('https://robotstudio.ct839.com/teams')).toBeNull();
+    expect(robotStudioProject('https://evil.example/p/abc123')).toBeNull();
+    expect(robotStudioProject('')).toBeNull();
   });
 });

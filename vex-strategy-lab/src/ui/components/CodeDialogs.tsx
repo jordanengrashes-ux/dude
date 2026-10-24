@@ -1,16 +1,72 @@
 import { useEffect, useMemo, useState } from 'react';
 import { exportPros, parseProsAuton, type DeviceRole } from '../../auton/pros';
 import { previewPath, type AutonProgram } from '../../auton/program';
+import { ROBOT_STUDIO, robotStudioProject } from '../../auton/robotStudio';
 import { useApp } from '../store';
 import { layoutFor, plan, setProgram, startFor, usePlan } from '../planState';
 import { FIELD_COLORS, PlanField, RobotGhost } from './PlanField';
 
 /**
- * Code ↔ program: export the plan as PROS C++ (LemLib or EZ-Template) to paste into
- * Robot Studio, or paste PROS code to run it here.
+ * Code ↔ program: send the plan as PROS C++ (LemLib or EZ-Template) to Robot Studio,
+ * or paste PROS code from it to run it here.
  */
 
-export const ROBOT_STUDIO = 'https://robotstudio.ct839.com/';
+const PROJECT_KEY = 'vsl-robot-studio-project';
+
+/** The Robot Studio project link the user gave once, and where Robot Studio opens (that project, or the start page). */
+function useProjectLink() {
+  const [link, setLink] = useState(() => {
+    try {
+      return localStorage.getItem(PROJECT_KEY) ?? '';
+    } catch {
+      return '';
+    }
+  });
+  const save = (v: string) => {
+    setLink(v);
+    try {
+      localStorage.setItem(PROJECT_KEY, v);
+    } catch {
+      /* storage unavailable */
+    }
+  };
+  return { link, save, url: robotStudioProject(link) ?? ROBOT_STUDIO };
+}
+
+function ProjectLink({ link, save }: { link: string; save: (v: string) => void }) {
+  const bad = link.trim() !== '' && !robotStudioProject(link);
+  return (
+    <label className="small rs-project">
+      <span>Your Robot Studio project</span>
+      <input type="url" value={link} placeholder="paste its link once: robotstudio.ct839.com/p/…" spellCheck={false} onChange={(e) => save(e.target.value)} />
+      {bad && <span className="rs-bad">not a Robot Studio project link (robotstudio.ct839.com/p/…)</span>}
+    </label>
+  );
+}
+
+/** Copies right away, inside the click, before a new tab takes the focus; the async clipboard is the fallback. */
+function copyNow(text: string): boolean {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.setAttribute('readonly', '');
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  let ok = false;
+  try {
+    ok = document.execCommand('copy');
+  } catch {
+    ok = false;
+  }
+  ta.remove();
+  if (ok) return true;
+  if (!navigator.clipboard?.writeText) return false;
+  void navigator.clipboard.writeText(text).catch(() => undefined);
+  return true;
+}
+
+const key = (k: string) => (/Mac|iPhone|iPad/.test(navigator.platform) ? `⌘${k}` : `Ctrl+${k}`);
 
 function Modal({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
   useEffect(() => {
@@ -41,6 +97,8 @@ export function ExportDialog() {
   const [flavor, setFlavor] = useState<'lemlib' | 'ez'>(() => (localStorage.getItem('vsl-export-flavor') === 'ez' ? 'ez' : 'lemlib'));
   const [full, setFull] = useState(() => localStorage.getItem('vsl-export-full') !== '0');
   const [copied, setCopied] = useState(false);
+  const [sent, setSent] = useState<'copied' | 'failed' | null>(null);
+  const project = useProjectLink();
   useEffect(() => {
     try {
       localStorage.setItem('vsl-export-flavor', flavor);
@@ -57,6 +115,11 @@ export function ExportDialog() {
     a.download = full ? 'main.cpp' : 'autonomous.cpp';
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+  const send = () => {
+    const ok = copyNow(code);
+    window.open(project.url, '_blank', 'noopener');
+    setSent(ok ? 'copied' : 'failed');
   };
   return (
     <Modal title="Export as PROS C++" onClose={close}>
@@ -81,10 +144,12 @@ export function ExportDialog() {
       </p>
       <textarea className="code" readOnly value={code} spellCheck={false} onFocus={(e) => e.target.select()} />
       <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+        <button className="primary" onClick={send} title="Copies the code and opens Robot Studio in a new tab">
+          Send to Robot Studio ↗
+        </button>
         <button
-          className="primary"
           onClick={() => {
-            void navigator.clipboard?.writeText(code);
+            if (!copyNow(code)) return;
             setCopied(true);
             setTimeout(() => setCopied(false), 1500);
           }}
@@ -92,11 +157,26 @@ export function ExportDialog() {
           {copied ? 'Copied' : 'Copy code'}
         </button>
         <button onClick={download}>Download {full ? 'main.cpp' : 'autonomous.cpp'}</button>
-        <a className="button" href={ROBOT_STUDIO} target="_blank" rel="noreferrer">
-          Open Robot Studio ↗
-        </a>
-        <span className="small muted">then paste it into the editor.</span>
       </div>
+      {sent && (
+        <p className="small rs-steps" role="status">
+          {sent === 'failed' ? (
+            <>
+              This browser didn’t let the code be copied: click the code box, press {key('A')}, {key('C')}, then paste it in the Robot Studio tab.
+            </>
+          ) : full ? (
+            <>
+              Copied. In the Robot Studio tab, open <code>src/main.cpp</code> and press {key('A')}, {key('V')}.
+            </>
+          ) : (
+            <>
+              Copied. In the Robot Studio tab, select your <code>autonomous()</code> function and press {key('V')}.
+            </>
+          )}
+          {project.url === ROBOT_STUDIO && ' Paste your project’s link below and Send opens that project straight away.'}
+        </p>
+      )}
+      <ProjectLink link={project.link} save={project.save} />
     </Modal>
   );
 }
@@ -114,6 +194,27 @@ export function ImportDialog() {
   const program = usePlan((s) => s.program);
   const robot = useApp((s) => s.robot);
   const [code, setCode] = useState(() => localStorage.getItem('vsl-import-code') ?? '');
+  const update = (v: string) => {
+    setCode(v);
+    try {
+      localStorage.setItem('vsl-import-code', v);
+    } catch {
+      /* storage unavailable */
+    }
+  };
+  const [note, setNote] = useState<string | null>(null);
+  const pasteClip = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text.trim()) {
+        update(text);
+        setNote(null);
+      } else setNote(`The clipboard is empty: in Robot Studio press ${key('A')}, ${key('C')} in your file first.`);
+    } catch {
+      setNote(`This browser didn’t let the clipboard be read: click the code box and press ${key('V')}.`);
+    }
+  };
+  const project = useProjectLink();
   const [roles, setRoles] = useState<Record<string, DeviceRole>>({});
   const [entry, setEntry] = useState<string | undefined>(undefined);
   const [clawTrue, setClawTrue] = useState(true);
@@ -125,23 +226,31 @@ export function ImportDialog() {
   return (
     <Modal title="Import PROS C++ code" onClose={close}>
       <p className="small muted">
-        Paste your autonomous from <a href={ROBOT_STUDIO} target="_blank" rel="noreferrer">Robot Studio</a> (or any PROS project): LemLib, EZ-Template or plain motor calls. It runs on {program.slot}'s tile as a{' '}
-        {program.mode === 'skills' ? 'Skills' : 'match'} autonomous; code without setPose starts at (0, 0, 0) there.
+        Bring in your autonomous from Robot Studio (or any PROS project): LemLib, EZ-Template or plain motor calls. In Robot Studio, open your file and press {key('A')}, {key('C')}, then
+        come back and click Paste from clipboard. It runs on {program.slot}'s tile as a {program.mode === 'skills' ? 'Skills' : 'match'} autonomous; code without setPose starts at (0, 0, 0)
+        there.
       </p>
+      <div className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <a className="button" href={project.url} target="_blank" rel="noopener noreferrer">
+          Open Robot Studio ↗
+        </a>
+        <button className="primary" onClick={() => void pasteClip()}>
+          Paste from clipboard
+        </button>
+        {note && (
+          <span className="small rs-bad" role="status">
+            {note}
+          </span>
+        )}
+      </div>
+      <ProjectLink link={project.link} save={project.save} />
       <div className="import-grid">
         <textarea
           className="code"
           placeholder={'void autonomous() {\n  chassis.setPose(-62.2, 6, 90);\n  chassis.moveToPoint(-36, 6, 2000);\n  ...\n}'}
           value={code}
           spellCheck={false}
-          onChange={(e) => {
-            setCode(e.target.value);
-            try {
-              localStorage.setItem('vsl-import-code', e.target.value);
-            } catch {
-              /* storage unavailable */
-            }
-          }}
+          onChange={(e) => update(e.target.value)}
         />
         <div className="import-preview">
           <PlanField layout={layoutFor(program.mode)} highlightSlot={program.slot} cursor="default">

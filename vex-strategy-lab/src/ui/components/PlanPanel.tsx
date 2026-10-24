@@ -18,7 +18,7 @@ export function PlanPanel() {
         </div>
         <span className="small muted">
           {view === 'auton'
-            ? 'Draw your autonomous on the field, run it with physics, then export PROS code for Robot Studio — or import your code and watch it run.'
+            ? 'Draw your autonomous on the field, run it with physics, then send it to Robot Studio as PROS code — or bring your code back and watch it run.'
             : 'Sketch a match plan with your team: routes, arrows, notes and robots.'}
         </span>
       </div>
